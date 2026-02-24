@@ -2,11 +2,11 @@
  * Pipeline integration test — validates logic with IDs 13315, 13316, 13317.
  *
  * Tests all fields: id, material, quantity, processing, comment.
- * Verifies Dropbox paths, file detection, template selection, tag replacements.
+ * Verifies Dropbox paths, file detection, local PDF/DOCX generation, upload paths.
  */
 
 import { parseFormPayload, buildDropboxPaths, isPdf, isStep, getExtension, formatDateFR } from '../src/utils/helpers';
-import { config } from '../src/config';
+import * as documentGenerator from '../src/services/documentGenerator';
 
 // ─── Test helpers ────────────────────────────────────────────────────────────
 
@@ -21,6 +21,17 @@ function assert(condition: boolean, message: string): void {
   } else {
     console.log(`  PASS: ${message}`);
     passed++;
+  }
+}
+
+async function assertAsync(fn: () => Promise<boolean>, message: string): Promise<void> {
+  try {
+    const result = await fn();
+    assert(result, message);
+  } catch (e: any) {
+    console.error(`  FAIL: ${message} — ${e.message}`);
+    failed++;
+    process.exitCode = 1;
   }
 }
 
@@ -198,26 +209,9 @@ for (const id of partIds) {
   );
 }
 
-// ─── Test 8: Template selection for 3 parts ─────────────────────────────────
+// ─── Test 8: Upload paths ───────────────────────────────────────────────────
 
-console.log('\n=== Test 8: Template selection ===');
-
-assert(config.templateIds[3] === '1P6mrTnVgEzA6rPU4SzSGa1jSW3LjrVga6VfmzTithJU', 'Template for 3 parts exists');
-assert(config.templateIds[1] !== undefined, 'Template for 1 part exists');
-assert(config.templateIds[7] !== undefined, 'Template for 7 parts exists');
-
-// For 3 parts, the code checks: partCount <= 7 && config.templateIds[partCount]
-const partCount = 3;
-assert(partCount <= 7 && !!config.templateIds[partCount], '3 parts uses template-based generation');
-
-// Verify all template IDs are defined
-for (let i = 1; i <= 7; i++) {
-  assert(typeof config.templateIds[i] === 'string' && config.templateIds[i].length > 0, `Template ${i} is a non-empty string`);
-}
-
-// ─── Test 9: Upload paths ───────────────────────────────────────────────────
-
-console.log('\n=== Test 9: Upload destinations ===');
+console.log('\n=== Test 8: Upload destinations ===');
 
 assert(
   `${ofPaths.main}/${ofNumber}.pdf` === '/Analyses/RIJ/Achats Externes/OF99001/99001.pdf',
@@ -232,118 +226,104 @@ assert(
   'ZIP upload path',
 );
 
-// ─── Test 10: Template tag replacements for all fields ──────────────────────
+// ─── Test 9+: Async tests (PDF/DOCX generation) ────────────────────────────
 
-console.log('\n=== Test 10: Template tag replacements (all fields) ===');
+async function runAsyncTests() {
+  // ─── Test 9: Local PDF generation with IDs 13315, 13316, 13317 ─────
+  console.log('\n=== Test 9: Local PDF generation ===');
 
-const replacements: Record<string, string> = {
-  OF: ofNumber,
-  Date: formatDateFR(),
-};
+  await assertAsync(async () => {
+    const pdfBuffer = await documentGenerator.generatePdf('99001', sampleParts);
+    return Buffer.isBuffer(pdfBuffer) && pdfBuffer.length > 0;
+  }, 'PDF generated as non-empty Buffer');
 
-const parts = ofData.parts;
-for (let i = 1; i <= 7; i++) {
-  const part = parts[i - 1];
-  replacements[`Ref${i}`] = part?.id || '';
-  replacements[`Qty${i}`] = part?.quantity || '';
-  replacements[`Mat${i}`] = part?.material || '';
-  replacements[`Trait${i}`] = part?.processing || '';
-  replacements[`Com${i}`] = part?.comment || '';
+  await assertAsync(async () => {
+    const pdfBuffer = await documentGenerator.generatePdf('99001', sampleParts);
+    return pdfBuffer.subarray(0, 4).toString() === '%PDF';
+  }, 'PDF starts with %PDF header');
+
+  // ─── Test 10: Local DOCX generation with IDs 13315, 13316, 13317 ───
+  console.log('\n=== Test 10: Local DOCX generation ===');
+
+  await assertAsync(async () => {
+    const docxBuffer = await documentGenerator.generateDocx('99001', sampleParts);
+    return Buffer.isBuffer(docxBuffer) && docxBuffer.length > 0;
+  }, 'DOCX generated as non-empty Buffer');
+
+  await assertAsync(async () => {
+    const docxBuffer = await documentGenerator.generateDocx('99001', sampleParts);
+    return docxBuffer.subarray(0, 2).toString() === 'PK';
+  }, 'DOCX starts with PK (ZIP) header');
+
+  // ─── Test 11: PDF/DOCX with large OF (12 parts) ────────────────────
+  console.log('\n=== Test 11: PDF/DOCX with 12 parts ===');
+
+  const largeParts = Array.from({ length: 12 }, (_, i) => ({
+    id: String(13315 + i),
+    material: `Matériau ${i + 1}`,
+    quantity: String((i + 1) * 3),
+    processing: `Process ${i + 1}`,
+    comment: i % 3 === 0 ? `Note pour pièce ${i + 1}` : '',
+  }));
+
+  await assertAsync(async () => {
+    const pdfBuffer = await documentGenerator.generatePdf('99010', largeParts);
+    return pdfBuffer.length > 0 && pdfBuffer.subarray(0, 4).toString() === '%PDF';
+  }, 'PDF with 12 parts generated successfully');
+
+  await assertAsync(async () => {
+    const docxBuffer = await documentGenerator.generateDocx('99010', largeParts);
+    return docxBuffer.length > 0 && docxBuffer.subarray(0, 2).toString() === 'PK';
+  }, 'DOCX with 12 parts generated successfully');
+
+  // ─── Test 12: Special characters in fields ──────────────────────────
+  console.log('\n=== Test 12: Special characters in fields ===');
+
+  const specialPayload = {
+    of: '99005',
+    parts: [
+      {
+        id: '13315',
+        material: 'Acier inox 304L / 316L',
+        quantity: '100',
+        processing: "Tournage + Fraisage (ébauche & finition)",
+        comment: "Ø25 x 150mm — tolérance ±0.02mm",
+      },
+    ],
+  };
+
+  const specialData = parseFormPayload(specialPayload);
+  assert(specialData.parts[0].material === 'Acier inox 304L / 316L', 'Slash in material preserved');
+  assert(specialData.parts[0].processing === "Tournage + Fraisage (ébauche & finition)", 'Special chars in processing preserved');
+  assert(specialData.parts[0].comment === "Ø25 x 150mm — tolérance ±0.02mm", 'Unicode chars in comment preserved');
+
+  await assertAsync(async () => {
+    const pdfBuffer = await documentGenerator.generatePdf('99005', specialData.parts);
+    return pdfBuffer.length > 0 && pdfBuffer.subarray(0, 4).toString() === '%PDF';
+  }, 'PDF with special characters generated without error');
+
+  await assertAsync(async () => {
+    const docxBuffer = await documentGenerator.generateDocx('99005', specialData.parts);
+    return docxBuffer.length > 0;
+  }, 'DOCX with special characters generated without error');
+
+  // ─── Test 13: formatDateFR ──────────────────────────────────────────
+  console.log('\n=== Test 13: formatDateFR ===');
+
+  const knownDate = new Date(2026, 1, 24); // Feb 24, 2026
+  assert(formatDateFR(knownDate) === '24/02/2026', 'formatDateFR for 2026-02-24');
+
+  const jan1 = new Date(2026, 0, 1); // Jan 1, 2026
+  assert(formatDateFR(jan1) === '01/01/2026', 'formatDateFR for 2026-01-01 (zero-padded)');
+
+  const dec31 = new Date(2025, 11, 31); // Dec 31, 2025
+  assert(formatDateFR(dec31) === '31/12/2025', 'formatDateFR for 2025-12-31');
+
+  // ─── Summary ────────────────────────────────────────────────────────
+  console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
 }
 
-// Verify OF and Date
-assert(replacements['OF'] === '99001', 'OF = 99001');
-assert(/^\d{2}\/\d{2}\/\d{4}$/.test(replacements['Date']), `Date is formatted DD/MM/YYYY: ${replacements['Date']}`);
-
-// Part 1 (13315) — all fields
-assert(replacements['Ref1'] === '13315', 'Ref1 = 13315');
-assert(replacements['Mat1'] === 'Acier C45', 'Mat1 = Acier C45');
-assert(replacements['Qty1'] === '10', 'Qty1 = 10');
-assert(replacements['Trait1'] === 'Tournage CNC', 'Trait1 = Tournage CNC');
-assert(replacements['Com1'] === 'Tolérance H7 sur alésage', 'Com1 = Tolérance H7 sur alésage');
-
-// Part 2 (13316) — all fields
-assert(replacements['Ref2'] === '13316', 'Ref2 = 13316');
-assert(replacements['Mat2'] === 'Inox 316L', 'Mat2 = Inox 316L');
-assert(replacements['Qty2'] === '5', 'Qty2 = 5');
-assert(replacements['Trait2'] === 'Fraisage 5 axes', 'Trait2 = Fraisage 5 axes');
-assert(replacements['Com2'] === 'Finition Ra 0.8', 'Com2 = Finition Ra 0.8');
-
-// Part 3 (13317) — all fields
-assert(replacements['Ref3'] === '13317', 'Ref3 = 13317');
-assert(replacements['Mat3'] === 'Aluminium 7075-T6', 'Mat3 = Aluminium 7075-T6');
-assert(replacements['Qty3'] === '25', 'Qty3 = 25');
-assert(replacements['Trait3'] === 'Rectification cylindrique', 'Trait3 = Rectification cylindrique');
-assert(replacements['Com3'] === 'Traitement anodisation noire après usinage', 'Com3 = Traitement anodisation noire après usinage');
-
-// Parts 4-7 should be empty (only 3 parts submitted)
-for (let i = 4; i <= 7; i++) {
-  assert(replacements[`Ref${i}`] === '', `Ref${i} = empty (no part ${i})`);
-  assert(replacements[`Mat${i}`] === '', `Mat${i} = empty`);
-  assert(replacements[`Qty${i}`] === '', `Qty${i} = empty`);
-  assert(replacements[`Trait${i}`] === '', `Trait${i} = empty`);
-  assert(replacements[`Com${i}`] === '', `Com${i} = empty`);
-}
-
-// ─── Test 11: Special characters in fields ──────────────────────────────────
-
-console.log('\n=== Test 11: Special characters in fields ===');
-
-const specialPayload = {
-  of: '99005',
-  parts: [
-    {
-      id: '13315',
-      material: 'Acier inox 304L / 316L',
-      quantity: '100',
-      processing: "Tournage + Fraisage (ébauche & finition)",
-      comment: "Ø25 x 150mm — tolérance ±0.02mm",
-    },
-  ],
-};
-
-const specialData = parseFormPayload(specialPayload);
-assert(specialData.parts[0].material === 'Acier inox 304L / 316L', 'Slash in material preserved');
-assert(specialData.parts[0].processing === "Tournage + Fraisage (ébauche & finition)", 'Special chars in processing preserved');
-assert(specialData.parts[0].comment === "Ø25 x 150mm — tolérance ±0.02mm", 'Unicode chars in comment preserved');
-
-// ─── Test 12: formatDateFR ──────────────────────────────────────────────────
-
-console.log('\n=== Test 12: formatDateFR ===');
-
-const knownDate = new Date(2026, 1, 24); // Feb 24, 2026
-assert(formatDateFR(knownDate) === '24/02/2026', 'formatDateFR for 2026-02-24');
-
-const jan1 = new Date(2026, 0, 1); // Jan 1, 2026
-assert(formatDateFR(jan1) === '01/01/2026', 'formatDateFR for 2026-01-01 (zero-padded)');
-
-const dec31 = new Date(2025, 11, 31); // Dec 31, 2025
-assert(formatDateFR(dec31) === '31/12/2025', 'formatDateFR for 2025-12-31');
-
-// ─── Test 13: Large OF with >7 parts (programmatic generation path) ─────────
-
-console.log('\n=== Test 13: Large OF with >7 parts ===');
-
-const largeParts = Array.from({ length: 12 }, (_, i) => ({
-  id: String(13315 + i),
-  material: `Matériau ${i + 1}`,
-  quantity: String((i + 1) * 3),
-  processing: `Process ${i + 1}`,
-  comment: i % 3 === 0 ? `Note pour pièce ${i + 1}` : '',
-}));
-
-const largePayload = { of: '99010', parts: largeParts };
-const largeData = parseFormPayload(largePayload);
-assert(largeData.parts.length === 12, 'Large OF has 12 parts');
-assert(largeData.parts.length > 7, '>7 parts triggers programmatic doc generation');
-assert(!config.templateIds[12], 'No template for 12 parts (expected)');
-
-// Verify all 12 parts have correct IDs
-for (let i = 0; i < 12; i++) {
-  assert(largeData.parts[i].id === String(13315 + i), `Large OF part ${i + 1} ID = ${13315 + i}`);
-  assert(largeData.parts[i].material === `Matériau ${i + 1}`, `Large OF part ${i + 1} material preserved`);
-}
-
-// ─── Summary ────────────────────────────────────────────────────────────────
-
-console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
+runAsyncTests().catch((err) => {
+  console.error('Test runner error:', err);
+  process.exitCode = 1;
+});
