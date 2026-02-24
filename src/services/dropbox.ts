@@ -5,9 +5,16 @@ import { ofLogger } from '../utils/logger';
 
 let dbxInstance: Dropbox | null = null;
 
+/** Reset the cached client (e.g. after an auth error) */
+export function resetClient(): void {
+  dbxInstance = null;
+}
+
 /** Get or create a Dropbox client, handling token refresh if OAuth2 is configured */
 async function getClient(): Promise<Dropbox> {
   if (dbxInstance) return dbxInstance;
+
+  const log = ofLogger('dropbox');
 
   // If a long-lived access token is provided, use it directly
   if (config.dropbox.accessToken) {
@@ -19,6 +26,8 @@ async function getClient(): Promise<Dropbox> {
   }
 
   // Otherwise use OAuth2 refresh token flow
+  // The SDK automatically refreshes the token before each API call
+  log.info('Creating Dropbox client with OAuth2 refresh token flow');
   const auth = new DropboxAuth({
     clientId: config.dropbox.clientId,
     clientSecret: config.dropbox.clientSecret,
@@ -26,7 +35,6 @@ async function getClient(): Promise<Dropbox> {
     fetch: fetch as any,
   });
 
-  await auth.refreshAccessToken();
   dbxInstance = new Dropbox({ auth, fetch: fetch as any });
   return dbxInstance;
 }
