@@ -59,6 +59,30 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
     }
     plansListed = true;
     log.info({ folderCount: folderMap.size, fileCount: fileMap.size }, 'Plans directory listed');
+
+    // Debug: log folder names that match any requested part ID
+    for (const part of parts) {
+      const pid = part.id.trim().toLowerCase();
+      const exactMatch = folderMap.has(pid);
+      const directMatch = fileMap.has(pid);
+      const fuzzyMatches: string[] = [];
+      for (const folderName of folderMap.keys()) {
+        if (folderName.startsWith(pid) || folderName.includes(pid)) {
+          fuzzyMatches.push(folderName);
+        }
+      }
+      log.info(
+        { partId: part.id.trim(), exactFolderMatch: exactMatch, directFileMatch: directMatch, fuzzyFolderMatches: fuzzyMatches },
+        'Pre-match diagnostics for part',
+      );
+    }
+
+    // Debug: log a sample of folder names to help diagnose mismatches
+    const folderNames = Array.from(folderMap.keys());
+    log.info(
+      { sampleFolders: folderNames.slice(0, 30), totalFolders: folderNames.length },
+      'Sample of folder names in Plans directory',
+    );
   } catch (err: any) {
     const errDetail = err?.error?.error_summary || err?.message || 'unknown';
     log.warn({ err: errDetail }, 'Cannot list Plans directory — falling back to direct path lookup');
@@ -121,9 +145,29 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
       }
     } else {
       // Plans directory was listed but this part wasn't found
-      log.warn({ partId }, 'Part not found in Plans directory — skipping');
+      // Extra debug: check for near-matches to help diagnose
+      const nearMatches: string[] = [];
+      for (const folderName of folderMap.keys()) {
+        if (folderName.includes(partId.toLowerCase()) || partId.toLowerCase().includes(folderName)) {
+          nearMatches.push(folderName);
+        }
+      }
+      log.warn(
+        { partId, plansListed, folderMapSize: folderMap.size, fileMapSize: fileMap.size, nearMatches },
+        'Part not found in Plans directory — skipping',
+      );
       missingParts.push(partId);
       continue;
+    }
+
+    log.info(
+      { partId, fileCount: files.length, fileNames: files.map(f => f.name) },
+      'Files found for part',
+    );
+
+    if (files.length === 0) {
+      log.warn({ partId }, 'Folder exists but contains no files — marking as missing');
+      missingParts.push(partId);
     }
 
     for (const file of files) {
