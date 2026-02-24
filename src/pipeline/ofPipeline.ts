@@ -12,13 +12,12 @@ import * as zipService from '../services/zip';
  * Steps:
  *  1. Create Dropbox folder structure (OF, NM, DP)
  *  2. For each part: search & copy technical files (PDF → NM, STEP → DP)
- *  3. Create shared link for NM folder
- *  4. Create ZIP archive from NM folder
- *  5. Generate Google Doc (template ≤7 parts, programmatic >7)
- *  6. Export Google Doc as PDF + DOCX
- *  7. Upload PDF, DOCX, ZIP to Dropbox OF folder
- *  8. Delete temporary NM folder
- *  9. Create shared link on OF folder → returned as output
+ *  3. Create ZIP archive from NM folder
+ *  4. Generate Google Doc (template ≤7 parts, programmatic >7)
+ *  5. Export Google Doc as PDF + DOCX
+ *  6. Upload PDF, DOCX, ZIP to Dropbox OF folder
+ *  7. Delete temporary NM folder
+ *  8. Create shared link on OF folder → returned as output
  */
 export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
   const { ofNumber, parts } = ofData;
@@ -68,27 +67,23 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
     }
   }
 
-  // ─── Step 3: Create shared link for NM folder ─────────────────
-  log.info('Step 3: Creating shared link for NM folder');
-  await dropboxService.createSharedLink(paths.nm);
-
-  // ─── Step 4: Create ZIP from NM folder ────────────────────────
-  log.info('Step 4: Creating ZIP archive');
+  // ─── Step 3: Create ZIP from NM folder ────────────────────────
+  log.info('Step 3: Creating ZIP archive');
   const zipBuffer = await zipService.createZipFromDropboxFolder(paths.nm, ofNumber);
 
-  // ─── Step 5: Generate Google Doc ──────────────────────────────
-  log.info('Step 5: Generating Google Doc');
+  // ─── Step 4: Generate Google Doc ──────────────────────────────
+  log.info('Step 4: Generating Google Doc');
   const docId = await googleDocsService.createOFDocument(ofNumber, parts);
 
-  // ─── Step 6: Export Google Doc as PDF + DOCX ──────────────────
-  log.info('Step 6: Exporting Google Doc as PDF and DOCX');
+  // ─── Step 5: Export Google Doc as PDF + DOCX ──────────────────
+  log.info('Step 5: Exporting Google Doc as PDF and DOCX');
   const [pdfBuffer, docxBuffer] = await Promise.all([
     googleDriveService.exportAsPdf(docId),
     googleDriveService.exportAsDocx(docId),
   ]);
 
-  // ─── Step 7: Upload files to Dropbox OF folder ────────────────
-  log.info('Step 7: Uploading files to Dropbox');
+  // ─── Step 6: Upload files to Dropbox OF folder ────────────────
+  log.info('Step 6: Uploading files to Dropbox');
   await Promise.all([
     dropboxService.uploadFile(`${paths.main}/${ofNumber}.pdf`, pdfBuffer),
     dropboxService.uploadFile(`${paths.main}/${ofNumber}.docx`, docxBuffer),
@@ -96,12 +91,12 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
   ]);
   log.info('Files uploaded to Dropbox');
 
-  // ─── Step 8: Delete temporary NM folder ───────────────────────
-  log.info('Step 8: Deleting temporary NM folder');
+  // ─── Step 7: Delete temporary NM folder ───────────────────────
+  log.info('Step 7: Deleting temporary NM folder');
   await dropboxService.deletePath(paths.nm);
 
-  // ─── Step 9: Create shared link for OF folder ─────────────────
-  log.info('Step 9: Creating shared link for OF folder');
+  // ─── Step 8: Create shared link for OF folder ─────────────────
+  log.info('Step 8: Creating shared link for OF folder');
   const dropboxLink = await dropboxService.createSharedLink(paths.main);
 
   log.info({ dropboxLink, missingParts }, 'Pipeline completed successfully');

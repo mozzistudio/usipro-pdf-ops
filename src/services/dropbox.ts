@@ -40,8 +40,8 @@ async function getClient(): Promise<Dropbox> {
 }
 
 /**
- * Create a folder on Dropbox. Uses autorename to handle conflicts.
- * Returns the actual path created.
+ * Create a folder on Dropbox. Reuses the existing folder if it already exists.
+ * Returns the actual path created (or the existing path on conflict).
  */
 export async function createFolder(path: string): Promise<string> {
   const dbx = await getClient();
@@ -49,15 +49,15 @@ export async function createFolder(path: string): Promise<string> {
   try {
     const result = await dbx.filesCreateFolderV2({
       path,
-      autorename: true,
+      autorename: false,
     });
     const actualPath = result.result.metadata.path_display || path;
     log.info({ path: actualPath }, 'Folder created');
     return actualPath;
   } catch (err: any) {
-    // If folder already exists, that's fine
-    if (err?.error?.error_summary?.startsWith('path/conflict/folder')) {
-      log.info({ path }, 'Folder already exists');
+    // If folder already exists, reuse it
+    if (err?.error?.error_summary?.includes('path/conflict/folder')) {
+      log.info({ path }, 'Folder already exists — reusing');
       return path;
     }
     throw err;
@@ -65,38 +65,76 @@ export async function createFolder(path: string): Promise<string> {
 }
 
 /**
- * List files in a Dropbox folder (non-recursive, limit 10).
+ * List all files in a Dropbox folder (non-recursive, with pagination).
  * Returns array of file entries with name and path_lower.
  */
 export async function listFiles(
   folderPath: string,
 ): Promise<Array<{ name: string; pathLower: string; pathDisplay: string }>> {
   const dbx = await getClient();
-  const result = await dbx.filesListFolder({
+  const allEntries: Array<{ name: string; pathLower: string; pathDisplay: string }> = [];
+
+  let result = await dbx.filesListFolder({
     path: folderPath,
     recursive: false,
-    limit: 10,
   });
 
-  return result.result.entries
-    .filter(e => e['.tag'] === 'file')
-    .map(e => ({
-      name: e.name,
-      pathLower: e.path_lower || '',
-      pathDisplay: e.path_display || '',
-    }));
+  for (const e of result.result.entries) {
+    if (e['.tag'] === 'file') {
+      allEntries.push({
+        name: e.name,
+        pathLower: e.path_lower || '',
+        pathDisplay: e.path_display || '',
+      });
+    }
+  }
+
+  // Paginate if there are more results
+  while (result.result.has_more) {
+    result = await dbx.filesListFolderContinue({
+      cursor: result.result.cursor,
+    });
+    for (const e of result.result.entries) {
+      if (e['.tag'] === 'file') {
+        allEntries.push({
+          name: e.name,
+          pathLower: e.path_lower || '',
+          pathDisplay: e.path_display || '',
+        });
+      }
+    }
+  }
+
+  return allEntries;
 }
 
 /**
  * Copy a file on Dropbox.
+ * If the destination already exists, delete it first to ensure a clean overwrite.
  */
 export async function copyFile(fromPath: string, toPath: string): Promise<void> {
   const dbx = await getClient();
-  await dbx.filesCopyV2({
-    from_path: fromPath,
-    to_path: toPath,
-    autorename: true,
-  });
+  const log = ofLogger('dropbox');
+  try {
+    await dbx.filesCopyV2({
+      from_path: fromPath,
+      to_path: toPath,
+      autorename: false,
+    });
+  } catch (err: any) {
+    if (err?.error?.error_summary?.includes('to/conflict/file')) {
+      // Destination already exists — delete and retry for a clean copy
+      log.info({ toPath }, 'Destination file exists — overwriting');
+      await dbx.filesDeleteV2({ path: toPath });
+      await dbx.filesCopyV2({
+        from_path: fromPath,
+        to_path: toPath,
+        autorename: false,
+      });
+    } else {
+      throw err;
+    }
+  }
 }
 
 /**
