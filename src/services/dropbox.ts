@@ -121,6 +121,7 @@ export async function listFolderEntries(
   folderPath: string,
 ): Promise<Array<{ tag: string; name: string; pathLower: string; pathDisplay: string }>> {
   const dbx = await getClient();
+  const log = ofLogger('dropbox');
   const allEntries: Array<{ tag: string; name: string; pathLower: string; pathDisplay: string }> = [];
 
   let result = await dbx.filesListFolder({
@@ -128,6 +129,7 @@ export async function listFolderEntries(
     recursive: false,
   });
 
+  let pageCount = 1;
   for (const e of result.result.entries) {
     allEntries.push({
       tag: e['.tag'],
@@ -136,8 +138,13 @@ export async function listFolderEntries(
       pathDisplay: e.path_display || '',
     });
   }
+  log.info(
+    { folderPath, page: pageCount, entriesInPage: result.result.entries.length, hasMore: result.result.has_more },
+    'listFolderEntries page loaded',
+  );
 
   while (result.result.has_more) {
+    pageCount++;
     result = await dbx.filesListFolderContinue({
       cursor: result.result.cursor,
     });
@@ -149,8 +156,16 @@ export async function listFolderEntries(
         pathDisplay: e.path_display || '',
       });
     }
+    log.info(
+      { folderPath, page: pageCount, entriesInPage: result.result.entries.length, hasMore: result.result.has_more },
+      'listFolderEntries page loaded',
+    );
   }
 
+  log.info(
+    { folderPath, totalEntries: allEntries.length, totalPages: pageCount },
+    'listFolderEntries completed',
+  );
   return allEntries;
 }
 
@@ -265,6 +280,44 @@ export async function uploadFile(
       contents: contents.subarray(offset),
     });
   }
+}
+
+/**
+ * Search for files/folders by name under a given path using Dropbox search API.
+ * Returns matching entries with tag, name and paths.
+ */
+export async function searchByName(
+  query: string,
+  searchPath: string,
+): Promise<Array<{ tag: string; name: string; pathLower: string; pathDisplay: string }>> {
+  const dbx = await getClient();
+  const log = ofLogger('dropbox');
+
+  const result = await dbx.filesSearchV2({
+    query,
+    options: {
+      path: searchPath,
+      max_results: 20,
+      file_status: { '.tag': 'active' },
+      filename_only: true,
+    },
+  });
+
+  const entries: Array<{ tag: string; name: string; pathLower: string; pathDisplay: string }> = [];
+  for (const match of result.result.matches) {
+    const meta = (match.metadata as any)?.metadata;
+    if (meta) {
+      entries.push({
+        tag: meta['.tag'] || 'file',
+        name: meta.name || '',
+        pathLower: meta.path_lower || '',
+        pathDisplay: meta.path_display || '',
+      });
+    }
+  }
+
+  log.info({ query, searchPath, matchCount: entries.length }, 'Dropbox search completed');
+  return entries;
 }
 
 /**
