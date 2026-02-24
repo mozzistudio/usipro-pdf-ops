@@ -10,7 +10,8 @@
     :root {
       --primary: #240C2E;
       --primary-light: #3a1a4a;
-      --accent: #6C3483;
+      --accent: #99eeeb;
+      --accent-dark: #6dd5d2;
       --bg: #f5f3f7;
       --white: #ffffff;
       --border: #d1c4d9;
@@ -36,7 +37,7 @@
     /* Header */
     .header {
       background: var(--primary);
-      padding: 24px 0;
+      padding: 24px 0 0 0;
       text-align: center;
     }
 
@@ -51,7 +52,13 @@
       color: rgba(255,255,255,0.7);
       font-size: 0.85rem;
       margin-top: 6px;
+      margin-bottom: 20px;
       font-weight: 300;
+    }
+
+    .header .accent-bar {
+      height: 3px;
+      background: var(--accent);
     }
 
     /* Container */
@@ -147,7 +154,7 @@
     .parts-table td:first-child {
       text-align: center;
       font-weight: 600;
-      color: var(--accent);
+      color: var(--primary);
       font-size: 0.85rem;
     }
 
@@ -165,8 +172,8 @@
     }
 
     input:focus, textarea:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(108,52,131,0.12);
+      border-color: var(--accent-dark);
+      box-shadow: 0 0 0 3px rgba(153,238,235,0.2);
     }
 
     input::placeholder, textarea::placeholder {
@@ -207,7 +214,7 @@
       border-radius: 8px;
       padding: 12px 24px;
       cursor: pointer;
-      color: var(--accent);
+      color: var(--primary);
       font-family: 'Montserrat', sans-serif;
       font-weight: 500;
       font-size: 0.85rem;
@@ -216,8 +223,8 @@
     }
 
     .btn-add:hover {
-      border-color: var(--accent);
-      background: #faf8fc;
+      border-color: var(--accent-dark);
+      background: #f0fffe;
     }
 
     /* Submit */
@@ -279,9 +286,9 @@
 
     .status-message.loading {
       display: block;
-      background: #f0ebf5;
-      color: var(--accent);
-      border: 1px solid #d1c4d9;
+      background: #f0fffe;
+      color: var(--primary);
+      border: 1px solid var(--accent);
     }
 
     /* Spinner */
@@ -289,8 +296,8 @@
       display: inline-block;
       width: 16px;
       height: 16px;
-      border: 2px solid rgba(108,52,131,0.3);
-      border-top-color: var(--accent);
+      border: 2px solid rgba(153,238,235,0.4);
+      border-top-color: var(--primary);
       border-radius: 50%;
       animation: spin 0.6s linear infinite;
       vertical-align: middle;
@@ -310,7 +317,7 @@
     }
 
     .footer a {
-      color: var(--accent);
+      color: var(--primary);
       text-decoration: none;
       font-weight: 500;
     }
@@ -334,6 +341,7 @@
   <div class="header">
     <h1>USI-PRO</h1>
     <p>Formulaire — Opérations PDF</p>
+    <div class="accent-bar"></div>
   </div>
 
   <div class="container">
@@ -490,7 +498,7 @@
         if (res.ok) {
           let msg = 'Dossier <strong>' + result.of + '</strong> traité avec succès.';
           if (result.dropboxLink) {
-            msg += '<br><br><a href="' + result.dropboxLink + '" target="_blank" style="color:var(--accent);font-weight:600;">Ouvrir le dossier Dropbox</a>';
+            msg += '<br><br><a href="' + result.dropboxLink + '" target="_blank" style="color:var(--primary);font-weight:600;">Ouvrir le dossier Dropbox</a>';
           }
           if (result.missingParts && result.missingParts.length > 0) {
             msg += '<br><br><span style="color:#e67e22;">Pièces non trouvées : ' + result.missingParts.join(', ') + '</span>';

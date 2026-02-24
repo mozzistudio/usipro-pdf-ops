@@ -68,8 +68,19 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
     const partId = part.id.trim();
     log.info({ partId }, 'Searching files for part');
 
-    // Strategy 1: Use the folder map from Plans directory listing
-    const mappedFolderPath = folderMap.get(partId.toLowerCase());
+    // Strategy 1: Exact match from folder map
+    let mappedFolderPath = folderMap.get(partId.toLowerCase());
+
+    // Strategy 1b: Fuzzy match — folder name starts with or contains the part ID
+    if (!mappedFolderPath && plansListed) {
+      for (const [folderName, folderPath] of folderMap) {
+        if (folderName.startsWith(partId.toLowerCase()) || folderName.includes(partId.toLowerCase())) {
+          log.info({ partId, matchedFolder: folderName }, 'Fuzzy-matched part folder');
+          mappedFolderPath = folderPath;
+          break;
+        }
+      }
+    }
 
     // Strategy 2: Check for files directly in Plans folder matching part ID
     const directFiles = fileMap.get(partId.toLowerCase());
