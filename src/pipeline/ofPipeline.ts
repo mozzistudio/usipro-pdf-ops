@@ -126,38 +126,89 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
       // Files found directly in Plans folder (not in a subfolder)
       log.info({ partId, fileCount: directFiles.length }, 'Found part files directly in Plans directory');
       files = directFiles;
-    } else if (!plansListed) {
-      // Plans directory listing failed — fall back to direct path construction
-      const sourcePath = `/Analyses/RIJ/Plans/${partId}`;
-      log.info({ partId, sourcePath }, 'Trying direct path lookup (fallback)');
+    } else {
+      // Strategy 3: Always try direct path — handles cases where the listing
+      // succeeded but missed an entry (large directory, pagination edge case,
+      // namespace mismatch, etc.)
+      const sourcePath = `${plansBasePath}/${partId}`;
+      log.info({ partId, sourcePath, plansListed }, 'Trying direct path lookup');
+      let directPathFound = false;
       try {
         files = await dropboxService.listFiles(sourcePath);
+        directPathFound = true;
+        log.info({ partId, sourcePath, fileCount: files.length }, 'Direct path lookup succeeded');
       } catch (err: any) {
         const summary = typeof err?.error === 'string'
           ? err.error
           : err?.error?.error_summary || '';
         if (typeof summary === 'string' && summary.includes('path/not_found')) {
-          log.warn({ partId, sourcePath }, 'Source folder not found — skipping part');
-          missingParts.push(partId);
-          continue;
-        }
-        throw err;
-      }
-    } else {
-      // Plans directory was listed but this part wasn't found
-      // Extra debug: check for near-matches to help diagnose
-      const nearMatches: string[] = [];
-      for (const folderName of folderMap.keys()) {
-        if (folderName.includes(partId.toLowerCase()) || partId.toLowerCase().includes(folderName)) {
-          nearMatches.push(folderName);
+          log.info({ partId, sourcePath }, 'Direct path not found — trying search');
+        } else {
+          throw err;
         }
       }
-      log.warn(
-        { partId, plansListed, folderMapSize: folderMap.size, fileMapSize: fileMap.size, nearMatches },
-        'Part not found in Plans directory — skipping',
-      );
-      missingParts.push(partId);
-      continue;
+
+      // Strategy 4: Use Dropbox search API as final fallback
+      if (!directPathFound) {
+        try {
+          const searchResults = await dropboxService.searchByName(partId, plansBasePath);
+          // Look for a folder whose name matches the part ID
+          const matchedFolder = searchResults.find(
+            (e) => e.tag === 'folder' && e.name.toLowerCase() === partId.toLowerCase(),
+          );
+          // Also accept folders that start with or contain the part ID
+          const fuzzyFolder = !matchedFolder
+            ? searchResults.find(
+                (e) => e.tag === 'folder' && (
+                  e.name.toLowerCase().startsWith(partId.toLowerCase()) ||
+                  e.name.toLowerCase().includes(partId.toLowerCase())
+                ),
+              )
+            : undefined;
+          const foundFolder = matchedFolder || fuzzyFolder;
+
+          if (foundFolder) {
+            log.info({ partId, foundPath: foundFolder.pathDisplay }, 'Found part via Dropbox search');
+            try {
+              files = await dropboxService.listFiles(foundFolder.pathDisplay);
+            } catch (listErr: any) {
+              const errDetail = listErr?.error?.error_summary || listErr?.message || 'unknown';
+              log.warn({ partId, err: errDetail }, 'Failed to list search-matched folder');
+            }
+          } else {
+            // Check if there are matching files directly
+            const matchedFiles = searchResults.filter(
+              (e) => e.tag === 'file' && e.name.replace(/\.[^.]+$/, '').toLowerCase() === partId.toLowerCase(),
+            );
+            if (matchedFiles.length > 0) {
+              log.info({ partId, fileCount: matchedFiles.length }, 'Found part files via Dropbox search');
+              files = matchedFiles.map((e) => ({
+                name: e.name,
+                pathLower: e.pathLower,
+                pathDisplay: e.pathDisplay,
+              }));
+            }
+          }
+        } catch (searchErr: any) {
+          log.warn({ partId, err: searchErr?.message || 'unknown' }, 'Dropbox search failed');
+        }
+      }
+
+      // If still nothing found after all strategies, mark as missing
+      if (files.length === 0) {
+        const nearMatches: string[] = [];
+        for (const folderName of folderMap.keys()) {
+          if (folderName.includes(partId.toLowerCase()) || partId.toLowerCase().includes(folderName)) {
+            nearMatches.push(folderName);
+          }
+        }
+        log.warn(
+          { partId, plansListed, folderMapSize: folderMap.size, fileMapSize: fileMap.size, nearMatches },
+          'Part not found after all strategies — skipping',
+        );
+        missingParts.push(partId);
+        continue;
+      }
     }
 
     log.info(

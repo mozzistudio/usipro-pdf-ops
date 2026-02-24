@@ -283,6 +283,44 @@ export async function uploadFile(
 }
 
 /**
+ * Search for files/folders by name under a given path using Dropbox search API.
+ * Returns matching entries with tag, name and paths.
+ */
+export async function searchByName(
+  query: string,
+  searchPath: string,
+): Promise<Array<{ tag: string; name: string; pathLower: string; pathDisplay: string }>> {
+  const dbx = await getClient();
+  const log = ofLogger('dropbox');
+
+  const result = await dbx.filesSearchV2({
+    query,
+    options: {
+      path: searchPath,
+      max_results: 20,
+      file_status: { '.tag': 'active' },
+      filename_only: true,
+    },
+  });
+
+  const entries: Array<{ tag: string; name: string; pathLower: string; pathDisplay: string }> = [];
+  for (const match of result.result.matches) {
+    const meta = (match.metadata as any)?.metadata;
+    if (meta) {
+      entries.push({
+        tag: meta['.tag'] || 'file',
+        name: meta.name || '',
+        pathLower: meta.path_lower || '',
+        pathDisplay: meta.path_display || '',
+      });
+    }
+  }
+
+  log.info({ query, searchPath, matchCount: entries.length }, 'Dropbox search completed');
+  return entries;
+}
+
+/**
  * Download a file from Dropbox. Returns the file contents as a Buffer.
  */
 export async function downloadFile(path: string): Promise<Buffer> {
