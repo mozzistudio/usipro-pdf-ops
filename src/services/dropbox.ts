@@ -114,6 +114,47 @@ export async function listFiles(
 }
 
 /**
+ * List all entries (files AND folders) in a Dropbox folder (non-recursive, with pagination).
+ * Returns array of entries with tag, name and paths.
+ */
+export async function listFolderEntries(
+  folderPath: string,
+): Promise<Array<{ tag: string; name: string; pathLower: string; pathDisplay: string }>> {
+  const dbx = await getClient();
+  const allEntries: Array<{ tag: string; name: string; pathLower: string; pathDisplay: string }> = [];
+
+  let result = await dbx.filesListFolder({
+    path: folderPath,
+    recursive: false,
+  });
+
+  for (const e of result.result.entries) {
+    allEntries.push({
+      tag: e['.tag'],
+      name: e.name,
+      pathLower: e.path_lower || '',
+      pathDisplay: e.path_display || '',
+    });
+  }
+
+  while (result.result.has_more) {
+    result = await dbx.filesListFolderContinue({
+      cursor: result.result.cursor,
+    });
+    for (const e of result.result.entries) {
+      allEntries.push({
+        tag: e['.tag'],
+        name: e.name,
+        pathLower: e.path_lower || '',
+        pathDisplay: e.path_display || '',
+      });
+    }
+  }
+
+  return allEntries;
+}
+
+/**
  * Copy a file on Dropbox.
  * If the destination already exists, delete it first to ensure a clean overwrite.
  */
