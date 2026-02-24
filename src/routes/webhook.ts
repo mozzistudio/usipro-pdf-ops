@@ -39,13 +39,15 @@ apiRouter.post('/api/submit', async (req: Request, res: Response) => {
       missingParts: result.missingParts,
     });
   } catch (err: any) {
+    // Extract detailed error info (Dropbox SDK embeds it in err.error)
+    const detail = err?.error?.error_summary || err?.error || err.message;
     logger.error(
-      { of: ofData.ofNumber, err: err.message, stack: err.stack },
+      { of: ofData.ofNumber, err: err.message, detail, status: err?.status, stack: err.stack },
       'Pipeline failed',
     );
     res.status(500).json({
       status: 'error',
-      message: `Le traitement de l'OF ${ofData.ofNumber} a échoué: ${err.message}`,
+      message: `Le traitement de l'OF ${ofData.ofNumber} a échoué: ${detail}`,
     });
   }
 });
