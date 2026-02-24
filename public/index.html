@@ -301,6 +301,24 @@
       to { transform: rotate(360deg); }
     }
 
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 32px 20px;
+      font-size: 0.8rem;
+      color: var(--text-light);
+    }
+
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+
     /* Responsive */
     @media (max-width: 800px) {
       .container { padding: 0 12px; margin: 20px auto; }
@@ -359,6 +377,10 @@
 
       <div class="status-message" id="statusMsg"></div>
     </form>
+  </div>
+
+  <div class="footer">
+    <a href="/privacy-policy.html">Politique de Confidentialité</a>
   </div>
 
   <script>
