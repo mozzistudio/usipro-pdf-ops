@@ -1,0 +1,33 @@
+{
+  "name": "usipro-of-automation",
+  "version": "1.0.0",
+  "description": "USI-PRO OF automation server — replaces Make.com scenario for automatic fabrication order processing",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev --respawn src/index.ts"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "dropbox": "^10.34.0",
+    "express": "^4.21.0",
+    "googleapis": "^144.0.0",
+    "jszip": "^3.10.1",
+    "node-fetch": "^2.7.0",
+    "nodemailer": "^6.9.15",
+    "pino": "^9.4.0",
+    "pino-pretty": "^11.3.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.17.0",
+    "@types/node-fetch": "^2.6.11",
+    "@types/nodemailer": "^6.4.16",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.6.0"
+  }
+}
