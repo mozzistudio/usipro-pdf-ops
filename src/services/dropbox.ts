@@ -15,25 +15,51 @@ async function getClient(): Promise<Dropbox> {
   if (dbxInstance) return dbxInstance;
 
   const log = ofLogger('dropbox');
+  const { accessToken, clientId, clientSecret, refreshToken } = config.dropbox;
 
-  // If a long-lived access token is provided, use it directly
-  if (config.dropbox.accessToken) {
+  // Option 1: long-lived access token (simple but expires after ~4 h)
+  if (accessToken) {
+    log.info('Using Dropbox access token directly');
     dbxInstance = new Dropbox({
-      accessToken: config.dropbox.accessToken,
+      accessToken,
       fetch: fetch as any,
     });
     return dbxInstance;
   }
 
-  // Otherwise use OAuth2 refresh token flow
-  // The SDK automatically refreshes the token before each API call
+  // Option 2: OAuth2 refresh-token flow — validate all required credentials
+  if (!refreshToken) {
+    throw new Error(
+      'Dropbox auth not configured: set DROPBOX_ACCESS_TOKEN for quick testing, ' +
+      'or provide DROPBOX_CLIENT_ID + DROPBOX_CLIENT_SECRET + DROPBOX_REFRESH_TOKEN for production.',
+    );
+  }
+  if (!clientSecret) {
+    throw new Error(
+      'Dropbox: DROPBOX_CLIENT_SECRET is required when using the refresh-token flow.',
+    );
+  }
+
   log.info('Creating Dropbox client with OAuth2 refresh token flow');
   const auth = new DropboxAuth({
-    clientId: config.dropbox.clientId,
-    clientSecret: config.dropbox.clientSecret,
-    refreshToken: config.dropbox.refreshToken,
+    clientId,
+    clientSecret,
+    refreshToken,
     fetch: fetch as any,
   });
+
+  // Explicitly obtain an access token so auth errors surface immediately
+  // instead of producing a cryptic "Invalid authorization value" later.
+  try {
+    await auth.refreshAccessToken();
+    log.info('Dropbox access token obtained via refresh');
+  } catch (err: any) {
+    const detail = err?.error?.error_description || err?.error?.error || err.message;
+    throw new Error(
+      `Dropbox token refresh failed: ${detail}. ` +
+      'Verify DROPBOX_CLIENT_ID, DROPBOX_CLIENT_SECRET and DROPBOX_REFRESH_TOKEN in your environment.',
+    );
+  }
 
   dbxInstance = new Dropbox({ auth, fetch: fetch as any });
   return dbxInstance;
