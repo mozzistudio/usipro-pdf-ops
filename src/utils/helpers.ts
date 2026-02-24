@@ -1,39 +1,21 @@
-import { OFData, Part, WebflowWebhookPayload } from '../types';
-
-const MAX_PARTS = 7;
-const MAX_FILE_PARTS = 5;
+import { FormPayload, OFData } from '../types';
 
 /**
- * Parse the Webflow form data into structured OFData.
- * Extracts non-empty parts and separates file-searchable parts (1-5) from all parts (1-7).
+ * Validate and parse the form payload into OFData.
+ * Accepts an unlimited number of parts.
  */
-export function parseWebhookData(payload: WebflowWebhookPayload): OFData {
-  const { data } = payload;
-  const ofNumber = data.OF;
-
+export function parseFormPayload(payload: FormPayload): OFData {
+  const ofNumber = (payload.of || '').trim();
   if (!ofNumber) {
-    throw new Error('Missing OF number in webhook payload');
+    throw new Error('Numéro OF manquant');
   }
 
-  const allParts: Part[] = [];
-
-  for (let i = 1; i <= MAX_PARTS; i++) {
-    const id = (data[`ID${i}`] || '').trim();
-    if (!id) continue;
-
-    allParts.push({
-      index: i,
-      id,
-      material: (data[`material${i}`] || '').trim(),
-      quantity: (data[`quantity${i}`] || '').trim(),
-      processing: (data[`processing${i}`] || '').trim(),
-      comment: (data[`comment${i}`] || '').trim(),
-    });
+  const parts = (payload.parts || []).filter(p => p.id && p.id.trim());
+  if (parts.length === 0) {
+    throw new Error('Au moins une pièce avec un ID est requise');
   }
 
-  const fileParts = allParts.filter(p => p.index <= MAX_FILE_PARTS);
-
-  return { ofNumber, allParts, fileParts };
+  return { ofNumber, parts };
 }
 
 /** Format a date as DD/MM/YYYY */

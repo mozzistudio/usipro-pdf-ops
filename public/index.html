@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>USI-PRO — Formulaire Opérations PDF</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #240C2E;
+      --primary-light: #3a1a4a;
+      --accent: #6C3483;
+      --bg: #f5f3f7;
+      --white: #ffffff;
+      --border: #d1c4d9;
+      --text: #2c2c2c;
+      --text-light: #666;
+      --success: #27ae60;
+      --error: #e74c3c;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Montserrat', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: var(--primary);
+      padding: 24px 0;
+      text-align: center;
+    }
+
+    .header h1 {
+      color: var(--white);
+      font-size: 1.6rem;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+
+    .header p {
+      color: rgba(255,255,255,0.7);
+      font-size: 0.85rem;
+      margin-top: 6px;
+      font-weight: 300;
+    }
+
+    /* Container */
+    .container {
+      max-width: 1100px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+
+    /* OF field */
+    .of-section {
+      background: var(--white);
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .of-section label {
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--primary);
+      white-space: nowrap;
+    }
+
+    .of-section input {
+      flex: 1;
+      max-width: 300px;
+    }
+
+    /* Table section */
+    .table-section {
+      background: var(--white);
+      border-radius: 12px;
+      padding: 28px 32px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .table-section h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 16px;
+    }
+
+    /* Table */
+    .parts-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .parts-table thead th {
+      background: var(--primary);
+      color: var(--white);
+      font-weight: 500;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 12px 10px;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .parts-table thead th:first-child {
+      border-radius: 8px 0 0 0;
+      width: 44px;
+      text-align: center;
+    }
+
+    .parts-table thead th:last-child {
+      border-radius: 0 8px 0 0;
+      width: 50px;
+      text-align: center;
+    }
+
+    .parts-table tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+
+    .parts-table tbody tr:hover {
+      background: #faf8fc;
+    }
+
+    .parts-table td {
+      padding: 8px 6px;
+      vertical-align: middle;
+    }
+
+    .parts-table td:first-child {
+      text-align: center;
+      font-weight: 600;
+      color: var(--accent);
+      font-size: 0.85rem;
+    }
+
+    /* Inputs */
+    input, textarea {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.85rem;
+      padding: 10px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      width: 100%;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+      color: var(--text);
+    }
+
+    input:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(108,52,131,0.12);
+    }
+
+    input::placeholder, textarea::placeholder {
+      color: #b0a3b8;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 38px;
+      max-height: 100px;
+    }
+
+    /* Remove button */
+    .btn-remove {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--error);
+      font-size: 1.2rem;
+      padding: 6px;
+      border-radius: 4px;
+      transition: background 0.15s;
+      line-height: 1;
+    }
+
+    .btn-remove:hover {
+      background: rgba(231,76,60,0.1);
+    }
+
+    /* Add row button */
+    .add-row-wrapper {
+      padding: 16px 0 8px;
+    }
+
+    .btn-add {
+      background: none;
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 12px 24px;
+      cursor: pointer;
+      color: var(--accent);
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 500;
+      font-size: 0.85rem;
+      width: 100%;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .btn-add:hover {
+      border-color: var(--accent);
+      background: #faf8fc;
+    }
+
+    /* Submit */
+    .submit-wrapper {
+      margin-top: 28px;
+      text-align: center;
+    }
+
+    .btn-submit {
+      background: var(--primary);
+      color: var(--white);
+      border: none;
+      padding: 14px 60px;
+      border-radius: 8px;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      letter-spacing: 0.5px;
+    }
+
+    .btn-submit:hover {
+      background: var(--primary-light);
+    }
+
+    .btn-submit:active {
+      transform: scale(0.98);
+    }
+
+    .btn-submit:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* Status messages */
+    .status-message {
+      margin-top: 20px;
+      padding: 16px 20px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      display: none;
+    }
+
+    .status-message.success {
+      display: block;
+      background: #eafaf1;
+      color: var(--success);
+      border: 1px solid #a3d9b1;
+    }
+
+    .status-message.error {
+      display: block;
+      background: #fdecea;
+      color: var(--error);
+      border: 1px solid #f5b7b1;
+    }
+
+    .status-message.loading {
+      display: block;
+      background: #f0ebf5;
+      color: var(--accent);
+      border: 1px solid #d1c4d9;
+    }
+
+    /* Spinner */
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(108,52,131,0.3);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Responsive */
+    @media (max-width: 800px) {
+      .container { padding: 0 12px; margin: 20px auto; }
+      .of-section { flex-direction: column; align-items: stretch; padding: 20px; }
+      .of-section input { max-width: 100%; }
+      .table-section { padding: 16px; overflow-x: auto; }
+      .parts-table { min-width: 700px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>USI-PRO</h1>
+    <p>Formulaire — Opérations PDF</p>
+  </div>
+
+  <div class="container">
+    <form id="ofForm" autocomplete="off">
+
+      <!-- OF Number -->
+      <div class="of-section">
+        <label for="of">Numéro OF</label>
+        <input type="text" id="of" name="OF" required placeholder="Ex: 12345">
+      </div>
+
+      <!-- Parts table -->
+      <div class="table-section">
+        <h2>Pièces</h2>
+        <table class="parts-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>ID</th>
+              <th>Matériel</th>
+              <th>Quantité</th>
+              <th>Traitement</th>
+              <th>Commentaire</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="partsBody">
+            <!-- Rows inserted by JS -->
+          </tbody>
+        </table>
+
+        <div class="add-row-wrapper">
+          <button type="button" class="btn-add" id="btnAdd">+ Ajouter une pièce</button>
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <div class="submit-wrapper">
+        <button type="submit" class="btn-submit" id="btnSubmit">Envoyer</button>
+      </div>
+
+      <div class="status-message" id="statusMsg"></div>
+    </form>
+  </div>
+
+  <script>
+    const partsBody = document.getElementById('partsBody');
+    const btnAdd = document.getElementById('btnAdd');
+    const form = document.getElementById('ofForm');
+    const btnSubmit = document.getElementById('btnSubmit');
+    const statusMsg = document.getElementById('statusMsg');
+
+    let rowCounter = 0;
+
+    function addRow() {
+      rowCounter++;
+      const tr = document.createElement('tr');
+      tr.dataset.row = rowCounter;
+      tr.innerHTML = `
+        <td>${rowCounter}</td>
+        <td><input type="text" name="id_${rowCounter}" placeholder="Réf. pièce"></td>
+        <td><input type="text" name="material_${rowCounter}" placeholder="Ex: Acier inox 316L"></td>
+        <td><input type="text" name="quantity_${rowCounter}" placeholder="Qté"></td>
+        <td><input type="text" name="processing_${rowCounter}" placeholder="Ex: Tournage"></td>
+        <td><textarea name="comment_${rowCounter}" placeholder="Commentaire" rows="1"></textarea></td>
+        <td><button type="button" class="btn-remove" title="Supprimer">&times;</button></td>
+      `;
+      partsBody.appendChild(tr);
+      renumberRows();
+    }
+
+    function renumberRows() {
+      const rows = partsBody.querySelectorAll('tr');
+      rows.forEach((row, i) => {
+        row.querySelector('td:first-child').textContent = i + 1;
+      });
+    }
+
+    // Remove row
+    partsBody.addEventListener('click', (e) => {
+      if (e.target.classList.contains('btn-remove')) {
+        const row = e.target.closest('tr');
+        if (partsBody.children.length > 1) {
+          row.remove();
+          renumberRows();
+        }
+      }
+    });
+
+    // Add row button
+    btnAdd.addEventListener('click', addRow);
+
+    // Collect form data as JSON
+    function collectFormData() {
+      const ofValue = document.getElementById('of').value.trim();
+      const rows = partsBody.querySelectorAll('tr');
+      const parts = [];
+
+      rows.forEach((row) => {
+        const inputs = row.querySelectorAll('input, textarea');
+        const id = inputs[0]?.value.trim() || '';
+        const material = inputs[1]?.value.trim() || '';
+        const quantity = inputs[2]?.value.trim() || '';
+        const processing = inputs[3]?.value.trim() || '';
+        const comment = inputs[4]?.value.trim() || '';
+
+        // Only include rows where at least the ID is filled
+        if (id) {
+          parts.push({ id, material, quantity, processing, comment });
+        }
+      });
+
+      return { of: ofValue, parts };
+    }
+
+    // Show status
+    function showStatus(type, message) {
+      statusMsg.className = 'status-message ' + type;
+      statusMsg.innerHTML = message;
+    }
+
+    // Submit
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const data = collectFormData();
+
+      if (!data.of) {
+        showStatus('error', 'Veuillez entrer un numéro OF.');
+        return;
+      }
+
+      if (data.parts.length === 0) {
+        showStatus('error', 'Veuillez ajouter au moins une pièce avec un ID.');
+        return;
+      }
+
+      btnSubmit.disabled = true;
+      showStatus('loading', '<span class="spinner"></span>Envoi en cours… Le traitement peut prendre quelques minutes.');
+
+      try {
+        const res = await fetch('/api/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+
+        const result = await res.json();
+
+        if (res.ok) {
+          showStatus('success', 'Le dossier <strong>' + data.of + '</strong> a été soumis avec succès. Le traitement est en cours.');
+        } else {
+          showStatus('error', result.message || 'Une erreur est survenue.');
+        }
+      } catch (err) {
+        showStatus('error', 'Erreur de connexion au serveur. Veuillez réessayer.');
+      } finally {
+        btnSubmit.disabled = false;
+      }
+    });
+
+    // Initialize with one row
+    addRow();
+  </script>
+
+</body>
+</html>

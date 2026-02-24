@@ -8,21 +8,22 @@ import * as zipService from '../services/zip';
 import * as emailService from '../services/email';
 
 /**
- * Execute the full OF pipeline.
+ * Execute the full OF pipeline for an unlimited number of parts.
  *
  * Steps:
- * 1. Create Dropbox folder structure
- * 2. Search & copy technical files (PDF → NM, STEP → DP)
- * 3. Create ZIP from NM folder
- * 4. Generate Google Doc from template
- * 5. Export Google Doc as PDF + DOCX
- * 6. Upload PDF, DOCX, ZIP to Dropbox OF folder
- * 7. Delete temporary NM folder
- * 8. Create shared link on OF folder
- * 9. Send confirmation email
+ *  1. Create Dropbox folder structure (OF, NM, DP)
+ *  2. For each part: search & copy technical files (PDF → NM, STEP → DP)
+ *  3. Create shared link for NM folder
+ *  4. Create ZIP archive from NM folder
+ *  5. Generate Google Doc (template ≤7 parts, programmatic >7)
+ *  6. Export Google Doc as PDF + DOCX
+ *  7. Upload PDF, DOCX, ZIP to Dropbox OF folder
+ *  8. Delete temporary NM folder
+ *  9. Create shared link on OF folder
+ * 10. Send confirmation email with 3 attachments
  */
 export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
-  const { ofNumber, allParts, fileParts } = ofData;
+  const { ofNumber, parts } = ofData;
   const log = ofLogger(ofNumber);
   const paths = buildDropboxPaths(ofNumber);
 
@@ -33,9 +34,9 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
   await dropboxService.createFolder(paths.dp);
   log.info({ paths }, 'Folder structure created');
 
-  // ─── Step 2: Search & copy technical files ────────────────────
-  log.info('Step 2: Searching and copying technical files');
-  for (const part of fileParts) {
+  // ─── Step 2: Search & copy technical files for every part ─────
+  log.info({ partCount: parts.length }, 'Step 2: Searching and copying technical files');
+  for (const part of parts) {
     const sourcePath = `/analyses/rij/plans/${part.id}`;
     log.info({ partId: part.id, sourcePath }, 'Searching files for part');
 
@@ -43,7 +44,6 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
     try {
       files = await dropboxService.listFiles(sourcePath);
     } catch (err: any) {
-      // If folder doesn't exist, send error email and abort
       const summary = err?.error?.error_summary || '';
       if (summary.includes('path/not_found')) {
         log.error({ partId: part.id }, 'Source folder not found — sending error email');
@@ -53,7 +53,6 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
       throw err;
     }
 
-    // Filter for PDF and STEP files
     for (const file of files) {
       const ext = getExtension(file.name);
 
@@ -75,19 +74,18 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
 
   // ─── Step 4: Create ZIP from NM folder ────────────────────────
   log.info('Step 4: Creating ZIP archive');
-  const zipBuffer = await zipService.createZipFromDropboxFolder(
-    paths.nm,
-    ofNumber,
-  );
+  const zipBuffer = await zipService.createZipFromDropboxFolder(paths.nm, ofNumber);
 
-  // ─── Step 5: Generate Google Doc from template ────────────────
-  log.info('Step 5: Generating Google Doc from template');
-  const docId = await googleDocsService.createOFDocument(ofNumber, allParts);
+  // ─── Step 5: Generate Google Doc ──────────────────────────────
+  log.info('Step 5: Generating Google Doc');
+  const docId = await googleDocsService.createOFDocument(ofNumber, parts);
 
   // ─── Step 6: Export Google Doc as PDF + DOCX ──────────────────
   log.info('Step 6: Exporting Google Doc as PDF and DOCX');
-  const pdfBuffer = await googleDriveService.exportAsPdf(docId);
-  const docxBuffer = await googleDriveService.exportAsDocx(docId);
+  const [pdfBuffer, docxBuffer] = await Promise.all([
+    googleDriveService.exportAsPdf(docId),
+    googleDriveService.exportAsDocx(docId),
+  ]);
 
   // ─── Step 7: Upload files to Dropbox OF folder ────────────────
   log.info('Step 7: Uploading files to Dropbox');

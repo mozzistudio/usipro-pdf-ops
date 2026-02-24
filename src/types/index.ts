@@ -1,15 +1,5 @@
-/** Raw Webflow webhook payload */
-export interface WebflowWebhookPayload {
-  name: string;
-  siteId: string;
-  formId: string;
-  submittedAt: string;
-  data: Record<string, string>;
-}
-
-/** A single part extracted from the form data */
+/** A single part from the form */
 export interface Part {
-  index: number;
   id: string;
   material: string;
   quantity: string;
@@ -17,13 +7,16 @@ export interface Part {
   comment: string;
 }
 
-/** Parsed OF data after validation */
+/** Payload sent by the frontend form */
+export interface FormPayload {
+  of: string;
+  parts: Part[];
+}
+
+/** Parsed OF data ready for the pipeline */
 export interface OFData {
   ofNumber: string;
-  /** All non-empty parts (ID1-ID7) — used for the Google Doc template */
-  allParts: Part[];
-  /** Parts with index 1-5 — used for file search on Dropbox */
-  fileParts: Part[];
+  parts: Part[];
 }
 
 /** Dropbox folder paths for an OF */
