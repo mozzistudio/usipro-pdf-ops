@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>USI-PRO — Politique de Confidentialité</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #240C2E;
+      --primary-light: #3a1a4a;
+      --accent: #6C3483;
+      --bg: #f5f3f7;
+      --white: #ffffff;
+      --border: #d1c4d9;
+      --text: #2c2c2c;
+      --text-light: #666;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Montserrat', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: var(--primary);
+      padding: 24px 0;
+      text-align: center;
+    }
+
+    .header h1 {
+      color: var(--white);
+      font-size: 1.6rem;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+
+    .header h1 a {
+      color: var(--white);
+      text-decoration: none;
+    }
+
+    .header h1 a:hover {
+      opacity: 0.85;
+    }
+
+    .header p {
+      color: rgba(255,255,255,0.7);
+      font-size: 0.85rem;
+      margin-top: 6px;
+      font-weight: 300;
+    }
+
+    /* Container */
+    .container {
+      max-width: 860px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+
+    /* Content card */
+    .content-card {
+      background: var(--white);
+      border-radius: 12px;
+      padding: 40px 48px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .content-card h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 8px;
+    }
+
+    .content-card .last-updated {
+      font-size: 0.8rem;
+      color: var(--text-light);
+      margin-bottom: 32px;
+    }
+
+    .content-card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--primary);
+      margin-top: 28px;
+      margin-bottom: 10px;
+    }
+
+    .content-card p {
+      font-size: 0.9rem;
+      line-height: 1.7;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+
+    .content-card ul {
+      margin: 8px 0 16px 24px;
+      font-size: 0.9rem;
+      line-height: 1.7;
+      color: var(--text);
+    }
+
+    .content-card ul li {
+      margin-bottom: 4px;
+    }
+
+    .content-card a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .content-card a:hover {
+      text-decoration: underline;
+    }
+
+    /* Back link */
+    .back-link {
+      display: inline-block;
+      margin-bottom: 20px;
+      font-size: 0.85rem;
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .back-link:hover {
+      text-decoration: underline;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 32px 20px;
+      font-size: 0.8rem;
+      color: var(--text-light);
+    }
+
+    /* Responsive */
+    @media (max-width: 800px) {
+      .container { padding: 0 12px; margin: 20px auto; }
+      .content-card { padding: 24px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1><a href="/">USI-PRO</a></h1>
+    <p>Politique de Confidentialité</p>
+  </div>
+
+  <div class="container">
+    <a href="/" class="back-link">&larr; Retour au formulaire</a>
+
+    <div class="content-card">
+      <h2>Politique de Confidentialité</h2>
+      <p class="last-updated">Dernière mise à jour : 24 février 2026</p>
+
+      <p>
+        La société USI-PRO (ci-après « nous », « notre » ou « USI-PRO ») s'engage à protéger
+        la vie privée et les données personnelles de ses utilisateurs. La présente politique de
+        confidentialité décrit les types de données que nous collectons via notre application
+        d'automatisation des opérations PDF, comment nous les utilisons et les mesures que nous
+        prenons pour les protéger.
+      </p>
+
+      <h3>1. Données collectées</h3>
+      <p>Dans le cadre de l'utilisation de notre application, nous pouvons collecter les données suivantes :</p>
+      <ul>
+        <li><strong>Données de formulaire</strong> : numéro d'ordre de fabrication (OF), identifiants de pièces, matériaux, quantités, types de traitement et commentaires saisis par l'utilisateur.</li>
+        <li><strong>Données techniques</strong> : fichiers PDF, DOCX et archives (ZIP) générés lors du traitement des ordres de fabrication.</li>
+        <li><strong>Données de connexion</strong> : journaux techniques du serveur (logs), adresses IP et informations relatives au navigateur, à des fins de diagnostic et de sécurité.</li>
+      </ul>
+
+      <h3>2. Finalités du traitement</h3>
+      <p>Les données collectées sont utilisées exclusivement pour :</p>
+      <ul>
+        <li>Générer les dossiers documentaires liés aux ordres de fabrication (PDF, DOCX, archives).</li>
+        <li>Stocker et organiser les fichiers sur les services cloud (Dropbox, Google Drive).</li>
+        <li>Envoyer des notifications par e-mail contenant les documents générés.</li>
+        <li>Assurer le bon fonctionnement, la maintenance et la sécurité de l'application.</li>
+      </ul>
+
+      <h3>3. Base légale du traitement</h3>
+      <p>
+        Le traitement des données repose sur l'intérêt légitime de USI-PRO à fournir ses services
+        d'automatisation documentaire, ainsi que sur l'exécution du contrat liant USI-PRO à ses
+        utilisateurs dans le cadre de leurs activités professionnelles.
+      </p>
+
+      <h3>4. Partage des données</h3>
+      <p>Vos données peuvent être partagées avec les services tiers suivants, strictement nécessaires au fonctionnement de l'application :</p>
+      <ul>
+        <li><strong>Dropbox</strong> : stockage et partage des fichiers techniques.</li>
+        <li><strong>Google Workspace</strong> (Drive, Docs, Gmail) : génération de documents, stockage et envoi d'e-mails.</li>
+      </ul>
+      <p>
+        Nous ne vendons, ne louons ni ne partageons vos données personnelles avec des tiers à des
+        fins commerciales ou publicitaires.
+      </p>
+
+      <h3>5. Durée de conservation</h3>
+      <p>
+        Les données de formulaire ne sont pas stockées de manière permanente sur notre serveur.
+        Elles sont traitées en temps réel puis transmises aux services cloud concernés. Les fichiers
+        générés sont conservés sur Dropbox et Google Drive conformément aux politiques de conservation
+        internes de USI-PRO.
+      </p>
+
+      <h3>6. Sécurité des données</h3>
+      <p>
+        Nous mettons en œuvre des mesures techniques et organisationnelles appropriées pour protéger
+        vos données contre tout accès non autorisé, toute modification, divulgation ou destruction.
+        Ces mesures incluent notamment :
+      </p>
+      <ul>
+        <li>Communications chiffrées via HTTPS.</li>
+        <li>Authentification sécurisée auprès des services tiers (OAuth 2.0, comptes de service).</li>
+        <li>Accès restreint aux données et aux systèmes.</li>
+      </ul>
+
+      <h3>7. Vos droits</h3>
+      <p>
+        Conformément au Règlement Général sur la Protection des Données (RGPD), vous disposez des
+        droits suivants :
+      </p>
+      <ul>
+        <li><strong>Droit d'accès</strong> : obtenir des informations sur les données que nous détenons vous concernant.</li>
+        <li><strong>Droit de rectification</strong> : demander la correction de données inexactes ou incomplètes.</li>
+        <li><strong>Droit à l'effacement</strong> : demander la suppression de vos données personnelles.</li>
+        <li><strong>Droit à la limitation du traitement</strong> : demander la restriction du traitement de vos données.</li>
+        <li><strong>Droit à la portabilité</strong> : recevoir vos données dans un format structuré et couramment utilisé.</li>
+        <li><strong>Droit d'opposition</strong> : vous opposer au traitement de vos données pour des motifs légitimes.</li>
+      </ul>
+      <p>
+        Pour exercer l'un de ces droits, veuillez nous contacter à l'adresse :
+        <a href="mailto:administratif@usi-pro.com">administratif@usi-pro.com</a>.
+      </p>
+
+      <h3>8. Cookies</h3>
+      <p>
+        Notre application n'utilise pas de cookies de suivi ni de cookies publicitaires. Seuls des
+        cookies techniques strictement nécessaires au fonctionnement du service peuvent être utilisés.
+      </p>
+
+      <h3>9. Modifications de cette politique</h3>
+      <p>
+        Nous nous réservons le droit de modifier la présente politique de confidentialité à tout moment.
+        Toute modification sera publiée sur cette page avec une date de mise à jour révisée. Nous vous
+        encourageons à consulter régulièrement cette page.
+      </p>
+
+      <h3>10. Contact</h3>
+      <p>
+        Pour toute question relative à cette politique de confidentialité ou à la protection de vos
+        données, vous pouvez nous contacter :
+      </p>
+      <ul>
+        <li><strong>E-mail</strong> : <a href="mailto:administratif@usi-pro.com">administratif@usi-pro.com</a></li>
+        <li><strong>Société</strong> : USI-PRO</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="footer">
+    &copy; 2026 USI-PRO. Tous droits réservés.
+  </div>
+
+</body>
+</html>
