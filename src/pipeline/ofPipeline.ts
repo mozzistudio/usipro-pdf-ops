@@ -5,7 +5,6 @@ import * as dropboxService from '../services/dropbox';
 import * as googleDocsService from '../services/googleDocs';
 import * as googleDriveService from '../services/googleDrive';
 import * as zipService from '../services/zip';
-import * as emailService from '../services/email';
 
 /**
  * Execute the full OF pipeline for an unlimited number of parts.
@@ -19,8 +18,7 @@ import * as emailService from '../services/email';
  *  6. Export Google Doc as PDF + DOCX
  *  7. Upload PDF, DOCX, ZIP to Dropbox OF folder
  *  8. Delete temporary NM folder
- *  9. Create shared link on OF folder
- * 10. Send confirmation email with 3 attachments
+ *  9. Create shared link on OF folder → returned as output
  */
 export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
   const { ofNumber, parts } = ofData;
@@ -36,6 +34,8 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
 
   // ─── Step 2: Search & copy technical files for every part ─────
   log.info({ partCount: parts.length }, 'Step 2: Searching and copying technical files');
+  const missingParts: string[] = [];
+
   for (const part of parts) {
     const sourcePath = `/analyses/rij/plans/${part.id}`;
     log.info({ partId: part.id, sourcePath }, 'Searching files for part');
@@ -46,9 +46,9 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
     } catch (err: any) {
       const summary = err?.error?.error_summary || '';
       if (summary.includes('path/not_found')) {
-        log.error({ partId: part.id }, 'Source folder not found — sending error email');
-        await emailService.sendErrorEmail(ofNumber);
-        return { ofNumber, dropboxLink: '', emailSent: true };
+        log.warn({ partId: part.id }, 'Source folder not found — skipping part');
+        missingParts.push(part.id);
+        continue;
       }
       throw err;
     }
@@ -104,16 +104,6 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
   log.info('Step 9: Creating shared link for OF folder');
   const dropboxLink = await dropboxService.createSharedLink(paths.main);
 
-  // ─── Step 10: Send confirmation email ─────────────────────────
-  log.info('Step 10: Sending confirmation email');
-  await emailService.sendConfirmationEmail(
-    ofNumber,
-    dropboxLink,
-    zipBuffer,
-    pdfBuffer,
-    docxBuffer,
-  );
-
-  log.info({ dropboxLink }, 'Pipeline completed successfully');
-  return { ofNumber, dropboxLink, emailSent: true };
+  log.info({ dropboxLink, missingParts }, 'Pipeline completed successfully');
+  return { ofNumber, dropboxLink, missingParts };
 }

@@ -30,5 +30,6 @@ export interface OFDropboxPaths {
 export interface PipelineResult {
   ofNumber: string;
   dropboxLink: string;
-  emailSent: boolean;
+  /** Part IDs whose source folder was not found on Dropbox */
+  missingParts: string[];
 }

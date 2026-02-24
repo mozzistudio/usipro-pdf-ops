@@ -488,7 +488,14 @@
         const result = await res.json();
 
         if (res.ok) {
-          showStatus('success', 'Le dossier <strong>' + data.of + '</strong> a été soumis avec succès. Le traitement est en cours.');
+          let msg = 'Dossier <strong>' + result.of + '</strong> traité avec succès.';
+          if (result.dropboxLink) {
+            msg += '<br><br><a href="' + result.dropboxLink + '" target="_blank" style="color:var(--accent);font-weight:600;">Ouvrir le dossier Dropbox</a>';
+          }
+          if (result.missingParts && result.missingParts.length > 0) {
+            msg += '<br><br><span style="color:#e67e22;">Pièces non trouvées : ' + result.missingParts.join(', ') + '</span>';
+          }
+          showStatus('success', msg);
         } else {
           showStatus('error', result.message || 'Une erreur est survenue.');
         }
