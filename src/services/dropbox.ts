@@ -26,7 +26,12 @@ async function getClient(): Promise<Dropbox> {
   }
 
   // Otherwise use OAuth2 refresh token flow
-  // The SDK automatically refreshes the token before each API call
+  if (!config.dropbox.refreshToken || !config.dropbox.clientSecret) {
+    throw new Error(
+      'Dropbox auth not configured: set DROPBOX_ACCESS_TOKEN or both DROPBOX_CLIENT_SECRET and DROPBOX_REFRESH_TOKEN',
+    );
+  }
+
   log.info('Creating Dropbox client with OAuth2 refresh token flow');
   const auth = new DropboxAuth({
     clientId: config.dropbox.clientId,
