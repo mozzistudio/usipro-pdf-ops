@@ -33,32 +33,97 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
   log.info({ partCount: parts.length }, 'Step 2: Searching and copying technical files');
   const missingParts: string[] = [];
 
-  for (const part of parts) {
-    const sourcePath = `/analyses/rij/plans/${part.id}`;
-    log.info({ partId: part.id, sourcePath }, 'Searching files for part');
+  // List the Plans parent directory to discover available part folders.
+  // This is more robust than constructing paths directly, as Dropbox returns
+  // the exact paths it knows about (handles namespace/casing/shared folder edge cases).
+  const plansBasePath = '/Analyses/RIJ/Plans';
+  const folderMap = new Map<string, string>(); // folder name (lowercase) → pathDisplay
+  const fileMap = new Map<string, Array<{ name: string; pathLower: string; pathDisplay: string }>>(); // part ID → files in Plans root
 
-    let files: Array<{ name: string; pathLower: string; pathDisplay: string }>;
-    try {
-      files = await dropboxService.listFiles(sourcePath);
-    } catch (err: any) {
-      const summary = err?.error?.error_summary || '';
-      if (summary.includes('path/not_found')) {
-        log.warn({ partId: part.id }, 'Source folder not found — skipping part');
-        missingParts.push(part.id);
+  let plansListed = false;
+  try {
+    const entries = await dropboxService.listFolderEntries(plansBasePath);
+    for (const entry of entries) {
+      if (entry.tag === 'folder') {
+        folderMap.set(entry.name.toLowerCase(), entry.pathDisplay);
+      } else if (entry.tag === 'file') {
+        // Files directly in Plans folder (e.g. 13414.pdf)
+        const baseName = entry.name.replace(/\.[^.]+$/, '').toLowerCase();
+        if (!fileMap.has(baseName)) fileMap.set(baseName, []);
+        fileMap.get(baseName)!.push({
+          name: entry.name,
+          pathLower: entry.pathLower,
+          pathDisplay: entry.pathDisplay,
+        });
+      }
+    }
+    plansListed = true;
+    log.info({ folderCount: folderMap.size, fileCount: fileMap.size }, 'Plans directory listed');
+  } catch (err: any) {
+    const errDetail = err?.error?.error_summary || err?.message || 'unknown';
+    log.warn({ err: errDetail }, 'Cannot list Plans directory — falling back to direct path lookup');
+  }
+
+  for (const part of parts) {
+    const partId = part.id.trim();
+    log.info({ partId }, 'Searching files for part');
+
+    // Strategy 1: Use the folder map from Plans directory listing
+    const mappedFolderPath = folderMap.get(partId.toLowerCase());
+
+    // Strategy 2: Check for files directly in Plans folder matching part ID
+    const directFiles = fileMap.get(partId.toLowerCase());
+
+    let files: Array<{ name: string; pathLower: string; pathDisplay: string }> = [];
+
+    if (mappedFolderPath) {
+      // Found the folder in the Plans directory — list its contents
+      log.info({ partId, sourcePath: mappedFolderPath }, 'Found part folder in Plans directory');
+      try {
+        files = await dropboxService.listFiles(mappedFolderPath);
+      } catch (err: any) {
+        const errDetail = err?.error?.error_summary || err?.message || 'unknown';
+        log.warn({ partId, err: errDetail }, 'Failed to list part folder contents');
+        missingParts.push(partId);
         continue;
       }
-      throw err;
+    } else if (directFiles && directFiles.length > 0) {
+      // Files found directly in Plans folder (not in a subfolder)
+      log.info({ partId, fileCount: directFiles.length }, 'Found part files directly in Plans directory');
+      files = directFiles;
+    } else if (!plansListed) {
+      // Plans directory listing failed — fall back to direct path construction
+      const sourcePath = `/Analyses/RIJ/Plans/${partId}`;
+      log.info({ partId, sourcePath }, 'Trying direct path lookup (fallback)');
+      try {
+        files = await dropboxService.listFiles(sourcePath);
+      } catch (err: any) {
+        const summary = typeof err?.error === 'string'
+          ? err.error
+          : err?.error?.error_summary || '';
+        if (typeof summary === 'string' && summary.includes('path/not_found')) {
+          log.warn({ partId, sourcePath }, 'Source folder not found — skipping part');
+          missingParts.push(partId);
+          continue;
+        }
+        throw err;
+      }
+    } else {
+      // Plans directory was listed but this part wasn't found
+      log.warn({ partId }, 'Part not found in Plans directory — skipping');
+      missingParts.push(partId);
+      continue;
     }
 
     for (const file of files) {
       const ext = getExtension(file.name);
 
       if (isPdf(file.name)) {
-        const destPath = `${paths.nm}/${part.id}.pdf`;
+        const destPath = `${paths.nm}/${partId}.pdf`;
         log.info({ from: file.pathDisplay, to: destPath }, 'Copying PDF');
         await dropboxService.copyFile(file.pathDisplay, destPath);
       } else if (isStep(file.name)) {
-        const destPath = `${paths.dp}/${part.id}.${ext}`;
+        const destPath = `${paths.dp}/${partId}.${ext}`;
         log.info({ from: file.pathDisplay, to: destPath }, 'Copying STEP');
         await dropboxService.copyFile(file.pathDisplay, destPath);
       }
