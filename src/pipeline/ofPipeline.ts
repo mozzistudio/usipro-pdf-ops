@@ -5,6 +5,7 @@ import { ofLogger } from '../utils/logger';
 import * as dropboxService from '../services/dropbox';
 import * as documentGenerator from '../services/documentGenerator';
 import * as zipService from '../services/zip';
+import { fetchDocsFromWebhook } from '../services/webhookService';
 
 /**
  * Execute the full OF pipeline for an unlimited number of parts.
@@ -30,96 +31,58 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
   await dropboxService.createFolder(paths.dp);
   log.info({ paths }, 'Folder structure created');
 
-  // ─── Step 2: Search & copy technical files for every part ─────
-  log.info({ partCount: parts.length }, 'Step 2: Searching and copying technical files');
-  const missingParts: string[] = [];
-  const plansBasePath = '/Analyses/RIJ/Plans';
+  // ─── Step 2: Call Make webhook to get Dropbox doc paths ──────
+  log.info({ partCount: parts.length }, 'Step 2: Fetching docs from Make webhook');
+  const partIds = parts.map(p => p.id.trim());
+  const webhookDocs = await fetchDocsFromWebhook(partIds);
+  log.info({ docCount: webhookDocs.length }, 'Webhook returned docs');
 
+  const missingParts: string[] = [];
   let copiedFiles = 0;
 
-  for (const part of parts) {
-    const partId = part.id.trim();
-    let sourcePath = `${plansBasePath}/${partId}`;
-    log.info({ partId, sourcePath }, 'Looking up part folder');
+  for (const doc of webhookDocs) {
+    const sourcePath = doc.path_display || doc.path_lower || doc.path || '';
+    const fileName = doc.name || sourcePath.split('/').pop() || '';
 
-    let files: Array<{ name: string; pathLower: string; pathDisplay: string }> = [];
-    try {
-      files = await dropboxService.listFiles(sourcePath);
-      log.info({ partId, sourcePath, fileCount: files.length, fileNames: files.map(f => f.name) }, 'Part folder found');
-    } catch (err: any) {
-      const summary = typeof err?.error === 'string'
-        ? err.error
-        : err?.error?.error_summary || '';
-      if (typeof summary === 'string' && summary.includes('path/not_found')) {
-        // Fallback: search for a folder whose name matches the partId
-        log.info({ partId }, 'Exact folder not found — searching for matching folder');
-        try {
-          const matchedPath = await dropboxService.findMatchingFolder(plansBasePath, partId);
-          if (matchedPath) {
-            sourcePath = matchedPath;
-            log.info({ partId, matchedPath }, 'Found matching folder via fallback search');
-            files = await dropboxService.listFiles(sourcePath);
-            log.info({ partId, sourcePath, fileCount: files.length, fileNames: files.map(f => f.name) }, 'Matched folder listed');
-          } else {
-            log.warn({ partId, sourcePath }, 'No matching folder found — skipping');
-            missingParts.push(partId);
-            continue;
-          }
-        } catch (fallbackErr: any) {
-          log.warn({ partId, err: fallbackErr.message }, 'Fallback folder search failed — skipping');
-          missingParts.push(partId);
-          continue;
-        }
-      } else {
-        throw err;
-      }
-    }
-
-    // If no direct files, try recursive search (files may be inside subfolders)
-    if (files.length === 0) {
-      log.info({ partId, sourcePath }, 'No direct files — trying recursive search in subfolders');
-      try {
-        files = await dropboxService.listFilesRecursive(sourcePath);
-        log.info({ partId, fileCount: files.length, fileNames: files.map(f => f.name) }, 'Recursive search results');
-      } catch {
-        // Ignore recursive search errors
-      }
-    }
-
-    if (files.length === 0) {
-      log.warn({ partId, sourcePath }, 'Part folder exists but has no files — skipping');
-      missingParts.push(partId);
+    if (!sourcePath) {
+      log.warn({ doc }, 'Doc entry has no path — skipping');
       continue;
     }
 
-    for (const file of files) {
-      const ext = getExtension(file.name);
+    if (isPdf(fileName)) {
+      const baseName = fileName.replace(/\.pdf$/i, '');
+      const destPath = `${paths.nm}/${baseName}.pdf`;
+      log.info({ from: sourcePath, to: destPath }, 'Copying PDF');
+      await dropboxService.copyFile(sourcePath, destPath);
+      copiedFiles++;
+    } else if (isStep(fileName)) {
+      const ext = getExtension(fileName);
+      const baseName = fileName.replace(/\.(stp|step)$/i, '');
+      const destPath = `${paths.dp}/${baseName}.${ext}`;
+      log.info({ from: sourcePath, to: destPath }, 'Copying STEP');
+      await dropboxService.copyFile(sourcePath, destPath);
+      copiedFiles++;
+    }
+  }
 
-      if (isPdf(file.name)) {
-        const destPath = `${paths.nm}/${partId}.pdf`;
-        log.info({ from: file.pathDisplay, to: destPath }, 'Copying PDF');
-        await dropboxService.copyFile(file.pathDisplay, destPath);
-        copiedFiles++;
-      } else if (isStep(file.name)) {
-        const destPath = `${paths.dp}/${partId}.${ext}`;
-        log.info({ from: file.pathDisplay, to: destPath }, 'Copying STEP');
-        await dropboxService.copyFile(file.pathDisplay, destPath);
-        copiedFiles++;
-      }
+  // Track parts that had no matching docs in the webhook response
+  const docNames = webhookDocs.map(d => (d.name || '').replace(/\.[^.]+$/, ''));
+  for (const id of partIds) {
+    if (!docNames.some(name => name === id)) {
+      missingParts.push(id);
     }
   }
 
   // ─── Abort if no technical files were found ─────────────────────
   if (copiedFiles === 0) {
-    log.warn({ missingParts }, 'No technical files found for any part — aborting pipeline');
-    // Clean up the empty folders we created
+    log.warn({ missingParts }, 'No technical files returned by webhook — aborting pipeline');
     await Promise.all([
       dropboxService.deletePath(paths.nm).catch(() => {}),
       dropboxService.deletePath(paths.dp).catch(() => {}),
       dropboxService.deletePath(paths.main).catch(() => {}),
     ]);
     throw new Error(
-      `Aucun fichier technique (PDF/STEP) trouvé pour les pièces: ${missingParts.join(', ')}`,
+      `Aucun fichier technique (PDF/STEP) retourné par le webhook pour les pièces: ${partIds.join(', ')}`,
     );
   }
 
