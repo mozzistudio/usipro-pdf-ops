@@ -73,6 +73,7 @@ apiRouter.post('/api/submit', async (req: Request, res: Response) => {
       of: result.ofNumber,
       dropboxLink: result.dropboxLink,
       missingParts: result.missingParts,
+      zipBase64: result.zipBase64,
     });
   } catch (err: any) {
     // Extract detailed error info (Dropbox SDK embeds it in err.error)
