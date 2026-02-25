@@ -797,11 +797,24 @@
               </div>`
             : '';
 
+          const dpChildrenHtml = `<div class="tree-children">
+              <div class="tree-row">
+                <span class="file-dot pdf"></span>
+                <span class="file-name">${ofNum}.pdf</span>
+                <span class="file-badge pdf">PDF</span>
+                <span class="tree-note">Demande de devis</span>
+              </div>
+              <div class="tree-row">
+                <span class="file-dot docx"></span>
+                <span class="file-name">${ofNum}.docx</span>
+                <span class="file-badge docx">DOCX</span>
+                <span class="tree-note">Demande de devis</span>
+              </div>
+            </div>`;
+
           const treeItems = [
-            { name: ofNum + '.pdf',        type: 'pdf',  note: 'Demande de devis', children: '' },
-            { name: ofNum + '.docx',       type: 'docx', note: 'Demande de devis', children: '' },
-            { name: 'NM' + ofNum + '.zip', type: 'zip',  note: 'PDFs techniques',  children: nmChildrenHtml },
-            { name: 'DP' + ofNum + '/',    type: 'dir',  note: 'Fichiers STEP',    children: '' },
+            { name: 'NM' + ofNum + '.zip', type: 'zip', note: 'PDFs techniques',      children: nmChildrenHtml },
+            { name: 'DP' + ofNum + '/',    type: 'dir', note: 'Plans & Fichiers STEP', children: dpChildrenHtml },
           ];
           const treeHtml = treeItems.map(r =>
             `<div>

@@ -80,11 +80,11 @@ const THEME = {
   deepAccent: '#148f77',
   headerBg: '#0f1a2e',
   headerText: '#ffffff',
-  surfaceAlt: '#f6f9fb',
-  altRow: '#f6f9fb',
-  text: '#2c2c2c',
-  muted: '#64748b',
-  border: '#e2e8f0',
+  surfaceAlt: '#f0f4f8',
+  altRow: '#f0f4f8',
+  text: '#1e293b',
+  muted: '#475569',
+  border: '#cbd5e1',
 };
 
 // ─── PDF Generation (pdfkit) ────────────────────────────────────────────────
@@ -101,7 +101,7 @@ function drawTableHeader(
   rowHeight: number,
 ): number {
   let x = tableLeft;
-  doc.fontSize(8).font('Helvetica-Bold').fillColor(THEME.headerText);
+  doc.fontSize(9).font('Helvetica-Bold').fillColor(THEME.headerText);
   for (let c = 0; c < headers.length; c++) {
     doc.rect(x, y, colWidths[c], rowHeight).fill(THEME.headerBg);
     doc.fillColor(THEME.headerText)
@@ -238,7 +238,7 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
     let y = drawTableHeader(doc, headers, colWidths, tableLeft, doc.y, rowHeight);
 
     // Data rows
-    doc.font('Helvetica').fontSize(8).fillColor(THEME.text);
+    doc.font('Helvetica').fontSize(9).fillColor(THEME.text);
     for (let r = 0; r < parts.length; r++) {
       const part = parts[r];
       // Quantity displayed as "× N"
@@ -251,7 +251,7 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
         doc.addPage();
         y = doc.page.margins.top;
         y = drawTableHeader(doc, headers, colWidths, tableLeft, y, rowHeight);
-        doc.font('Helvetica').fontSize(8).fillColor(THEME.text);
+        doc.font('Helvetica').fontSize(9).fillColor(THEME.text);
       }
 
       let x = tableLeft;
@@ -285,7 +285,7 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
     }
 
     // Section label "INFORMATION"
-    doc.fontSize(8).font('Helvetica-Bold').fillColor(THEME.accent)
+    doc.fontSize(9).font('Helvetica-Bold').fillColor(THEME.primary)
       .text('INFORMATION', marginLeft, doc.y);
     doc.moveDown(0.5);
 
@@ -305,7 +305,7 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
 
       // Estimate heights
       const rowHeights = cardsInRow.map((card) => {
-        const titleH = 10; // ~bold 8pt title
+        const titleH = 11; // ~bold 9pt title
         const bodyLines = Math.ceil(doc.widthOfString(card.body) / innerWidth) + 1;
         const bodyH = bodyLines * (tempFontSize + 2);
         return titleH + 4 + bodyH + cardPadding * 2;
@@ -332,15 +332,15 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
           .strokeColor(THEME.border).lineWidth(0.5).stroke();
 
         // Card title (bold, small, accent-ish dark)
-        doc.fontSize(7.5).font('Helvetica-Bold').fillColor(THEME.primary)
+        doc.fontSize(8.5).font('Helvetica-Bold').fillColor(THEME.primary)
           .text(card.title.toUpperCase(), cardX + cardPadding, rowY + cardPadding, {
             width: innerWidth,
           });
 
-        const titleBottomY = rowY + cardPadding + 10 + 4;
+        const titleBottomY = rowY + cardPadding + 11 + 4;
 
         // Card body text
-        doc.fontSize(7.5).font('Helvetica').fillColor(THEME.muted)
+        doc.fontSize(8.5).font('Helvetica').fillColor(THEME.text)
           .text(card.body, cardX + cardPadding, titleBottomY, {
             width: innerWidth,
           });
@@ -359,14 +359,14 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
       .strokeColor(THEME.border).lineWidth(0.5).stroke();
 
     // Legal info left
-    doc.fontSize(6.5).font('Helvetica').fillColor(THEME.muted)
+    doc.fontSize(7.5).font('Helvetica').fillColor(THEME.muted)
       .text(`${COMPANY.legal} | ${COMPANY.website} | ${COMPANY.tva}`, marginLeft, footerY, {
         width: contentWidth - 60,
         align: 'left',
       });
 
     // Page 1/1 right
-    doc.fontSize(6.5).font('Helvetica').fillColor(THEME.muted)
+    doc.fontSize(7.5).font('Helvetica').fillColor(THEME.muted)
       .text('Page 1/1', marginLeft, footerY, {
         width: contentWidth,
         align: 'right',
@@ -484,8 +484,8 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
               new TextRun({
                 text: line,
                 font: 'Arial',
-                size: 14,
-                color: 'CCDDEE',
+                size: 16,
+                color: 'FFFFFF',
               }),
             ],
             alignment: AlignmentType.RIGHT,
@@ -627,7 +627,7 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
                 alignment: colIdx <= 1 ? AlignmentType.CENTER : AlignmentType.LEFT,
               }),
             ],
-            shading: i % 2 === 1 ? { fill: 'F6F9FB', color: 'auto', type: ShadingType.CLEAR } : undefined,
+            shading: i % 2 === 1 ? { fill: 'F0F4F8', color: 'auto', type: ShadingType.CLEAR } : undefined,
             verticalAlign: VerticalAlign.CENTER,
           }),
       ),
@@ -641,8 +641,8 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
         text: 'INFORMATION',
         bold: true,
         font: 'Arial',
-        size: 16,
-        color: '1ABC9C',
+        size: 18,
+        color: '0F1A2E',
       }),
     ],
     spacing: { before: 300, after: 100 },
@@ -663,7 +663,7 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
                     text: card.title.toUpperCase(),
                     bold: true,
                     font: 'Arial',
-                    size: 15,
+                    size: 17,
                     color: '0F1A2E',
                   }),
                 ],
@@ -674,13 +674,13 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
                   new TextRun({
                     text: card.body,
                     font: 'Arial',
-                    size: 15,
-                    color: '64748B',
+                    size: 17,
+                    color: '374151',
                   }),
                 ],
               }),
             ],
-            shading: { fill: 'F6F9FB', color: 'auto', type: ShadingType.CLEAR },
+            shading: { fill: 'F0F4F8', color: 'auto', type: ShadingType.CLEAR },
             verticalAlign: VerticalAlign.TOP,
             width: { size: 50, type: WidthType.PERCENTAGE },
             margins: {
@@ -705,7 +705,7 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
                     text: card.title.toUpperCase(),
                     bold: true,
                     font: 'Arial',
-                    size: 15,
+                    size: 17,
                     color: '0F1A2E',
                   }),
                 ],
@@ -716,13 +716,13 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
                   new TextRun({
                     text: card.body,
                     font: 'Arial',
-                    size: 15,
-                    color: '64748B',
+                    size: 17,
+                    color: '374151',
                   }),
                 ],
               }),
             ],
-            shading: { fill: 'F6F9FB', color: 'auto', type: ShadingType.CLEAR },
+            shading: { fill: 'F0F4F8', color: 'auto', type: ShadingType.CLEAR },
             verticalAlign: VerticalAlign.TOP,
             width: { size: 50, type: WidthType.PERCENTAGE },
             margins: {
@@ -752,8 +752,8 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
                   new TextRun({
                     text: `${COMPANY.legal} | ${COMPANY.website} | ${COMPANY.tva}`,
                     font: 'Arial',
-                    size: 13,
-                    color: '64748B',
+                    size: 15,
+                    color: '475569',
                   }),
                 ],
                 alignment: AlignmentType.LEFT,
@@ -775,8 +775,8 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
                   new TextRun({
                     text: 'Page 1/1',
                     font: 'Arial',
-                    size: 13,
-                    color: '64748B',
+                    size: 15,
+                    color: '475569',
                   }),
                 ],
                 alignment: AlignmentType.RIGHT,
