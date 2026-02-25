@@ -432,10 +432,10 @@ export async function searchByName(
  */
 export async function fetchDocsFromDropbox(
   partIds: string[],
-): Promise<Array<{ name: string; path_display: string }>> {
+): Promise<Array<{ name: string; path_display: string; partId: string }>> {
   const log = ofLogger('dropbox');
   const basePath = '/Analyses/RIJ/Plans';
-  const results: Array<{ name: string; path_display: string }> = [];
+  const results: Array<{ name: string; path_display: string; partId: string }> = [];
 
   for (const id of partIds) {
     const folderPath = `${basePath}/${id}`;
@@ -457,6 +457,7 @@ export async function fetchDocsFromDropbox(
         results.push({
           name: f.name,
           path_display: f.pathDisplay,
+          partId: id,
         });
       }
     } catch (err: any) {

@@ -49,25 +49,23 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
     }
 
     if (isPdf(fileName)) {
-      const baseName = fileName.replace(/\.pdf$/i, '');
-      const destPath = `${paths.nm}/${baseName}.pdf`;
+      const destPath = `${paths.nm}/${doc.partId}.pdf`;
       log.info({ from: sourcePath, to: destPath }, 'Copying PDF');
       await dropboxService.copyFile(sourcePath, destPath);
       copiedFiles++;
     } else if (isStep(fileName)) {
       const ext = getExtension(fileName);
-      const baseName = fileName.replace(/\.(stp|step)$/i, '');
-      const destPath = `${paths.dp}/${baseName}.${ext}`;
+      const destPath = `${paths.dp}/${doc.partId}.${ext}`;
       log.info({ from: sourcePath, to: destPath }, 'Copying STEP');
       await dropboxService.copyFile(sourcePath, destPath);
       copiedFiles++;
     }
   }
 
-  // Track parts that had no matching docs in the webhook response
-  const docNames = webhookDocs.map(d => (d.name || '').replace(/\.[^.]+$/, ''));
+  // Track parts that had no matching docs
+  const foundPartIds = new Set(webhookDocs.map(d => d.partId));
   for (const id of partIds) {
-    if (!docNames.some(name => name === id)) {
+    if (!foundPartIds.has(id)) {
       missingParts.push(id);
     }
   }
