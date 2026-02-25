@@ -21,7 +21,23 @@ import * as zipService from '../services/zip';
 export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
   const { ofNumber, parts } = ofData;
   const log = ofLogger(ofNumber);
-  const paths = buildDropboxPaths(ofNumber);
+
+  // ─── Resolve OF number: append A/B/C suffix if folder exists ──
+  let resolvedOF = ofNumber;
+  const SUFFIXES = ['', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+  for (const suffix of SUFFIXES) {
+    const candidate = `${ofNumber}${suffix}`;
+    const exists = await dropboxService.folderExists(buildDropboxPaths(candidate).main);
+    if (!exists) {
+      resolvedOF = candidate;
+      break;
+    }
+  }
+  if (resolvedOF !== ofNumber) {
+    log.info({ original: ofNumber, resolved: resolvedOF }, 'OF folder already exists — using suffixed name');
+  }
+
+  const paths = buildDropboxPaths(resolvedOF);
 
   // ─── Step 1: Create Dropbox folder structure ──────────────────
   log.info('Step 1: Creating Dropbox folder structure');
@@ -85,36 +101,41 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
 
   // ─── Step 3: Create ZIP from NM folder ────────────────────────
   log.info('Step 3: Creating ZIP archive');
-  const zipBuffer = await zipService.createZipFromDropboxFolder(paths.nm, ofNumber);
+  const zipBuffer = await zipService.createZipFromDropboxFolder(paths.nm, resolvedOF);
 
   // ─── Step 4: Generate PDF + DOCX locally ──────────────────────
   log.info('Step 4: Generating PDF and DOCX');
   const [pdfBuffer, docxBuffer] = await Promise.all([
-    documentGenerator.generatePdf(ofNumber, parts),
-    documentGenerator.generateDocx(ofNumber, parts),
+    documentGenerator.generatePdf(resolvedOF, parts),
+    documentGenerator.generateDocx(resolvedOF, parts),
   ]);
 
-  // ─── Step 5: Upload files to Dropbox OF folder ────────────────
+  // ─── Step 5: Upload files to Dropbox ──────────────────────────
+  // PDF + DOCX go into the DP subfolder; ZIP stays at the OF root
   log.info('Step 5: Uploading files to Dropbox');
   await Promise.all([
-    dropboxService.uploadFile(`${paths.main}/${ofNumber}.pdf`, pdfBuffer),
-    dropboxService.uploadFile(`${paths.main}/${ofNumber}.docx`, docxBuffer),
-    dropboxService.uploadFile(`${paths.main}/NM${ofNumber}.zip`, zipBuffer),
+    dropboxService.uploadFile(`${paths.dp}/${resolvedOF}.pdf`, pdfBuffer),
+    dropboxService.uploadFile(`${paths.dp}/${resolvedOF}.docx`, docxBuffer),
+    dropboxService.uploadFile(`${paths.main}/NM${resolvedOF}.zip`, zipBuffer),
   ]);
   log.info('Files uploaded to Dropbox');
 
   // ─── Step 6: Build full ZIP of the OF folder contents ──────────
   log.info('Step 6: Building full ZIP of OF folder');
   const fullZip = new JSZip();
-  fullZip.file(`${ofNumber}.pdf`, pdfBuffer);
-  fullZip.file(`${ofNumber}.docx`, docxBuffer);
-  fullZip.file(`NM${ofNumber}.zip`, zipBuffer);
+  fullZip.file(`NM${resolvedOF}.zip`, zipBuffer);
+
+  // PDF + DOCX inside DP subfolder
+  fullZip.file(`DP${resolvedOF}/${resolvedOF}.pdf`, pdfBuffer);
+  fullZip.file(`DP${resolvedOF}/${resolvedOF}.docx`, docxBuffer);
 
   // Include STEP files from DP folder
   const dpFiles = await dropboxService.listFiles(paths.dp);
   for (const f of dpFiles) {
-    const content = await dropboxService.downloadFile(f.pathDisplay);
-    fullZip.file(`DP${ofNumber}/${f.name}`, content);
+    if (isStep(f.name)) {
+      const content = await dropboxService.downloadFile(f.pathDisplay);
+      fullZip.file(`DP${resolvedOF}/${f.name}`, content);
+    }
   }
 
   const fullZipBuffer = await fullZip.generateAsync({
@@ -134,5 +155,5 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
   const dropboxLink = await dropboxService.createSharedLink(paths.main);
 
   log.info({ dropboxLink, missingParts }, 'Pipeline completed successfully');
-  return { ofNumber, dropboxLink, missingParts, zipBase64 };
+  return { ofNumber: resolvedOF, dropboxLink, missingParts, zipBase64 };
 }

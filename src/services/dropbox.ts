@@ -484,6 +484,23 @@ export async function downloadFile(path: string): Promise<Buffer> {
 }
 
 /**
+ * Check whether a path (folder or file) exists on Dropbox.
+ * Returns true if it exists, false if not found.
+ */
+export async function folderExists(path: string): Promise<boolean> {
+  const dbx = await getClient();
+  try {
+    await dbx.filesGetMetadata({ path });
+    return true;
+  } catch (err: any) {
+    if (err?.error?.error_summary?.includes('path/not_found')) {
+      return false;
+    }
+    throw err;
+  }
+}
+
+/**
  * Delete a folder (or file) on Dropbox.
  */
 export async function deletePath(path: string): Promise<void> {
