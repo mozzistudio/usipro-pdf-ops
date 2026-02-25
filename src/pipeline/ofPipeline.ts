@@ -34,7 +34,7 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
   // ─── Step 2: Call Make webhook to get Dropbox doc paths ──────
   log.info({ partCount: parts.length }, 'Step 2: Fetching docs from Make webhook');
   const partIds = parts.map(p => p.id.trim());
-  const webhookDocs = await fetchDocsFromWebhook(partIds);
+  const webhookDocs = await fetchDocsFromWebhook(ofNumber, partIds);
   log.info({ docCount: webhookDocs.length }, 'Webhook returned docs');
 
   const missingParts: string[] = [];

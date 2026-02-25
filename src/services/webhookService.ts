@@ -1,7 +1,7 @@
 import { logger } from '../utils/logger';
 
 const MAKE_WEBHOOK_URL =
-  'https://hook.us1.make.com/30vy4pfukd8kwpo659hafhfqhcur8sz6';
+  'https://hook.us1.make.com/7wo64dyi0rf12isnllkbowt5322nm3ks';
 
 export interface WebhookDoc {
   name: string;
@@ -10,22 +10,23 @@ export interface WebhookDoc {
 }
 
 /**
- * Send part IDs (comma-separated) to the Make.com webhook.
+ * Send OF number + part IDs (comma-separated) to the Make.com webhook.
  * Returns the list of Dropbox document entries.
  */
 export async function fetchDocsFromWebhook(
+  ofNumber: string,
   ids: string[],
 ): Promise<WebhookDoc[]> {
   const idsString = ids.join(',');
   logger.info(
-    { ids: idsString, url: MAKE_WEBHOOK_URL },
-    'Calling Make webhook with part IDs',
+    { of: ofNumber, ids: idsString, url: MAKE_WEBHOOK_URL },
+    'Calling Make webhook with OF number and part IDs',
   );
 
   const response = await fetch(MAKE_WEBHOOK_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids: idsString }),
+    body: JSON.stringify({ of: ofNumber, ids: idsString }),
   });
 
   if (!response.ok) {
