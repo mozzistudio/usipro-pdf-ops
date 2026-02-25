@@ -32,4 +32,6 @@ export interface PipelineResult {
   dropboxLink: string;
   /** Part IDs whose source folder was not found on Dropbox */
   missingParts: string[];
+  /** Base64-encoded ZIP containing the full OF folder contents */
+  zipBase64: string;
 }
