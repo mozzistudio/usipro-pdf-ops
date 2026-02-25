@@ -40,7 +40,34 @@ async function getClient(): Promise<Dropbox> {
     fetch: fetch as any,
   });
 
-  dbxInstance = new Dropbox({ auth, fetch: fetch as any });
+  // Create initial client to detect namespace
+  let dbx = new Dropbox({ auth, fetch: fetch as any });
+
+  // Detect root namespace for Dropbox Business/Team accounts
+  try {
+    const account = await dbx.usersGetCurrentAccount();
+    const rootInfo = account.result.root_info;
+    const rootNs = rootInfo.root_namespace_id;
+    const homeNs = rootInfo.home_namespace_id;
+
+    if (rootNs !== homeNs) {
+      log.info(
+        { rootNamespaceId: rootNs, homeNamespaceId: homeNs },
+        'Team account detected — setting pathRoot to root namespace',
+      );
+      dbx = new Dropbox({
+        auth,
+        fetch: fetch as any,
+        pathRoot: JSON.stringify({ '.tag': 'root', root: rootNs }),
+      });
+    } else {
+      log.info({ namespaceId: rootNs }, 'Personal account — no pathRoot override needed');
+    }
+  } catch (err: any) {
+    log.warn({ error: err?.message }, 'Could not detect namespace — proceeding without pathRoot');
+  }
+
+  dbxInstance = dbx;
   return dbxInstance;
 }
 
