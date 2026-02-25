@@ -55,20 +55,20 @@ const COMPANY = {
 
 const INFO_CARDS = [
   {
-    title: 'Délai de livraison',
-    body: 'Maximum 18 jours après passation de commande, sauf indication contraire dans les commentaires.',
+    title: 'Delivery Time',
+    body: 'Maximum 18 days after order placement, unless otherwise stated in the comments.',
   },
   {
     title: 'Questions',
-    body: 'Contactez-nous à accueil@usi-pro.com',
+    body: 'Contact us at accueil@usi-pro.com',
   },
   {
-    title: 'Paiement & Devise',
-    body: 'Selon nos conditions habituelles. Devises acceptées : € ou $',
+    title: 'Payment & Currency',
+    body: 'Per our usual terms. Accepted currencies: € or $',
   },
   {
-    title: 'Transport',
-    body: 'Le transport peut être pris en charge par vos soins et refacturé. Merci de fournir un devis estimatif au préalable.',
+    title: 'Shipping',
+    body: 'Shipping can be arranged at your expense and re-invoiced. Please provide an estimated quote in advance.',
   },
 ];
 
@@ -179,14 +179,14 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
     // ─── Title Bar ─────────────────────────────────────────────
     const titleBarY = doc.y;
 
-    // "Demande de Devis" — large bold left
+    // "Quote Request" — large bold left
     doc.fontSize(18).font('Helvetica-Bold').fillColor(THEME.primary)
-      .text('Demande de Devis', marginLeft, titleBarY);
+      .text('Quote Request', marginLeft, titleBarY);
 
     // Ref chip and Date chip — right side
     const chipY = titleBarY + 2;
-    const refText = `Réf : ${ofNumber}`;
-    const dateText = `Date : ${date}`;
+    const refText = `Ref: ${ofNumber}`;
+    const dateText = `Date: ${date}`;
     const chipFontSize = 9;
     doc.fontSize(chipFontSize).font('Helvetica');
 
@@ -229,7 +229,7 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
     doc.moveDown(0.8);
 
     // ─── Parts Table (5 columns, no # index) ───────────────────
-    const headers = ['Référence', 'Quantité', 'Matériau', 'Traitement', 'Commentaires'];
+    const headers = ['Reference', 'Quantity', 'Material', 'Treatment', 'Comments'];
     const colWidths = [90, 60, 100, 110, contentWidth - 90 - 60 - 100 - 110];
     const tableLeft = marginLeft;
     const rowHeight = 24;
@@ -284,9 +284,9 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
       doc.addPage();
     }
 
-    // Section label "INFORMATIONS"
+    // Section label "INFORMATION"
     doc.fontSize(8).font('Helvetica-Bold').fillColor(THEME.accent)
-      .text('INFORMATIONS', marginLeft, doc.y);
+      .text('INFORMATION', marginLeft, doc.y);
     doc.moveDown(0.5);
 
     const cardGap = 10;
@@ -532,7 +532,7 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
               new Paragraph({
                 children: [
                   new TextRun({
-                    text: 'Demande de Devis',
+                    text: 'Quote Request',
                     bold: true,
                     font: 'Arial',
                     size: 36,
@@ -556,13 +556,13 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
               new Paragraph({
                 children: [
                   new TextRun({
-                    text: `Réf : ${ofNumber}`,
+                    text: `Ref: ${ofNumber}`,
                     font: 'Arial',
                     size: 18,
                     color: '0F1A2E',
                   }),
                   new TextRun({
-                    text: `   Date : ${date}`,
+                    text: `   Date: ${date}`,
                     font: 'Arial',
                     size: 18,
                     color: '0F1A2E',
@@ -595,7 +595,7 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
   });
 
   // ─── Parts table (5 columns, no #) ───────────────────────────
-  const tableHeaders = ['Référence', 'Quantité', 'Matériau', 'Traitement', 'Commentaires'];
+  const tableHeaders = ['Reference', 'Quantity', 'Material', 'Treatment', 'Comments'];
   const partTableHeaderRow = new TableRow({
     tableHeader: true,
     children: tableHeaders.map(
@@ -638,7 +638,7 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
   const infoSectionLabel = new Paragraph({
     children: [
       new TextRun({
-        text: 'INFORMATIONS',
+        text: 'INFORMATION',
         bold: true,
         font: 'Arial',
         size: 16,
