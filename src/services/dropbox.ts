@@ -283,6 +283,85 @@ export async function uploadFile(
 }
 
 /**
+ * List all files recursively in a Dropbox folder (including subfolders).
+ * Returns array of file entries with name and paths.
+ */
+export async function listFilesRecursive(
+  folderPath: string,
+): Promise<Array<{ name: string; pathLower: string; pathDisplay: string }>> {
+  const dbx = await getClient();
+  const allEntries: Array<{ name: string; pathLower: string; pathDisplay: string }> = [];
+
+  let result = await dbx.filesListFolder({
+    path: folderPath,
+    recursive: true,
+  });
+
+  for (const e of result.result.entries) {
+    if (e['.tag'] === 'file') {
+      allEntries.push({
+        name: e.name,
+        pathLower: e.path_lower || '',
+        pathDisplay: e.path_display || '',
+      });
+    }
+  }
+
+  while (result.result.has_more) {
+    result = await dbx.filesListFolderContinue({
+      cursor: result.result.cursor,
+    });
+    for (const e of result.result.entries) {
+      if (e['.tag'] === 'file') {
+        allEntries.push({
+          name: e.name,
+          pathLower: e.path_lower || '',
+          pathDisplay: e.path_display || '',
+        });
+      }
+    }
+  }
+
+  return allEntries;
+}
+
+/**
+ * Find a subfolder in parentPath whose name matches (or starts with / contains) the given partId.
+ * Returns the folder's pathDisplay if found, or null.
+ */
+export async function findMatchingFolder(
+  parentPath: string,
+  partId: string,
+): Promise<string | null> {
+  const log = ofLogger('dropbox');
+  const entries = await listFolderEntries(parentPath);
+  const folders = entries.filter(e => e.tag === 'folder');
+  const lowerPartId = partId.toLowerCase();
+
+  // Priority 1: exact match (case-insensitive)
+  const exact = folders.find(f => f.name.toLowerCase() === lowerPartId);
+  if (exact) return exact.pathDisplay;
+
+  // Priority 2: folder name starts with the partId
+  const startsWith = folders.filter(f => f.name.toLowerCase().startsWith(lowerPartId));
+  if (startsWith.length === 1) return startsWith[0].pathDisplay;
+  if (startsWith.length > 1) {
+    log.warn({ partId, matches: startsWith.map(f => f.name) }, 'Multiple folders start with partId — using first match');
+    return startsWith[0].pathDisplay;
+  }
+
+  // Priority 3: folder name contains the partId
+  const contains = folders.filter(f => f.name.toLowerCase().includes(lowerPartId));
+  if (contains.length === 1) return contains[0].pathDisplay;
+  if (contains.length > 1) {
+    log.warn({ partId, matches: contains.map(f => f.name) }, 'Multiple folders contain partId — using first match');
+    return contains[0].pathDisplay;
+  }
+
+  return null;
+}
+
+/**
  * Search for files/folders by name under a given path using Dropbox search API.
  * Returns matching entries with tag, name and paths.
  */
