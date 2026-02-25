@@ -634,7 +634,7 @@
         <div class="section-label">Ordre de fabrication</div>
         <div class="of-section">
           <label for="of">Numéro OF</label>
-          <input type="text" id="of" name="OF" required placeholder="Ex : 12345" inputmode="numeric" data-numeric>
+          <input type="text" id="of" name="OF" required placeholder="Ex : 12345 ou OF-2024-A">
         </div>
       </div>
 
@@ -719,11 +719,10 @@
 
     btnAdd.addEventListener('click', addRow);
 
-    // Numeric-only filter for OF field and table ID/Quantity inputs
+    // Numeric-only filter for table ID/Quantity inputs
     function stripNonDigits(e) {
       e.target.value = e.target.value.replace(/\D/g, '');
     }
-    document.getElementById('of').addEventListener('input', stripNonDigits);
     partsBody.addEventListener('input', (e) => {
       if (e.target.dataset.numeric !== undefined) stripNonDigits(e);
     });
