@@ -4,77 +4,141 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>USI-PRO — Formulaire Opérations PDF</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --primary: #240C2E;
-      --primary-light: #3a1a4a;
-      --accent: #99eeeb;
-      --accent-dark: #6dd5d2;
-      --bg: #f5f3f7;
-      --white: #ffffff;
-      --border: #d1c4d9;
-      --text: #2c2c2c;
-      --text-light: #666;
-      --success: #27ae60;
+      --dark: #0f1a2e;
+      --accent: #1abc9c;
+      --accent-deep: #148f77;
+      --accent-glow: #1affd5;
+      --surface: #ffffff;
+      --surface-alt: #f6f9fb;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --radius: 12px;
       --error: #e74c3c;
+      --success: #27ae60;
     }
 
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: 'Montserrat', sans-serif;
-      background: var(--bg);
+      font-family: 'DM Sans', sans-serif;
+      background: #eef2f7;
       color: var(--text);
       min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* Header */
-    .header {
-      background: var(--primary);
-      padding: 24px 0 0 0;
-      text-align: center;
+    /* ── NAVBAR ── */
+    .navbar {
+      background: var(--dark);
+      height: 64px;
+      display: flex;
+      align-items: center;
+      padding: 0 32px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      border-bottom: 2px solid var(--accent);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
     }
 
-    .header h1 {
-      color: var(--white);
-      font-size: 1.6rem;
+    .navbar-logo img {
+      height: 36px;
+      width: auto;
+      display: block;
+    }
+
+    .navbar-divider {
+      width: 1px;
+      height: 28px;
+      background: rgba(255,255,255,0.12);
+      margin: 0 20px;
+      flex-shrink: 0;
+    }
+
+    .navbar-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .navbar-info .nav-title {
+      font-size: 15px;
       font-weight: 600;
-      letter-spacing: 1px;
+      color: #fff;
+      letter-spacing: 0.1px;
+      line-height: 1;
     }
 
-    .header p {
-      color: rgba(255,255,255,0.7);
-      font-size: 0.85rem;
-      margin-top: 6px;
-      margin-bottom: 20px;
-      font-weight: 300;
+    .navbar-info .nav-subtitle {
+      font-size: 11px;
+      color: rgba(255,255,255,0.38);
+      font-weight: 400;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      line-height: 1;
     }
 
-    .header .accent-bar {
-      height: 3px;
-      background: var(--accent);
+    .navbar-badge {
+      margin-left: auto;
+      background: rgba(26,188,156,0.1);
+      border: 1px solid rgba(26,188,156,0.28);
+      color: var(--accent);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 20px;
     }
 
-    /* Container */
+    /* ── CONTAINER ── */
     .container {
       max-width: 1100px;
-      margin: 40px auto;
-      padding: 0 20px;
+      margin: 36px auto;
+      padding: 0 24px;
+      animation: fadeUp 0.6s ease-out;
     }
 
-    /* OF field */
-    .of-section {
-      background: var(--white);
-      border-radius: 12px;
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
       padding: 28px 32px;
-      margin-bottom: 24px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 2.5px;
+      color: var(--accent-deep);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, var(--border), transparent);
+    }
+
+    /* ── OF FIELD ── */
+    .of-section {
       display: flex;
       align-items: center;
       gap: 20px;
@@ -82,58 +146,75 @@
 
     .of-section label {
       font-weight: 700;
-      font-size: 1.1rem;
-      color: var(--primary);
+      font-size: 15px;
+      color: var(--dark);
       white-space: nowrap;
     }
 
     .of-section input {
       flex: 1;
-      max-width: 300px;
+      max-width: 320px;
     }
 
-    /* Table section */
-    .table-section {
-      background: var(--white);
-      border-radius: 12px;
-      padding: 28px 32px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    /* ── INPUTS ── */
+    input, textarea {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      padding: 10px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      width: 100%;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+      color: var(--text);
+      background: var(--surface);
     }
 
-    .table-section h2 {
-      font-size: 1rem;
-      font-weight: 600;
-      color: var(--primary);
-      margin-bottom: 16px;
+    input:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(26,188,156,0.12);
     }
 
-    /* Table */
+    input::placeholder, textarea::placeholder {
+      color: #b0bec5;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 38px;
+      max-height: 100px;
+    }
+
+    /* ── TABLE ── */
     .parts-table {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
     }
 
     .parts-table thead th {
-      background: var(--primary);
-      color: var(--white);
-      font-weight: 500;
-      font-size: 0.8rem;
+      background: var(--dark);
+      color: rgba(255,255,255,0.9);
+      font-size: 11px;
+      font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      padding: 12px 10px;
+      letter-spacing: 1.5px;
+      padding: 13px 12px;
       text-align: left;
       white-space: nowrap;
     }
 
     .parts-table thead th:first-child {
-      border-radius: 8px 0 0 0;
       width: 44px;
       text-align: center;
+      padding-left: 16px;
     }
 
     .parts-table thead th:last-child {
-      border-radius: 0 8px 0 0;
-      width: 50px;
+      width: 48px;
       text-align: center;
     }
 
@@ -143,161 +224,186 @@
     }
 
     .parts-table tbody tr:hover {
-      background: #faf8fc;
+      background: var(--surface-alt);
+    }
+
+    .parts-table tbody tr:last-child td {
+      border-bottom: none;
     }
 
     .parts-table td {
-      padding: 8px 6px;
+      padding: 8px 8px;
       vertical-align: middle;
+      border-bottom: 1px solid var(--border);
     }
 
     .parts-table td:first-child {
       text-align: center;
-      font-weight: 600;
-      color: var(--primary);
-      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--accent-deep);
+      font-size: 13px;
+      background: var(--surface-alt);
     }
 
-    /* Inputs */
-    input, textarea {
-      font-family: 'Montserrat', sans-serif;
-      font-size: 0.85rem;
-      padding: 10px 12px;
-      border: 1.5px solid var(--border);
+    .parts-table td input,
+    .parts-table td textarea {
+      border-color: transparent;
+      background: transparent;
       border-radius: 6px;
-      width: 100%;
-      transition: border-color 0.2s, box-shadow 0.2s;
-      outline: none;
-      color: var(--text);
+      padding: 8px 10px;
+      font-size: 13px;
     }
 
-    input:focus, textarea:focus {
-      border-color: var(--accent-dark);
-      box-shadow: 0 0 0 3px rgba(153,238,235,0.2);
+    .parts-table td input:focus,
+    .parts-table td textarea:focus {
+      border-color: var(--accent);
+      background: var(--surface);
+      box-shadow: 0 0 0 2px rgba(26,188,156,0.1);
     }
 
-    input::placeholder, textarea::placeholder {
-      color: #b0a3b8;
+    .parts-table td input:hover,
+    .parts-table td textarea:hover {
+      background: rgba(0,0,0,0.02);
     }
 
-    textarea {
-      resize: vertical;
-      min-height: 38px;
-      max-height: 100px;
-    }
-
-    /* Remove button */
+    /* ── BUTTONS ── */
     .btn-remove {
       background: none;
       border: none;
       cursor: pointer;
-      color: var(--error);
-      font-size: 1.2rem;
-      padding: 6px;
-      border-radius: 4px;
-      transition: background 0.15s;
+      color: var(--text-muted);
+      font-size: 18px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      transition: all 0.15s;
       line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto;
     }
 
     .btn-remove:hover {
-      background: rgba(231,76,60,0.1);
+      background: rgba(231,76,60,0.08);
+      color: var(--error);
     }
 
-    /* Add row button */
     .add-row-wrapper {
-      padding: 16px 0 8px;
+      padding: 16px 0 4px;
     }
 
     .btn-add {
       background: none;
       border: 2px dashed var(--border);
-      border-radius: 8px;
-      padding: 12px 24px;
+      border-radius: 10px;
+      padding: 14px 24px;
       cursor: pointer;
-      color: var(--primary);
-      font-family: 'Montserrat', sans-serif;
-      font-weight: 500;
-      font-size: 0.85rem;
+      color: var(--accent-deep);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 600;
+      font-size: 14px;
       width: 100%;
-      transition: border-color 0.2s, background 0.2s;
+      transition: all 0.2s;
     }
 
     .btn-add:hover {
-      border-color: var(--accent-dark);
-      background: #f0fffe;
+      border-color: var(--accent);
+      background: rgba(26,188,156,0.04);
+      color: var(--accent);
     }
 
-    /* Submit */
+    /* ── SUBMIT ── */
     .submit-wrapper {
       margin-top: 28px;
       text-align: center;
     }
 
     .btn-submit {
-      background: var(--primary);
-      color: var(--white);
+      background: var(--dark);
+      color: #fff;
       border: none;
-      padding: 14px 60px;
-      border-radius: 8px;
-      font-family: 'Montserrat', sans-serif;
-      font-size: 0.95rem;
+      padding: 15px 64px;
+      border-radius: 10px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s, transform 0.1s;
+      transition: all 0.2s;
       letter-spacing: 0.5px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-submit::before {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-glow));
+      transform: scaleX(0);
+      transition: transform 0.3s;
     }
 
     .btn-submit:hover {
-      background: var(--primary-light);
+      background: #162240;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(15,26,46,0.2);
+    }
+
+    .btn-submit:hover::before {
+      transform: scaleX(1);
     }
 
     .btn-submit:active {
-      transform: scale(0.98);
+      transform: translateY(0) scale(0.98);
     }
 
     .btn-submit:disabled {
-      opacity: 0.6;
+      opacity: 0.5;
       cursor: not-allowed;
+      transform: none;
     }
 
-    /* Status messages */
+    /* ── STATUS ── */
     .status-message {
       margin-top: 20px;
       padding: 16px 20px;
-      border-radius: 8px;
-      font-size: 0.9rem;
+      border-radius: var(--radius);
+      font-size: 14px;
       font-weight: 500;
       display: none;
+      line-height: 1.6;
     }
 
     .status-message.success {
       display: block;
-      background: #eafaf1;
+      background: rgba(39,174,96,0.06);
       color: var(--success);
-      border: 1px solid #a3d9b1;
+      border: 1px solid rgba(39,174,96,0.2);
     }
 
     .status-message.error {
       display: block;
-      background: #fdecea;
+      background: rgba(231,76,60,0.06);
       color: var(--error);
-      border: 1px solid #f5b7b1;
+      border: 1px solid rgba(231,76,60,0.2);
     }
 
     .status-message.loading {
       display: block;
-      background: #f0fffe;
-      color: var(--primary);
-      border: 1px solid var(--accent);
+      background: rgba(26,188,156,0.06);
+      color: var(--dark);
+      border: 1px solid rgba(26,188,156,0.2);
     }
 
-    /* Spinner */
     .spinner {
       display: inline-block;
-      width: 16px;
-      height: 16px;
-      border: 2px solid rgba(153,238,235,0.4);
-      border-top-color: var(--primary);
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(26,188,156,0.3);
+      border-top-color: var(--dark);
       border-radius: 50%;
       animation: spin 0.6s linear infinite;
       vertical-align: middle;
@@ -308,54 +414,70 @@
       to { transform: rotate(360deg); }
     }
 
-    /* Footer */
+    /* ── FOOTER ── */
     .footer {
       text-align: center;
-      padding: 32px 20px;
-      font-size: 0.8rem;
-      color: var(--text-light);
+      padding: 28px 20px;
+      font-size: 12px;
+      color: var(--text-muted);
     }
 
     .footer a {
-      color: var(--primary);
+      color: var(--accent-deep);
       text-decoration: none;
       font-weight: 500;
+      border-bottom: 1px solid rgba(20,143,119,0.3);
+      transition: border-color 0.2s;
     }
 
     .footer a:hover {
-      text-decoration: underline;
+      border-color: var(--accent-deep);
     }
 
-    /* Responsive */
+    /* ── RESPONSIVE ── */
     @media (max-width: 800px) {
+      .navbar { padding: 0 16px; }
+      .navbar-badge { display: none; }
       .container { padding: 0 12px; margin: 20px auto; }
-      .of-section { flex-direction: column; align-items: stretch; padding: 20px; }
+      .card { padding: 20px 16px; }
+      .of-section { flex-direction: column; align-items: stretch; }
       .of-section input { max-width: 100%; }
-      .table-section { padding: 16px; overflow-x: auto; }
+      .table-section { overflow-x: auto; }
       .parts-table { min-width: 700px; }
     }
   </style>
 </head>
 <body>
 
-  <div class="header">
-    <h1>USI-PRO</h1>
-    <p>Formulaire — Opérations PDF</p>
-    <div class="accent-bar"></div>
-  </div>
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <div class="navbar-logo">
+      <img src="/logo.png" alt="Usi-Pro">
+    </div>
+    <div class="navbar-divider"></div>
+    <div class="navbar-info">
+      <span class="nav-title">Opérations PDF</span>
+      <span class="nav-subtitle">USI-PRO</span>
+    </div>
+    <div class="navbar-badge">Formulaire interne</div>
+  </nav>
 
+  <!-- CONTENT -->
   <div class="container">
     <form id="ofForm" autocomplete="off">
 
       <!-- OF Number -->
-      <div class="of-section">
-        <label for="of">Numéro OF</label>
-        <input type="text" id="of" name="OF" required placeholder="Ex: 12345">
+      <div class="card">
+        <div class="section-label">Ordre de fabrication</div>
+        <div class="of-section">
+          <label for="of">Numéro OF</label>
+          <input type="text" id="of" name="OF" required placeholder="Ex : 12345" inputmode="numeric" data-numeric>
+        </div>
       </div>
 
       <!-- Parts table -->
-      <div class="table-section">
-        <h2>Pièces</h2>
+      <div class="card table-section">
+        <div class="section-label">Détails des pièces</div>
         <table class="parts-table">
           <thead>
             <tr>
@@ -368,9 +490,7 @@
               <th></th>
             </tr>
           </thead>
-          <tbody id="partsBody">
-            <!-- Rows inserted by JS -->
-          </tbody>
+          <tbody id="partsBody"></tbody>
         </table>
 
         <div class="add-row-wrapper">
@@ -406,9 +526,9 @@
       tr.dataset.row = rowCounter;
       tr.innerHTML = `
         <td>${rowCounter}</td>
-        <td><input type="text" name="id_${rowCounter}" placeholder="Réf. pièce"></td>
+        <td><input type="text" inputmode="numeric" data-numeric name="id_${rowCounter}" placeholder="Réf. pièce"></td>
         <td><input type="text" name="material_${rowCounter}" placeholder="Ex: Acier inox 316L"></td>
-        <td><input type="text" name="quantity_${rowCounter}" placeholder="Qté"></td>
+        <td><input type="text" inputmode="numeric" data-numeric name="quantity_${rowCounter}" placeholder="Qté"></td>
         <td><input type="text" name="processing_${rowCounter}" placeholder="Ex: Tournage"></td>
         <td><textarea name="comment_${rowCounter}" placeholder="Commentaire" rows="1"></textarea></td>
         <td><button type="button" class="btn-remove" title="Supprimer">&times;</button></td>
@@ -424,7 +544,6 @@
       });
     }
 
-    // Remove row
     partsBody.addEventListener('click', (e) => {
       if (e.target.classList.contains('btn-remove')) {
         const row = e.target.closest('tr');
@@ -435,10 +554,17 @@
       }
     });
 
-    // Add row button
     btnAdd.addEventListener('click', addRow);
 
-    // Collect form data as JSON
+    // Numeric-only filter for OF field and table ID/Quantity inputs
+    function stripNonDigits(e) {
+      e.target.value = e.target.value.replace(/\D/g, '');
+    }
+    document.getElementById('of').addEventListener('input', stripNonDigits);
+    partsBody.addEventListener('input', (e) => {
+      if (e.target.dataset.numeric !== undefined) stripNonDigits(e);
+    });
+
     function collectFormData() {
       const ofValue = document.getElementById('of').value.trim();
       const rows = partsBody.querySelectorAll('tr');
@@ -452,7 +578,6 @@
         const processing = inputs[3]?.value.trim() || '';
         const comment = inputs[4]?.value.trim() || '';
 
-        // Only include rows where at least the ID is filled
         if (id) {
           parts.push({ id, material, quantity, processing, comment });
         }
@@ -461,13 +586,11 @@
       return { of: ofValue, parts };
     }
 
-    // Show status
     function showStatus(type, message) {
       statusMsg.className = 'status-message ' + type;
       statusMsg.innerHTML = message;
     }
 
-    // Submit
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
@@ -498,7 +621,7 @@
         if (res.ok) {
           let msg = 'Dossier <strong>' + result.of + '</strong> traité avec succès.';
           if (result.dropboxLink) {
-            msg += '<br><br><a href="' + result.dropboxLink + '" target="_blank" style="color:var(--primary);font-weight:600;">Ouvrir le dossier Dropbox</a>';
+            msg += '<br><br><a href="' + result.dropboxLink + '" target="_blank" style="color:var(--accent-deep);font-weight:600;">Ouvrir le dossier Dropbox</a>';
           }
           if (result.missingParts && result.missingParts.length > 0) {
             msg += '<br><br><span style="color:#e67e22;">Pièces non trouvées : ' + result.missingParts.join(', ') + '</span>';
@@ -514,7 +637,6 @@
       }
     });
 
-    // Initialize with one row
     addRow();
   </script>
 
