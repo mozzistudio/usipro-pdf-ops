@@ -47,28 +47,44 @@ const COMPANY = {
   email: 'accueil@usi-pro.com',
   phone: '05 47 74 15 12',
   website: 'www.usi-pro.com',
-  legal: 'SARL au capital de 15 000 € | SIRET : 920 812 401 00015 | TVA : FR17920812401',
+  legal: 'USI-PRO | SARL au capital de 15 000 € | SIRET : 920 812 401 00015',
+  tva: 'TVA : FR17920812401',
 };
 
-const TERMS = [
-  'Délai souhaité : 18 jours maximum après passation de commande, sauf indication contraire dans les commentaires des pièces.',
-  'Pour toute question : Accueil@usi-pro.com',
-  'Le paiement suit l\'accord standard entre les parties.',
-  'Devises acceptées : € ou $',
-  'Le transport peut être pris en charge par le destinataire avec remboursement des frais ; des estimations préalables sont demandées.',
+// ─── Info cards content ──────────────────────────────────────────────────────
+
+const INFO_CARDS = [
+  {
+    title: 'Délai de livraison',
+    body: 'Maximum 18 jours après passation de commande, sauf indication contraire dans les commentaires.',
+  },
+  {
+    title: 'Questions',
+    body: 'Contactez-nous à accueil@usi-pro.com',
+  },
+  {
+    title: 'Paiement & Devise',
+    body: 'Selon nos conditions habituelles. Devises acceptées : € ou $',
+  },
+  {
+    title: 'Transport',
+    body: 'Le transport peut être pris en charge par vos soins et refacturé. Merci de fournir un devis estimatif au préalable.',
+  },
 ];
 
-// ─── Theme (USI-PRO brand colors) ───────────────────────────────────────────
+// ─── Theme (USI-PRO brand colors — navy/green scheme) ───────────────────────
 
 const THEME = {
-  primary: '#240C2E',
-  accent: '#99eeeb',
-  headerBg: '#240C2E',
+  primary: '#0f1a2e',
+  accent: '#1abc9c',
+  deepAccent: '#148f77',
+  headerBg: '#0f1a2e',
   headerText: '#ffffff',
-  altRow: '#f5f3f7',
+  surfaceAlt: '#f6f9fb',
+  altRow: '#f6f9fb',
   text: '#2c2c2c',
-  muted: '#666666',
-  border: '#e0e0e0',
+  muted: '#64748b',
+  border: '#e2e8f0',
 };
 
 // ─── PDF Generation (pdfkit) ────────────────────────────────────────────────
@@ -122,11 +138,11 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
     // ─── Full-width Header Banner ──────────────────────────────
     const headerHeight = 85;
 
-    // Dark purple banner (full bleed)
+    // Dark navy banner (full bleed)
     doc.save();
     doc.rect(0, 0, pageWidth, headerHeight).fill(THEME.primary);
 
-    // Teal accent line below header
+    // Teal accent line below header (solid for PDF)
     doc.rect(0, headerHeight, pageWidth, 3).fill(THEME.accent);
     doc.restore();
 
@@ -141,39 +157,80 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
         .text(COMPANY.name, marginLeft, 30);
     }
 
-    // "DEMANDE DE DEVIS" title (right side of header)
-    doc.fontSize(20).font('Helvetica-Bold').fillColor('#ffffff')
-      .text('DEMANDE DE DEVIS', marginLeft, 30, {
-        width: contentWidth,
-        align: 'right',
-      });
+    // Contact info block (right side of header) — small white text
+    const contactLines = [
+      COMPANY.address,
+      COMPANY.email,
+      COMPANY.phone,
+      COMPANY.website,
+    ];
+    const contactBlockWidth = 200;
+    const contactX = pageWidth - doc.page.margins.right - contactBlockWidth;
+    doc.fontSize(7).font('Helvetica').fillColor('rgba(255,255,255,0.85)');
+    let contactY = 14;
+    for (const line of contactLines) {
+      doc.fillColor('rgba(255,255,255,0.85)')
+        .text(line, contactX, contactY, { width: contactBlockWidth, align: 'right' });
+      contactY += 16;
+    }
 
-    doc.y = headerHeight + 22;
+    doc.y = headerHeight + 16;
 
-    // ─── Reference & Date ──────────────────────────────────────
-    const refDateY = doc.y;
+    // ─── Title Bar ─────────────────────────────────────────────
+    const titleBarY = doc.y;
 
-    doc.fontSize(11).font('Helvetica-Bold').fillColor(THEME.primary)
-      .text(`Référence : OF${ofNumber}`, marginLeft, refDateY);
+    // "Demande de Devis" — large bold left
+    doc.fontSize(18).font('Helvetica-Bold').fillColor(THEME.primary)
+      .text('Demande de Devis', marginLeft, titleBarY);
 
-    doc.fontSize(11).font('Helvetica').fillColor(THEME.text)
-      .text(`Date : ${date}`, marginLeft, refDateY, {
-        width: contentWidth,
-        align: 'right',
-      });
+    // Ref chip and Date chip — right side
+    const chipY = titleBarY + 2;
+    const refText = `Réf : ${ofNumber}`;
+    const dateText = `Date : ${date}`;
+    const chipFontSize = 9;
+    doc.fontSize(chipFontSize).font('Helvetica');
 
-    doc.y = refDateY + 20;
-    doc.moveDown(0.6);
+    const refTextWidth = doc.widthOfString(refText) + 14;
+    const dateTextWidth = doc.widthOfString(dateText) + 14;
+    const chipGap = 8;
+    const chipHeight = 18;
+    const chipRadius = 4;
 
-    // Thin separator
+    const dateChipX = marginLeft + contentWidth - dateTextWidth;
+    const refChipX = dateChipX - chipGap - refTextWidth;
+
+    // Draw ref chip
+    doc.save();
+    doc.roundedRect(refChipX, chipY, refTextWidth, chipHeight, chipRadius)
+      .fill(THEME.surfaceAlt);
+    doc.roundedRect(refChipX, chipY, refTextWidth, chipHeight, chipRadius)
+      .strokeColor(THEME.border).lineWidth(0.5).stroke();
+    doc.fillColor(THEME.text)
+      .text(refText, refChipX + 7, chipY + 5, { width: refTextWidth - 14, align: 'center' });
+    doc.restore();
+
+    // Draw date chip
+    doc.save();
+    doc.roundedRect(dateChipX, chipY, dateTextWidth, chipHeight, chipRadius)
+      .fill(THEME.surfaceAlt);
+    doc.roundedRect(dateChipX, chipY, dateTextWidth, chipHeight, chipRadius)
+      .strokeColor(THEME.border).lineWidth(0.5).stroke();
+    doc.fillColor(THEME.text)
+      .text(dateText, dateChipX + 7, chipY + 5, { width: dateTextWidth - 14, align: 'center' });
+    doc.restore();
+
+    doc.y = titleBarY + 28;
+    doc.moveDown(0.5);
+
+    // Thin separator line
     doc.moveTo(marginLeft, doc.y)
       .lineTo(marginLeft + contentWidth, doc.y)
       .strokeColor(THEME.border).lineWidth(0.5).stroke();
     doc.moveDown(0.8);
 
-    // ─── Parts Table ───────────────────────────────────────────
-    const headers = ['#', 'Référence', 'Quantité', 'Matériau', 'Traitement', 'Commentaires'];
-    const colWidths = [30, 80, 60, 100, 105, contentWidth - 30 - 80 - 60 - 100 - 105];
+    // ─── Parts Table (5 columns, no # index) ───────────────────
+    const headers = ['Référence', 'Quantité', 'Matériau', 'Traitement', 'Commentaires'];
+    const colWidths = [90, 60, 100, 110, contentWidth - 90 - 60 - 100 - 110];
     const tableLeft = marginLeft;
     const rowHeight = 24;
 
@@ -184,7 +241,9 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
     doc.font('Helvetica').fontSize(8).fillColor(THEME.text);
     for (let r = 0; r < parts.length; r++) {
       const part = parts[r];
-      const values = [String(r + 1), part.id, part.quantity, part.material, part.processing, part.comment];
+      // Quantity displayed as "× N"
+      const qtyDisplay = part.quantity ? `\u00d7 ${part.quantity}` : '—';
+      const values = [part.id, qtyDisplay, part.material, part.processing, part.comment];
       const bgColor = r % 2 === 0 ? '#ffffff' : THEME.altRow;
 
       // Page break check — repeat header on new page
@@ -201,7 +260,7 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
         doc.fillColor(THEME.text)
           .text(values[c] || '—', x + 4, y + 8, {
             width: colWidths[c] - 8,
-            align: c <= 2 ? 'center' : 'left',
+            align: c <= 1 ? 'center' : 'left',
           });
         x += colWidths[c];
       }
@@ -220,31 +279,98 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
     doc.y = y;
     doc.moveDown(1.5);
 
-    // ─── Terms & Conditions ────────────────────────────────────
-    if (doc.y + 100 > doc.page.height - doc.page.margins.bottom) {
+    // ─── Info Cards Section ────────────────────────────────────
+    if (doc.y + 120 > doc.page.height - doc.page.margins.bottom) {
       doc.addPage();
     }
 
-    doc.fontSize(10).font('Helvetica-Bold').fillColor(THEME.primary)
-      .text('Conditions :', marginLeft, doc.y);
-    doc.moveDown(0.3);
-    doc.fontSize(7.5).font('Helvetica').fillColor(THEME.text);
-    for (const term of TERMS) {
-      doc.text(`• ${term}`, marginLeft + 10, doc.y, {
-        width: contentWidth - 20,
+    // Section label "INFORMATIONS"
+    doc.fontSize(8).font('Helvetica-Bold').fillColor(THEME.accent)
+      .text('INFORMATIONS', marginLeft, doc.y);
+    doc.moveDown(0.5);
+
+    const cardGap = 10;
+    const cardWidth = (contentWidth - cardGap) / 2;
+    const cardPadding = 10;
+    const cardRadius = 4;
+
+    // Draw 2 cards per row (2 rows = 4 cards total)
+    for (let row = 0; row < 2; row++) {
+      const cardsInRow = [INFO_CARDS[row * 2], INFO_CARDS[row * 2 + 1]];
+
+      // Measure card heights to pick the taller one for the row
+      const tempFontSize = 7.5;
+      doc.fontSize(tempFontSize).font('Helvetica');
+      const innerWidth = cardWidth - cardPadding * 2;
+
+      // Estimate heights
+      const rowHeights = cardsInRow.map((card) => {
+        const titleH = 10; // ~bold 8pt title
+        const bodyLines = Math.ceil(doc.widthOfString(card.body) / innerWidth) + 1;
+        const bodyH = bodyLines * (tempFontSize + 2);
+        return titleH + 4 + bodyH + cardPadding * 2;
       });
-      doc.moveDown(0.15);
+      const cardH = Math.max(...rowHeights, 60);
+
+      // Page break check
+      if (doc.y + cardH + 10 > doc.page.height - doc.page.margins.bottom) {
+        doc.addPage();
+      }
+
+      const rowY = doc.y;
+
+      for (let col = 0; col < 2; col++) {
+        const card = cardsInRow[col];
+        if (!card) continue;
+        const cardX = marginLeft + col * (cardWidth + cardGap);
+
+        // Card background and border
+        doc.save();
+        doc.roundedRect(cardX, rowY, cardWidth, cardH, cardRadius)
+          .fill(THEME.surfaceAlt);
+        doc.roundedRect(cardX, rowY, cardWidth, cardH, cardRadius)
+          .strokeColor(THEME.border).lineWidth(0.5).stroke();
+
+        // Card title (bold, small, accent-ish dark)
+        doc.fontSize(7.5).font('Helvetica-Bold').fillColor(THEME.primary)
+          .text(card.title.toUpperCase(), cardX + cardPadding, rowY + cardPadding, {
+            width: innerWidth,
+          });
+
+        const titleBottomY = rowY + cardPadding + 10 + 4;
+
+        // Card body text
+        doc.fontSize(7.5).font('Helvetica').fillColor(THEME.muted)
+          .text(card.body, cardX + cardPadding, titleBottomY, {
+            width: innerWidth,
+          });
+
+        doc.restore();
+      }
+
+      doc.y = rowY + cardH + cardGap;
     }
 
     // ─── Footer ────────────────────────────────────────────────
-    doc.moveDown(1);
-    doc.moveTo(marginLeft, doc.y)
-      .lineTo(marginLeft + contentWidth, doc.y)
+    const footerY = doc.page.height - doc.page.margins.bottom - 20;
+
+    doc.moveTo(marginLeft, footerY - 8)
+      .lineTo(marginLeft + contentWidth, footerY - 8)
       .strokeColor(THEME.border).lineWidth(0.5).stroke();
-    doc.moveDown(0.3);
+
+    // Legal info left
     doc.fontSize(6.5).font('Helvetica').fillColor(THEME.muted)
-      .text(COMPANY.legal, { align: 'center' })
-      .text(COMPANY.website, { align: 'center' });
+      .text(`${COMPANY.legal} | ${COMPANY.website} | ${COMPANY.tva}`, marginLeft, footerY, {
+        width: contentWidth - 60,
+        align: 'left',
+      });
+
+    // Page 1/1 right
+    doc.fontSize(6.5).font('Helvetica').fillColor(THEME.muted)
+      .text('Page 1/1', marginLeft, footerY, {
+        width: contentWidth,
+        align: 'right',
+      });
 
     doc.end();
   });
@@ -255,7 +381,7 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
 const DOCX_BORDER = {
   style: BorderStyle.SINGLE,
   size: 1,
-  color: 'E0E0E0',
+  color: 'E2E8F0',
 };
 
 const DOCX_TABLE_BORDERS = {
@@ -267,6 +393,12 @@ const DOCX_TABLE_BORDERS = {
   insideVertical: DOCX_BORDER,
 };
 
+const DOCX_NO_BORDER = {
+  style: BorderStyle.NONE,
+  size: 0,
+  color: '0F1A2E',
+};
+
 /**
  * Generate a DOCX buffer matching the USI-PRO "Demande de Devis" template.
  */
@@ -276,11 +408,11 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
 
   const date = formatDateFR();
 
-  // ─── Header banner (simulated with a full-width table) ──────
+  // ─── Header banner (logo left, contact info right) ───────────
   const logoBuffer = loadLogo();
   const headerCells: TableCell[] = [];
 
-  // Logo cell
+  // Logo cell (left)
   if (logoBuffer) {
     headerCells.push(
       new TableCell({
@@ -296,14 +428,14 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
             alignment: AlignmentType.LEFT,
           }),
         ],
-        shading: { fill: '240C2E', color: 'auto', type: ShadingType.CLEAR },
+        shading: { fill: '0F1A2E', color: 'auto', type: ShadingType.CLEAR },
         verticalAlign: VerticalAlign.CENTER,
         width: { size: 40, type: WidthType.PERCENTAGE },
         borders: {
-          top: { style: BorderStyle.NONE, size: 0, color: '240C2E' },
-          bottom: { style: BorderStyle.NONE, size: 0, color: '240C2E' },
-          left: { style: BorderStyle.NONE, size: 0, color: '240C2E' },
-          right: { style: BorderStyle.NONE, size: 0, color: '240C2E' },
+          top: DOCX_NO_BORDER,
+          bottom: DOCX_NO_BORDER,
+          left: DOCX_NO_BORDER,
+          right: DOCX_NO_BORDER,
         },
       }),
     );
@@ -323,44 +455,51 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
             ],
           }),
         ],
-        shading: { fill: '240C2E', color: 'auto', type: ShadingType.CLEAR },
+        shading: { fill: '0F1A2E', color: 'auto', type: ShadingType.CLEAR },
         verticalAlign: VerticalAlign.CENTER,
         width: { size: 40, type: WidthType.PERCENTAGE },
         borders: {
-          top: { style: BorderStyle.NONE, size: 0, color: '240C2E' },
-          bottom: { style: BorderStyle.NONE, size: 0, color: '240C2E' },
-          left: { style: BorderStyle.NONE, size: 0, color: '240C2E' },
-          right: { style: BorderStyle.NONE, size: 0, color: '240C2E' },
+          top: DOCX_NO_BORDER,
+          bottom: DOCX_NO_BORDER,
+          left: DOCX_NO_BORDER,
+          right: DOCX_NO_BORDER,
         },
       }),
     );
   }
 
-  // Title cell
+  // Contact info cell (right) — 4 lines of small white text
+  const contactLines = [
+    COMPANY.address,
+    COMPANY.email,
+    COMPANY.phone,
+    COMPANY.website,
+  ];
   headerCells.push(
     new TableCell({
-      children: [
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: 'DEMANDE DE DEVIS',
-              bold: true,
-              font: 'Arial',
-              size: 32,
-              color: 'FFFFFF',
-            }),
-          ],
-          alignment: AlignmentType.RIGHT,
-        }),
-      ],
-      shading: { fill: '240C2E', color: 'auto', type: ShadingType.CLEAR },
+      children: contactLines.map(
+        (line) =>
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: line,
+                font: 'Arial',
+                size: 14,
+                color: 'CCDDEE',
+              }),
+            ],
+            alignment: AlignmentType.RIGHT,
+            spacing: { after: 20 },
+          }),
+      ),
+      shading: { fill: '0F1A2E', color: 'auto', type: ShadingType.CLEAR },
       verticalAlign: VerticalAlign.CENTER,
       width: { size: 60, type: WidthType.PERCENTAGE },
       borders: {
-        top: { style: BorderStyle.NONE, size: 0, color: '240C2E' },
-        bottom: { style: BorderStyle.NONE, size: 0, color: '240C2E' },
-        left: { style: BorderStyle.NONE, size: 0, color: '240C2E' },
-        right: { style: BorderStyle.NONE, size: 0, color: '240C2E' },
+        top: DOCX_NO_BORDER,
+        bottom: DOCX_NO_BORDER,
+        left: DOCX_NO_BORDER,
+        right: DOCX_NO_BORDER,
       },
     }),
   );
@@ -374,17 +513,89 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
     ],
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: {
-      top: { style: BorderStyle.NONE, size: 0, color: '240C2E' },
-      bottom: { style: BorderStyle.SINGLE, size: 6, color: '99EEEB' },
-      left: { style: BorderStyle.NONE, size: 0, color: '240C2E' },
-      right: { style: BorderStyle.NONE, size: 0, color: '240C2E' },
-      insideHorizontal: { style: BorderStyle.NONE, size: 0, color: '240C2E' },
-      insideVertical: { style: BorderStyle.NONE, size: 0, color: '240C2E' },
+      top: DOCX_NO_BORDER,
+      bottom: { style: BorderStyle.SINGLE, size: 6, color: '1ABC9C' },
+      left: DOCX_NO_BORDER,
+      right: DOCX_NO_BORDER,
+      insideHorizontal: DOCX_NO_BORDER,
+      insideVertical: DOCX_NO_BORDER,
     },
   });
 
-  // ─── Parts table header row ──────────────────────────────────
-  const tableHeaders = ['#', 'Référence', 'Quantité', 'Matériau', 'Traitement', 'Commentaires'];
+  // ─── Title row: "Demande de Devis" left, ref + date right ────
+  const titleRow = new Table({
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: 'Demande de Devis',
+                    bold: true,
+                    font: 'Arial',
+                    size: 36,
+                    color: '0F1A2E',
+                  }),
+                ],
+                alignment: AlignmentType.LEFT,
+              }),
+            ],
+            verticalAlign: VerticalAlign.CENTER,
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            borders: {
+              top: DOCX_NO_BORDER,
+              bottom: DOCX_NO_BORDER,
+              left: DOCX_NO_BORDER,
+              right: DOCX_NO_BORDER,
+            },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `Réf : ${ofNumber}`,
+                    font: 'Arial',
+                    size: 18,
+                    color: '0F1A2E',
+                  }),
+                  new TextRun({
+                    text: `   Date : ${date}`,
+                    font: 'Arial',
+                    size: 18,
+                    color: '0F1A2E',
+                  }),
+                ],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            verticalAlign: VerticalAlign.CENTER,
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            borders: {
+              top: DOCX_NO_BORDER,
+              bottom: DOCX_NO_BORDER,
+              left: DOCX_NO_BORDER,
+              right: DOCX_NO_BORDER,
+            },
+          }),
+        ],
+      }),
+    ],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: {
+      top: DOCX_NO_BORDER,
+      bottom: { style: BorderStyle.SINGLE, size: 1, color: 'E2E8F0' },
+      left: DOCX_NO_BORDER,
+      right: DOCX_NO_BORDER,
+      insideHorizontal: DOCX_NO_BORDER,
+      insideVertical: DOCX_NO_BORDER,
+    },
+  });
+
+  // ─── Parts table (5 columns, no #) ───────────────────────────
+  const tableHeaders = ['Référence', 'Quantité', 'Matériau', 'Traitement', 'Commentaires'];
   const partTableHeaderRow = new TableRow({
     tableHeader: true,
     children: tableHeaders.map(
@@ -396,15 +607,16 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
               alignment: AlignmentType.CENTER,
             }),
           ],
-          shading: { fill: '240C2E', color: 'auto', type: ShadingType.CLEAR },
+          shading: { fill: '0F1A2E', color: 'auto', type: ShadingType.CLEAR },
           verticalAlign: VerticalAlign.CENTER,
         }),
     ),
   });
 
-  // ─── Parts table data rows ───────────────────────────────────
   const dataRows = parts.map((part, i) => {
-    const values = [String(i + 1), part.id, part.quantity, part.material, part.processing, part.comment];
+    // Quantity displayed as "× N"
+    const qtyDisplay = part.quantity ? `\u00d7 ${part.quantity}` : '—';
+    const values = [part.id, qtyDisplay, part.material, part.processing, part.comment];
     return new TableRow({
       children: values.map(
         (text, colIdx) =>
@@ -412,25 +624,186 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
             children: [
               new Paragraph({
                 children: [new TextRun({ text: text || '—', font: 'Arial', size: 18 })],
-                alignment: colIdx <= 2 ? AlignmentType.CENTER : AlignmentType.LEFT,
+                alignment: colIdx <= 1 ? AlignmentType.CENTER : AlignmentType.LEFT,
               }),
             ],
-            shading: i % 2 === 1 ? { fill: 'F5F3F7', color: 'auto', type: ShadingType.CLEAR } : undefined,
+            shading: i % 2 === 1 ? { fill: 'F6F9FB', color: 'auto', type: ShadingType.CLEAR } : undefined,
             verticalAlign: VerticalAlign.CENTER,
           }),
       ),
     });
   });
 
-  // ─── Terms paragraphs ─────────────────────────────────────────
-  const termsParagraphs = TERMS.map(
-    (term) =>
-      new Paragraph({
-        children: [new TextRun({ text: `• ${term}`, font: 'Arial', size: 15, color: '2C2C2C' })],
-        spacing: { after: 40 },
-        indent: { left: 200 },
+  // ─── Info cards section ───────────────────────────────────────
+  const infoSectionLabel = new Paragraph({
+    children: [
+      new TextRun({
+        text: 'INFORMATIONS',
+        bold: true,
+        font: 'Arial',
+        size: 16,
+        color: '1ABC9C',
       }),
-  );
+    ],
+    spacing: { before: 300, after: 100 },
+  });
+
+  // 2×2 grid as a table (each cell = one info card)
+  const infoCardsTable = new Table({
+    rows: [
+      // Row 1: cards 0 and 1
+      new TableRow({
+        children: [0, 1].map((idx) => {
+          const card = INFO_CARDS[idx];
+          return new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: card.title.toUpperCase(),
+                    bold: true,
+                    font: 'Arial',
+                    size: 15,
+                    color: '0F1A2E',
+                  }),
+                ],
+                spacing: { after: 60 },
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: card.body,
+                    font: 'Arial',
+                    size: 15,
+                    color: '64748B',
+                  }),
+                ],
+              }),
+            ],
+            shading: { fill: 'F6F9FB', color: 'auto', type: ShadingType.CLEAR },
+            verticalAlign: VerticalAlign.TOP,
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            margins: {
+              top: 100,
+              bottom: 100,
+              left: 120,
+              right: 120,
+            },
+            borders: DOCX_TABLE_BORDERS,
+          });
+        }),
+      }),
+      // Row 2: cards 2 and 3
+      new TableRow({
+        children: [2, 3].map((idx) => {
+          const card = INFO_CARDS[idx];
+          return new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: card.title.toUpperCase(),
+                    bold: true,
+                    font: 'Arial',
+                    size: 15,
+                    color: '0F1A2E',
+                  }),
+                ],
+                spacing: { after: 60 },
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: card.body,
+                    font: 'Arial',
+                    size: 15,
+                    color: '64748B',
+                  }),
+                ],
+              }),
+            ],
+            shading: { fill: 'F6F9FB', color: 'auto', type: ShadingType.CLEAR },
+            verticalAlign: VerticalAlign.TOP,
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            margins: {
+              top: 100,
+              bottom: 100,
+              left: 120,
+              right: 120,
+            },
+            borders: DOCX_TABLE_BORDERS,
+          });
+        }),
+      }),
+    ],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: DOCX_TABLE_BORDERS,
+  });
+
+  // ─── Footer ───────────────────────────────────────────────────
+  const footerTable = new Table({
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `${COMPANY.legal} | ${COMPANY.website} | ${COMPANY.tva}`,
+                    font: 'Arial',
+                    size: 13,
+                    color: '64748B',
+                  }),
+                ],
+                alignment: AlignmentType.LEFT,
+              }),
+            ],
+            verticalAlign: VerticalAlign.CENTER,
+            width: { size: 80, type: WidthType.PERCENTAGE },
+            borders: {
+              top: { style: BorderStyle.SINGLE, size: 1, color: 'E2E8F0' },
+              bottom: DOCX_NO_BORDER,
+              left: DOCX_NO_BORDER,
+              right: DOCX_NO_BORDER,
+            },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: 'Page 1/1',
+                    font: 'Arial',
+                    size: 13,
+                    color: '64748B',
+                  }),
+                ],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            verticalAlign: VerticalAlign.CENTER,
+            width: { size: 20, type: WidthType.PERCENTAGE },
+            borders: {
+              top: { style: BorderStyle.SINGLE, size: 1, color: 'E2E8F0' },
+              bottom: DOCX_NO_BORDER,
+              left: DOCX_NO_BORDER,
+              right: DOCX_NO_BORDER,
+            },
+          }),
+        ],
+      }),
+    ],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: {
+      top: DOCX_NO_BORDER,
+      bottom: DOCX_NO_BORDER,
+      left: DOCX_NO_BORDER,
+      right: DOCX_NO_BORDER,
+      insideHorizontal: DOCX_NO_BORDER,
+      insideVertical: DOCX_NO_BORDER,
+    },
+  });
 
   // ─── Assemble document ────────────────────────────────────────
   const doc = new Document({
@@ -440,27 +813,11 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
           // Header banner
           headerBanner,
           // Spacer
+          new Paragraph({ spacing: { after: 160 }, children: [] }),
+          // Title row
+          titleRow,
+          // Spacer
           new Paragraph({ spacing: { after: 200 }, children: [] }),
-          // Reference & Date
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: `Référence : OF${ofNumber}`,
-                bold: true,
-                font: 'Arial',
-                size: 22,
-                color: '240C2E',
-              }),
-              new TextRun({
-                text: `\tDate : ${date}`,
-                font: 'Arial',
-                size: 22,
-                color: '2C2C2C',
-              }),
-            ],
-            spacing: { after: 300 },
-            tabStops: [{ type: 'right' as any, position: 9000 }],
-          }),
           // Parts table
           new Table({
             rows: [partTableHeaderRow, ...dataRows],
@@ -469,48 +826,15 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
             borders: DOCX_TABLE_BORDERS,
           }),
           // Spacer
-          new Paragraph({ spacing: { after: 300 }, children: [] }),
-          // Terms header
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: 'Conditions :',
-                bold: true,
-                font: 'Arial',
-                size: 18,
-                color: '240C2E',
-              }),
-            ],
-            spacing: { after: 80 },
-          }),
-          // Terms items
-          ...termsParagraphs,
-          // Spacer
           new Paragraph({ spacing: { after: 200 }, children: [] }),
-          // Legal footer
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: COMPANY.legal,
-                font: 'Arial',
-                size: 13,
-                color: '666666',
-              }),
-            ],
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 20 },
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: COMPANY.website,
-                font: 'Arial',
-                size: 13,
-                color: '666666',
-              }),
-            ],
-            alignment: AlignmentType.CENTER,
-          }),
+          // Info cards section label
+          infoSectionLabel,
+          // Info cards 2x2 table
+          infoCardsTable,
+          // Spacer
+          new Paragraph({ spacing: { after: 300 }, children: [] }),
+          // Footer table
+          footerTable,
         ],
       },
     ],
