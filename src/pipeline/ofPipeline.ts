@@ -39,7 +39,7 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
 
   for (const part of parts) {
     const partId = part.id.trim();
-    const sourcePath = `${plansBasePath}/${partId}`;
+    let sourcePath = `${plansBasePath}/${partId}`;
     log.info({ partId, sourcePath }, 'Looking up part folder');
 
     let files: Array<{ name: string; pathLower: string; pathDisplay: string }> = [];
@@ -51,15 +51,43 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
         ? err.error
         : err?.error?.error_summary || '';
       if (typeof summary === 'string' && summary.includes('path/not_found')) {
-        log.warn({ partId, sourcePath }, 'Part folder not found — skipping');
-        missingParts.push(partId);
-        continue;
+        // Fallback: search for a folder whose name matches the partId
+        log.info({ partId }, 'Exact folder not found — searching for matching folder');
+        try {
+          const matchedPath = await dropboxService.findMatchingFolder(plansBasePath, partId);
+          if (matchedPath) {
+            sourcePath = matchedPath;
+            log.info({ partId, matchedPath }, 'Found matching folder via fallback search');
+            files = await dropboxService.listFiles(sourcePath);
+            log.info({ partId, sourcePath, fileCount: files.length, fileNames: files.map(f => f.name) }, 'Matched folder listed');
+          } else {
+            log.warn({ partId, sourcePath }, 'No matching folder found — skipping');
+            missingParts.push(partId);
+            continue;
+          }
+        } catch (fallbackErr: any) {
+          log.warn({ partId, err: fallbackErr.message }, 'Fallback folder search failed — skipping');
+          missingParts.push(partId);
+          continue;
+        }
+      } else {
+        throw err;
       }
-      throw err;
+    }
+
+    // If no direct files, try recursive search (files may be inside subfolders)
+    if (files.length === 0) {
+      log.info({ partId, sourcePath }, 'No direct files — trying recursive search in subfolders');
+      try {
+        files = await dropboxService.listFilesRecursive(sourcePath);
+        log.info({ partId, fileCount: files.length, fileNames: files.map(f => f.name) }, 'Recursive search results');
+      } catch {
+        // Ignore recursive search errors
+      }
     }
 
     if (files.length === 0) {
-      log.warn({ partId, sourcePath }, 'Part folder exists but is empty — skipping');
+      log.warn({ partId, sourcePath }, 'Part folder exists but has no files — skipping');
       missingParts.push(partId);
       continue;
     }
