@@ -42,255 +42,73 @@ function loadLogo(): Buffer | null {
 
 const COMPANY = {
   name: 'USI-PRO',
-  address: '13 Rte de Citon C\u00e9nac, 33670 Sadirac',
+  tagline: 'Usinage de précision',
+  address: '13 Rte de Citon Cénac, 33670 SADIRAC',
   email: 'accueil@usi-pro.com',
   phone: '05 47 74 15 12',
   website: 'www.usi-pro.com',
-  legalLine1: 'USI-PRO  |  SARL au capital de 15 000 \u20ac  |  SIRET : 920 812 401 00015',
-  legalLine2: 'www.usi-pro.com  |  TVA : FR17920812401',
+  legal: 'USI-PRO | SARL au capital de 15 000 € | SIRET : 920 812 401 00015',
+  tva: 'TVA : FR17920812401',
 };
 
-// ─── Theme (USI-PRO brand) ──────────────────────────────────────────────────
-
-const THEME = {
-  primary: '#1E2D3D',
-  accent: '#3ECDC6',
-  headerBg: '#1E2D3D',
-  headerText: '#ffffff',
-  altRow: '#F8FAFC',
-  text: '#1E2D3D',
-  textLight: '#4A5568',
-  muted: '#6B7280',
-  border: '#E0E0E0',
-  cardBg: '#F7F8FA',
-  cardBorder: '#E8EAED',
-  pillTealBg: '#E6FAF9',
-  pillGrayBg: '#EDF0F4',
-};
-
-// ─── Info cards content ─────────────────────────────────────────────────────
+// ─── Info cards content ──────────────────────────────────────────────────────
 
 const INFO_CARDS = [
   {
-    title: 'DELIVERY TIME',
+    title: 'Delivery Time',
     body: 'Maximum 18 days after order placement, unless otherwise stated in the comments.',
-    boldWord: '18 days',
   },
   {
-    title: 'QUESTIONS',
-    body: 'Contact us at Accueil@usi-pro.com',
-    link: 'Accueil@usi-pro.com',
+    title: 'Questions',
+    body: 'Contact us at accueil@usi-pro.com',
   },
   {
-    title: 'PAYMENT & CURRENCY',
-    body: 'Per our usual terms. Accepted currencies: \u20ac or $',
-    boldWord: '\u20ac or $',
+    title: 'Payment & Currency',
+    body: 'Per our usual terms. Accepted currencies: € or $',
   },
   {
-    title: 'SHIPPING',
+    title: 'Shipping',
     body: 'Shipping can be arranged at your expense and re-invoiced. Please provide an estimated quote in advance.',
   },
 ];
 
+// ─── Theme (USI-PRO brand colors — navy/green scheme) ───────────────────────
+
+const THEME = {
+  primary: '#0f1a2e',
+  accent: '#1abc9c',
+  deepAccent: '#148f77',
+  headerBg: '#0f1a2e',
+  headerText: '#ffffff',
+  surfaceAlt: '#f6f9fb',
+  altRow: '#f6f9fb',
+  text: '#2c2c2c',
+  muted: '#64748b',
+  border: '#e2e8f0',
+};
+
 // ─── PDF Generation (pdfkit) ────────────────────────────────────────────────
 
-function pdfDrawHeader(
-  doc: PDFKit.PDFDocument,
-  pageWidth: number,
-  marginLeft: number,
-  contentWidth: number,
-): number {
-  const headerH = 90;
-
-  // Dark navy header (full bleed)
-  doc.save();
-  doc.rect(0, 0, pageWidth, headerH).fill(THEME.headerBg);
-  // Teal accent bar
-  doc.rect(0, headerH, pageWidth, 3).fill(THEME.accent);
-  doc.restore();
-
-  // Logo (left side)
-  const logoBuffer = loadLogo();
-  if (logoBuffer) {
-    const logoH = 45;
-    const logoY = (headerH - logoH) / 2;
-    doc.image(logoBuffer, marginLeft, logoY, { height: logoH });
-  } else {
-    doc.fontSize(22).font('Helvetica-Bold').fillColor(THEME.headerText)
-      .text(COMPANY.name, marginLeft, 32);
-  }
-
-  // Company info (right side)
-  const infoW = contentWidth;
-  let infoY = 22;
-  const lineH = 13;
-  doc.fontSize(8).font('Helvetica').fillColor(THEME.headerText);
-  doc.text(COMPANY.address, marginLeft, infoY, { width: infoW, align: 'right' });
-  infoY += lineH;
-  doc.text(COMPANY.email, marginLeft, infoY, { width: infoW, align: 'right' });
-  infoY += lineH;
-  doc.text(COMPANY.phone, marginLeft, infoY, { width: infoW, align: 'right' });
-  infoY += lineH;
-  doc.text(COMPANY.website, marginLeft, infoY, { width: infoW, align: 'right' });
-
-  return headerH + 3;
-}
-
-function pdfDrawPill(
-  doc: PDFKit.PDFDocument,
-  text: string,
-  x: number,
-  y: number,
-  h: number,
-): number {
-  doc.font('Helvetica').fontSize(9);
-  const tw = doc.widthOfString(text);
-  const padH = 12;
-  const w = tw + padH * 2;
-  const r = h / 2;
-
-  doc.save();
-  doc.roundedRect(x, y, w, h, r).strokeColor(THEME.border).lineWidth(1).stroke();
-  doc.restore();
-  doc.fillColor(THEME.text).text(text, x + padH, y + (h - 9) / 2, { lineBreak: false });
-
-  return w;
-}
-
-function pdfDrawSectionLabel(
-  doc: PDFKit.PDFDocument,
-  label: string,
-  x: number,
-  y: number,
-): void {
-  // Horizontal line
-  doc.save();
-  doc.moveTo(x, y).lineTo(x + 515, y)
-    .strokeColor(THEME.border).lineWidth(0.8).stroke();
-  doc.restore();
-
-  // White background behind label
-  doc.font('Helvetica-Bold').fontSize(8);
-  const lw = doc.widthOfString(label);
-  const lx = x + 16;
-  doc.save();
-  doc.rect(lx - 6, y - 5, lw + 12, 10).fill('#ffffff');
-  doc.restore();
-
-  // Label text
-  doc.fillColor(THEME.accent).text(label, lx, y - 4, { lineBreak: false });
-}
-
-function pdfDrawTableHeader(
+/**
+ * Draw the table header row and return the new Y position.
+ */
+function drawTableHeader(
   doc: PDFKit.PDFDocument,
   headers: string[],
   colWidths: number[],
-  tableX: number,
+  tableLeft: number,
   y: number,
-  rowH: number,
+  rowHeight: number,
 ): number {
-  const totalW = colWidths.reduce((a, b) => a + b, 0);
-
-  // Teal top accent
-  doc.save();
-  doc.rect(tableX, y, totalW, 2).fill(THEME.accent);
-  doc.restore();
-
-  // Header background
-  doc.save();
-  doc.rect(tableX, y + 2, totalW, rowH - 2).fill(THEME.headerBg);
-  doc.restore();
-
-  // Header text
-  doc.font('Helvetica-Bold').fontSize(7.5).fillColor(THEME.headerText);
-  let cx = tableX;
-  for (let i = 0; i < headers.length; i++) {
-    doc.text(headers[i], cx + 6, y + (rowH - 7.5) / 2 + 1, {
-      width: colWidths[i] - 12,
-      align: 'center',
-    });
-    cx += colWidths[i];
+  let x = tableLeft;
+  doc.fontSize(8).font('Helvetica-Bold').fillColor(THEME.headerText);
+  for (let c = 0; c < headers.length; c++) {
+    doc.rect(x, y, colWidths[c], rowHeight).fill(THEME.headerBg);
+    doc.fillColor(THEME.headerText)
+      .text(headers[c], x + 4, y + 8, { width: colWidths[c] - 8, align: 'center' });
+    x += colWidths[c];
   }
-
-  return y + rowH;
-}
-
-function pdfDrawInfoCards(
-  doc: PDFKit.PDFDocument,
-  marginLeft: number,
-  contentWidth: number,
-  startY: number,
-): number {
-  const gap = 14;
-  const cardW = (contentWidth - gap) / 2;
-  const cardH = 78;
-  const r = 8;
-  const circleR = 14;
-
-  for (let i = 0; i < INFO_CARDS.length; i++) {
-    const col = i % 2;
-    const row = Math.floor(i / 2);
-    const cx = marginLeft + col * (cardW + gap);
-    const cy = startY + row * (cardH + gap);
-
-    // Card background
-    doc.save();
-    doc.roundedRect(cx, cy, cardW, cardH, r).fill(THEME.cardBg);
-    doc.roundedRect(cx, cy, cardW, cardH, r)
-      .strokeColor(THEME.cardBorder).lineWidth(0.5).stroke();
-    doc.restore();
-
-    // Teal circle (decorative icon)
-    const circleX = cx + 22;
-    const circleY = cy + cardH / 2;
-    doc.save();
-    doc.circle(circleX, circleY, circleR).fill(THEME.accent);
-    doc.restore();
-
-    // Title
-    const textX = circleX + circleR + 14;
-    const textW = cardW - (textX - cx) - 14;
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor(THEME.text);
-    doc.text(INFO_CARDS[i].title, textX, cy + 16, { width: textW, lineBreak: false });
-
-    // Body text
-    doc.font('Helvetica').fontSize(7).fillColor(THEME.textLight);
-    doc.text(INFO_CARDS[i].body, textX, cy + 30, { width: textW, lineGap: 1.5 });
-  }
-
-  return startY + 2 * cardH + gap;
-}
-
-function pdfDrawFooter(
-  doc: PDFKit.PDFDocument,
-  marginLeft: number,
-  contentWidth: number,
-  pageNum: number,
-  totalPages: number,
-): void {
-  const footerY = doc.page.height - doc.page.margins.bottom - 28;
-
-  // Separator line
-  doc.save();
-  doc.moveTo(marginLeft, footerY)
-    .lineTo(marginLeft + contentWidth, footerY)
-    .strokeColor(THEME.border).lineWidth(0.5).stroke();
-  doc.restore();
-
-  // Legal line 1 (bold company name)
-  doc.fontSize(6).font('Helvetica-Bold').fillColor(THEME.text);
-  doc.text(COMPANY.legalLine1, marginLeft, footerY + 6, { lineBreak: false });
-
-  // Legal line 2 (website + TVA in teal)
-  doc.fontSize(6).font('Helvetica').fillColor(THEME.accent);
-  doc.text(COMPANY.legalLine2, marginLeft, footerY + 16, { lineBreak: false });
-
-  // Page number
-  doc.fontSize(6).font('Helvetica').fillColor(THEME.muted);
-  doc.text(`Page ${pageNum}/${totalPages}`, marginLeft, footerY + 11, {
-    width: contentWidth,
-    align: 'right',
-  });
+  return y + rowHeight;
 }
 
 /**
@@ -303,7 +121,7 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
   const date = formatDateFR();
 
   return new Promise<Buffer>((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 40, bufferPages: true });
+    const doc = new PDFDocument({ size: 'A4', margin: 40 });
     const chunks: Buffer[] = [];
     doc.on('data', (chunk: Buffer) => chunks.push(chunk));
     doc.on('end', () => {
@@ -317,140 +135,242 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
     const marginLeft = doc.page.margins.left;
     const contentWidth = pageWidth - marginLeft - doc.page.margins.right;
 
-    // ─── Header ──────────────────────────────────────────────
-    const headerEnd = pdfDrawHeader(doc, pageWidth, marginLeft, contentWidth);
+    // ─── Full-width Header Banner ──────────────────────────────
+    const headerHeight = 85;
 
-    // ─── Title + Réf / Date pills ────────────────────────────
-    let y = headerEnd + 22;
+    // Dark navy banner (full bleed)
+    doc.save();
+    doc.rect(0, 0, pageWidth, headerHeight).fill(THEME.primary);
 
-    doc.fontSize(22).font('Helvetica-Bold').fillColor(THEME.text);
-    doc.text('Quote Request', marginLeft, y, { lineBreak: false });
+    // Teal accent line below header (solid for PDF)
+    doc.rect(0, headerHeight, pageWidth, 3).fill(THEME.accent);
+    doc.restore();
 
-    // Date pill (rightmost)
-    const pillH = 24;
-    const dateStr = `Date: ${date}`;
-    doc.font('Helvetica').fontSize(9);
-    const dateW = doc.widthOfString(dateStr) + 24;
-    const datePillX = marginLeft + contentWidth - dateW;
+    // Logo in header (left side)
+    const logoBuffer = loadLogo();
+    if (logoBuffer) {
+      const logoH = 48;
+      const logoY = (headerHeight - logoH) / 2;
+      doc.image(logoBuffer, marginLeft, logoY, { height: logoH });
+    } else {
+      doc.fontSize(24).font('Helvetica-Bold').fillColor('#ffffff')
+        .text(COMPANY.name, marginLeft, 30);
+    }
 
-    // Ref pill (left of date pill)
-    const refStr = `Ref: ${ofNumber}`;
-    const refW = doc.widthOfString(refStr) + 24;
-    const refPillX = datePillX - refW - 8;
-
-    const pillY = y + 3;
-    pdfDrawPill(doc, refStr, refPillX, pillY, pillH);
-    pdfDrawPill(doc, dateStr, datePillX, pillY, pillH);
-
-    y += 46;
-
-    // ─── PARTS DETAILS ───────────────────────────────────────
-    pdfDrawSectionLabel(doc, 'P A R T S   D E T A I L S', marginLeft, y);
-    y += 14;
-
-    const headers = ['REFERENCE', 'QUANTITY', 'MATERIAL', 'TREATMENT', 'COMMENTS'];
-    const colWidths = [
-      Math.round(contentWidth * 0.20),
-      Math.round(contentWidth * 0.16),
-      Math.round(contentWidth * 0.18),
-      Math.round(contentWidth * 0.20),
-      0,
+    // Contact info block (right side of header) — small white text
+    const contactLines = [
+      COMPANY.address,
+      COMPANY.email,
+      COMPANY.phone,
+      COMPANY.website,
     ];
-    colWidths[4] = contentWidth - colWidths[0] - colWidths[1] - colWidths[2] - colWidths[3];
+    const contactBlockWidth = 200;
+    const contactX = pageWidth - doc.page.margins.right - contactBlockWidth;
+    doc.fontSize(7).font('Helvetica').fillColor('rgba(255,255,255,0.85)');
+    let contactY = 14;
+    for (const line of contactLines) {
+      doc.fillColor('rgba(255,255,255,0.85)')
+        .text(line, contactX, contactY, { width: contactBlockWidth, align: 'right' });
+      contactY += 16;
+    }
 
-    const rowH = 34;
-    const tableX = marginLeft;
+    doc.y = headerHeight + 16;
 
-    // Table header
-    y = pdfDrawTableHeader(doc, headers, colWidths, tableX, y, rowH);
+    // ─── Title Bar ─────────────────────────────────────────────
+    const titleBarY = doc.y;
+
+    // "Quote Request" — large bold left
+    doc.fontSize(18).font('Helvetica-Bold').fillColor(THEME.primary)
+      .text('Quote Request', marginLeft, titleBarY);
+
+    // Ref chip and Date chip — right side
+    const chipY = titleBarY + 2;
+    const refText = `Ref: ${ofNumber}`;
+    const dateText = `Date: ${date}`;
+    const chipFontSize = 9;
+    doc.fontSize(chipFontSize).font('Helvetica');
+
+    const refTextWidth = doc.widthOfString(refText) + 14;
+    const dateTextWidth = doc.widthOfString(dateText) + 14;
+    const chipGap = 8;
+    const chipHeight = 18;
+    const chipRadius = 4;
+
+    const dateChipX = marginLeft + contentWidth - dateTextWidth;
+    const refChipX = dateChipX - chipGap - refTextWidth;
+
+    // Draw ref chip
+    doc.save();
+    doc.roundedRect(refChipX, chipY, refTextWidth, chipHeight, chipRadius)
+      .fill(THEME.surfaceAlt);
+    doc.roundedRect(refChipX, chipY, refTextWidth, chipHeight, chipRadius)
+      .strokeColor(THEME.border).lineWidth(0.5).stroke();
+    doc.fillColor(THEME.text)
+      .text(refText, refChipX + 7, chipY + 5, { width: refTextWidth - 14, align: 'center' });
+    doc.restore();
+
+    // Draw date chip
+    doc.save();
+    doc.roundedRect(dateChipX, chipY, dateTextWidth, chipHeight, chipRadius)
+      .fill(THEME.surfaceAlt);
+    doc.roundedRect(dateChipX, chipY, dateTextWidth, chipHeight, chipRadius)
+      .strokeColor(THEME.border).lineWidth(0.5).stroke();
+    doc.fillColor(THEME.text)
+      .text(dateText, dateChipX + 7, chipY + 5, { width: dateTextWidth - 14, align: 'center' });
+    doc.restore();
+
+    doc.y = titleBarY + 28;
+    doc.moveDown(0.5);
+
+    // Thin separator line
+    doc.moveTo(marginLeft, doc.y)
+      .lineTo(marginLeft + contentWidth, doc.y)
+      .strokeColor(THEME.border).lineWidth(0.5).stroke();
+    doc.moveDown(0.8);
+
+    // ─── Parts Table (5 columns, no # index) ───────────────────
+    const headers = ['Reference', 'Quantity', 'Material', 'Treatment', 'Comments'];
+    const colWidths = [90, 60, 100, 110, contentWidth - 90 - 60 - 100 - 110];
+    const tableLeft = marginLeft;
+    const rowHeight = 24;
+
+    // Header row
+    let y = drawTableHeader(doc, headers, colWidths, tableLeft, doc.y, rowHeight);
 
     // Data rows
+    doc.font('Helvetica').fontSize(8).fillColor(THEME.text);
     for (let r = 0; r < parts.length; r++) {
       const part = parts[r];
+      // Quantity displayed as "× N"
+      const qtyDisplay = part.quantity ? `\u00d7 ${part.quantity}` : '—';
+      const values = [part.id, qtyDisplay, part.material, part.processing, part.comment];
       const bgColor = r % 2 === 0 ? '#ffffff' : THEME.altRow;
 
-      // Page break check
-      if (y + rowH > doc.page.height - doc.page.margins.bottom - 140) {
+      // Page break check — repeat header on new page
+      if (y + rowHeight > doc.page.height - doc.page.margins.bottom - 80) {
         doc.addPage();
         y = doc.page.margins.top;
-        y = pdfDrawTableHeader(doc, headers, colWidths, tableX, y, rowH);
+        y = drawTableHeader(doc, headers, colWidths, tableLeft, y, rowHeight);
+        doc.font('Helvetica').fontSize(8).fillColor(THEME.text);
       }
 
-      // Row background
-      const totalW = colWidths.reduce((a, b) => a + b, 0);
-      doc.save();
-      doc.rect(tableX, y, totalW, rowH).fill(bgColor);
-      doc.restore();
-
-      // Cell borders
-      let bx = tableX;
-      for (let c = 0; c < colWidths.length; c++) {
-        doc.rect(bx, y, colWidths[c], rowH)
-          .strokeColor(THEME.border).lineWidth(0.3).stroke();
-        bx += colWidths[c];
-      }
-
-      // Cell values
-      const values = [part.id, part.quantity, part.material, part.processing, part.comment];
-      let cx = tableX;
+      let x = tableLeft;
       for (let c = 0; c < values.length; c++) {
-        const cellY = y + (rowH - 9) / 2;
-
-        if (c === 1 && values[c]) {
-          // Quantity: teal pill "× N"
-          const qText = `\u00d7 ${values[c]}`;
-          doc.font('Helvetica-Bold').fontSize(8);
-          const qw = doc.widthOfString(qText);
-          const pw = qw + 14;
-          const px = cx + (colWidths[c] - pw) / 2;
-          doc.save();
-          doc.roundedRect(px, cellY - 3, pw, 16, 8).fill(THEME.pillTealBg);
-          doc.restore();
-          doc.fillColor(THEME.accent).text(qText, px + 7, cellY, { lineBreak: false });
-        } else if (c === 2 && values[c]) {
-          // Material: gray pill
-          doc.font('Helvetica').fontSize(8);
-          const mw = doc.widthOfString(values[c]);
-          const pw = mw + 14;
-          const px = cx + (colWidths[c] - pw) / 2;
-          doc.save();
-          doc.roundedRect(px, cellY - 3, pw, 16, 8).fill(THEME.pillGrayBg);
-          doc.restore();
-          doc.fillColor(THEME.text).text(values[c], px + 7, cellY, { lineBreak: false });
-        } else {
-          // Regular text
-          doc.font('Helvetica').fontSize(8).fillColor(THEME.text);
-          doc.text(values[c] || '\u2014', cx + 6, cellY, {
-            width: colWidths[c] - 12,
-            align: c === 0 ? 'left' : 'center',
+        doc.rect(x, y, colWidths[c], rowHeight).fill(bgColor);
+        doc.fillColor(THEME.text)
+          .text(values[c] || '—', x + 4, y + 8, {
+            width: colWidths[c] - 8,
+            align: c <= 1 ? 'center' : 'left',
           });
-        }
-        cx += colWidths[c];
+        x += colWidths[c];
       }
 
-      y += rowH;
+      // Thin cell borders
+      x = tableLeft;
+      for (let c = 0; c < colWidths.length; c++) {
+        doc.rect(x, y, colWidths[c], rowHeight)
+          .strokeColor(THEME.border).lineWidth(0.3).stroke();
+        x += colWidths[c];
+      }
+
+      y += rowHeight;
     }
 
-    y += 24;
+    doc.y = y;
+    doc.moveDown(1.5);
 
-    // ─── INFORMATIONS ────────────────────────────────────────
-    // Check if info section fits on current page
-    if (y + 200 > doc.page.height - doc.page.margins.bottom) {
+    // ─── Info Cards Section ────────────────────────────────────
+    if (doc.y + 120 > doc.page.height - doc.page.margins.bottom) {
       doc.addPage();
-      y = doc.page.margins.top;
     }
 
-    pdfDrawSectionLabel(doc, 'I N F O R M A T I O N', marginLeft, y);
-    y += 18;
+    // Section label "INFORMATION"
+    doc.fontSize(8).font('Helvetica-Bold').fillColor(THEME.accent)
+      .text('INFORMATION', marginLeft, doc.y);
+    doc.moveDown(0.5);
 
-    pdfDrawInfoCards(doc, marginLeft, contentWidth, y);
+    const cardGap = 10;
+    const cardWidth = (contentWidth - cardGap) / 2;
+    const cardPadding = 10;
+    const cardRadius = 4;
 
-    // ─── Footer on every page ────────────────────────────────
-    const totalPages = doc.bufferedPageRange().count;
-    for (let i = 0; i < totalPages; i++) {
-      doc.switchToPage(i);
-      pdfDrawFooter(doc, marginLeft, contentWidth, i + 1, totalPages);
+    // Draw 2 cards per row (2 rows = 4 cards total)
+    for (let row = 0; row < 2; row++) {
+      const cardsInRow = [INFO_CARDS[row * 2], INFO_CARDS[row * 2 + 1]];
+
+      // Measure card heights to pick the taller one for the row
+      const tempFontSize = 7.5;
+      doc.fontSize(tempFontSize).font('Helvetica');
+      const innerWidth = cardWidth - cardPadding * 2;
+
+      // Estimate heights
+      const rowHeights = cardsInRow.map((card) => {
+        const titleH = 10; // ~bold 8pt title
+        const bodyLines = Math.ceil(doc.widthOfString(card.body) / innerWidth) + 1;
+        const bodyH = bodyLines * (tempFontSize + 2);
+        return titleH + 4 + bodyH + cardPadding * 2;
+      });
+      const cardH = Math.max(...rowHeights, 60);
+
+      // Page break check
+      if (doc.y + cardH + 10 > doc.page.height - doc.page.margins.bottom) {
+        doc.addPage();
+      }
+
+      const rowY = doc.y;
+
+      for (let col = 0; col < 2; col++) {
+        const card = cardsInRow[col];
+        if (!card) continue;
+        const cardX = marginLeft + col * (cardWidth + cardGap);
+
+        // Card background and border
+        doc.save();
+        doc.roundedRect(cardX, rowY, cardWidth, cardH, cardRadius)
+          .fill(THEME.surfaceAlt);
+        doc.roundedRect(cardX, rowY, cardWidth, cardH, cardRadius)
+          .strokeColor(THEME.border).lineWidth(0.5).stroke();
+
+        // Card title (bold, small, accent-ish dark)
+        doc.fontSize(7.5).font('Helvetica-Bold').fillColor(THEME.primary)
+          .text(card.title.toUpperCase(), cardX + cardPadding, rowY + cardPadding, {
+            width: innerWidth,
+          });
+
+        const titleBottomY = rowY + cardPadding + 10 + 4;
+
+        // Card body text
+        doc.fontSize(7.5).font('Helvetica').fillColor(THEME.muted)
+          .text(card.body, cardX + cardPadding, titleBottomY, {
+            width: innerWidth,
+          });
+
+        doc.restore();
+      }
+
+      doc.y = rowY + cardH + cardGap;
     }
+
+    // ─── Footer ────────────────────────────────────────────────
+    const footerY = doc.page.height - doc.page.margins.bottom - 20;
+
+    doc.moveTo(marginLeft, footerY - 8)
+      .lineTo(marginLeft + contentWidth, footerY - 8)
+      .strokeColor(THEME.border).lineWidth(0.5).stroke();
+
+    // Legal info left
+    doc.fontSize(6.5).font('Helvetica').fillColor(THEME.muted)
+      .text(`${COMPANY.legal} | ${COMPANY.website} | ${COMPANY.tva}`, marginLeft, footerY, {
+        width: contentWidth - 60,
+        align: 'left',
+      });
+
+    // Page 1/1 right
+    doc.fontSize(6.5).font('Helvetica').fillColor(THEME.muted)
+      .text('Page 1/1', marginLeft, footerY, {
+        width: contentWidth,
+        align: 'right',
+      });
 
     doc.end();
   });
@@ -461,7 +381,7 @@ export async function generatePdf(ofNumber: string, parts: Part[]): Promise<Buff
 const DOCX_BORDER = {
   style: BorderStyle.SINGLE,
   size: 1,
-  color: 'E0E0E0',
+  color: 'E2E8F0',
 };
 
 const DOCX_TABLE_BORDERS = {
@@ -476,7 +396,7 @@ const DOCX_TABLE_BORDERS = {
 const DOCX_NO_BORDER = {
   style: BorderStyle.NONE,
   size: 0,
-  color: '1E2D3D',
+  color: '0F1A2E',
 };
 
 /**
@@ -488,11 +408,11 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
 
   const date = formatDateFR();
 
-  // ─── Header banner (simulated with full-width table) ──────
+  // ─── Header banner (logo left, contact info right) ───────────
   const logoBuffer = loadLogo();
   const headerCells: TableCell[] = [];
 
-  // Logo cell
+  // Logo cell (left)
   if (logoBuffer) {
     headerCells.push(
       new TableCell({
@@ -508,7 +428,7 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
             alignment: AlignmentType.LEFT,
           }),
         ],
-        shading: { fill: '1E2D3D', color: 'auto', type: ShadingType.CLEAR },
+        shading: { fill: '0F1A2E', color: 'auto', type: ShadingType.CLEAR },
         verticalAlign: VerticalAlign.CENTER,
         width: { size: 40, type: WidthType.PERCENTAGE },
         borders: {
@@ -535,7 +455,7 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
             ],
           }),
         ],
-        shading: { fill: '1E2D3D', color: 'auto', type: ShadingType.CLEAR },
+        shading: { fill: '0F1A2E', color: 'auto', type: ShadingType.CLEAR },
         verticalAlign: VerticalAlign.CENTER,
         width: { size: 40, type: WidthType.PERCENTAGE },
         borders: {
@@ -548,39 +468,31 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
     );
   }
 
-  // Company info cell (right side)
+  // Contact info cell (right) — 4 lines of small white text
+  const contactLines = [
+    COMPANY.address,
+    COMPANY.email,
+    COMPANY.phone,
+    COMPANY.website,
+  ];
   headerCells.push(
     new TableCell({
-      children: [
-        new Paragraph({
-          children: [
-            new TextRun({ text: COMPANY.address, font: 'Arial', size: 16, color: 'FFFFFF' }),
-          ],
-          alignment: AlignmentType.RIGHT,
-          spacing: { after: 20 },
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: COMPANY.email, font: 'Arial', size: 16, color: 'FFFFFF' }),
-          ],
-          alignment: AlignmentType.RIGHT,
-          spacing: { after: 20 },
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: COMPANY.phone, font: 'Arial', size: 16, color: 'FFFFFF' }),
-          ],
-          alignment: AlignmentType.RIGHT,
-          spacing: { after: 20 },
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: COMPANY.website, font: 'Arial', size: 16, color: 'FFFFFF' }),
-          ],
-          alignment: AlignmentType.RIGHT,
-        }),
-      ],
-      shading: { fill: '1E2D3D', color: 'auto', type: ShadingType.CLEAR },
+      children: contactLines.map(
+        (line) =>
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: line,
+                font: 'Arial',
+                size: 14,
+                color: 'CCDDEE',
+              }),
+            ],
+            alignment: AlignmentType.RIGHT,
+            spacing: { after: 20 },
+          }),
+      ),
+      shading: { fill: '0F1A2E', color: 'auto', type: ShadingType.CLEAR },
       verticalAlign: VerticalAlign.CENTER,
       width: { size: 60, type: WidthType.PERCENTAGE },
       borders: {
@@ -602,7 +514,7 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: {
       top: DOCX_NO_BORDER,
-      bottom: { style: BorderStyle.SINGLE, size: 6, color: '3ECDC6' },
+      bottom: { style: BorderStyle.SINGLE, size: 6, color: '1ABC9C' },
       left: DOCX_NO_BORDER,
       right: DOCX_NO_BORDER,
       insideHorizontal: DOCX_NO_BORDER,
@@ -610,7 +522,79 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
     },
   });
 
-  // ─── Parts table header row ────────────────────────────────
+  // ─── Title row: "Demande de Devis" left, ref + date right ────
+  const titleRow = new Table({
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: 'Quote Request',
+                    bold: true,
+                    font: 'Arial',
+                    size: 36,
+                    color: '0F1A2E',
+                  }),
+                ],
+                alignment: AlignmentType.LEFT,
+              }),
+            ],
+            verticalAlign: VerticalAlign.CENTER,
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            borders: {
+              top: DOCX_NO_BORDER,
+              bottom: DOCX_NO_BORDER,
+              left: DOCX_NO_BORDER,
+              right: DOCX_NO_BORDER,
+            },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `Ref: ${ofNumber}`,
+                    font: 'Arial',
+                    size: 18,
+                    color: '0F1A2E',
+                  }),
+                  new TextRun({
+                    text: `   Date: ${date}`,
+                    font: 'Arial',
+                    size: 18,
+                    color: '0F1A2E',
+                  }),
+                ],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            verticalAlign: VerticalAlign.CENTER,
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            borders: {
+              top: DOCX_NO_BORDER,
+              bottom: DOCX_NO_BORDER,
+              left: DOCX_NO_BORDER,
+              right: DOCX_NO_BORDER,
+            },
+          }),
+        ],
+      }),
+    ],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: {
+      top: DOCX_NO_BORDER,
+      bottom: { style: BorderStyle.SINGLE, size: 1, color: 'E2E8F0' },
+      left: DOCX_NO_BORDER,
+      right: DOCX_NO_BORDER,
+      insideHorizontal: DOCX_NO_BORDER,
+      insideVertical: DOCX_NO_BORDER,
+    },
+  });
+
+  // ─── Parts table (5 columns, no #) ───────────────────────────
   const tableHeaders = ['Reference', 'Quantity', 'Material', 'Treatment', 'Comments'];
   const partTableHeaderRow = new TableRow({
     tableHeader: true,
@@ -623,135 +607,217 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
               alignment: AlignmentType.CENTER,
             }),
           ],
-          shading: { fill: '1E2D3D', color: 'auto', type: ShadingType.CLEAR },
+          shading: { fill: '0F1A2E', color: 'auto', type: ShadingType.CLEAR },
           verticalAlign: VerticalAlign.CENTER,
         }),
     ),
   });
 
-  // ─── Parts table data rows ─────────────────────────────────
   const dataRows = parts.map((part, i) => {
-    const values = [part.id, `\u00d7 ${part.quantity}`, part.material, part.processing, part.comment];
+    // Quantity displayed as "× N"
+    const qtyDisplay = part.quantity ? `\u00d7 ${part.quantity}` : '—';
+    const values = [part.id, qtyDisplay, part.material, part.processing, part.comment];
     return new TableRow({
       children: values.map(
         (text, colIdx) =>
           new TableCell({
             children: [
               new Paragraph({
-                children: [new TextRun({ text: text || '\u2014', font: 'Arial', size: 18 })],
-                alignment: colIdx <= 2 ? AlignmentType.CENTER : AlignmentType.LEFT,
+                children: [new TextRun({ text: text || '—', font: 'Arial', size: 18 })],
+                alignment: colIdx <= 1 ? AlignmentType.CENTER : AlignmentType.LEFT,
               }),
             ],
-            shading: i % 2 === 1 ? { fill: 'F8FAFC', color: 'auto', type: ShadingType.CLEAR } : undefined,
+            shading: i % 2 === 1 ? { fill: 'F6F9FB', color: 'auto', type: ShadingType.CLEAR } : undefined,
             verticalAlign: VerticalAlign.CENTER,
           }),
       ),
     });
   });
 
-  // ─── Info cards (as a 2×2 table) ───────────────────────────
-  const infoNoBorder = {
-    top: { style: BorderStyle.SINGLE, size: 1, color: 'E8EAED' },
-    bottom: { style: BorderStyle.SINGLE, size: 1, color: 'E8EAED' },
-    left: { style: BorderStyle.SINGLE, size: 1, color: 'E8EAED' },
-    right: { style: BorderStyle.SINGLE, size: 1, color: 'E8EAED' },
-  };
+  // ─── Info cards section ───────────────────────────────────────
+  const infoSectionLabel = new Paragraph({
+    children: [
+      new TextRun({
+        text: 'INFORMATION',
+        bold: true,
+        font: 'Arial',
+        size: 16,
+        color: '1ABC9C',
+      }),
+    ],
+    spacing: { before: 300, after: 100 },
+  });
 
-  const infoRows = [];
-  for (let row = 0; row < 2; row++) {
-    const cells = [];
-    for (let col = 0; col < 2; col++) {
-      const card = INFO_CARDS[row * 2 + col];
-      cells.push(
-        new TableCell({
-          children: [
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: card.title,
-                  bold: true,
-                  font: 'Arial',
-                  size: 16,
-                  color: '1E2D3D',
-                }),
-              ],
-              spacing: { after: 60 },
-            }),
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: card.body,
-                  font: 'Arial',
-                  size: 15,
-                  color: '4A5568',
-                }),
-              ],
-            }),
-          ],
-          shading: { fill: 'F7F8FA', color: 'auto', type: ShadingType.CLEAR },
-          verticalAlign: VerticalAlign.CENTER,
-          borders: infoNoBorder,
-          margins: { top: 120, bottom: 120, left: 120, right: 120 },
+  // 2×2 grid as a table (each cell = one info card)
+  const infoCardsTable = new Table({
+    rows: [
+      // Row 1: cards 0 and 1
+      new TableRow({
+        children: [0, 1].map((idx) => {
+          const card = INFO_CARDS[idx];
+          return new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: card.title.toUpperCase(),
+                    bold: true,
+                    font: 'Arial',
+                    size: 15,
+                    color: '0F1A2E',
+                  }),
+                ],
+                spacing: { after: 60 },
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: card.body,
+                    font: 'Arial',
+                    size: 15,
+                    color: '64748B',
+                  }),
+                ],
+              }),
+            ],
+            shading: { fill: 'F6F9FB', color: 'auto', type: ShadingType.CLEAR },
+            verticalAlign: VerticalAlign.TOP,
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            margins: {
+              top: 100,
+              bottom: 100,
+              left: 120,
+              right: 120,
+            },
+            borders: DOCX_TABLE_BORDERS,
+          });
         }),
-      );
-    }
-    infoRows.push(new TableRow({ children: cells }));
-  }
+      }),
+      // Row 2: cards 2 and 3
+      new TableRow({
+        children: [2, 3].map((idx) => {
+          const card = INFO_CARDS[idx];
+          return new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: card.title.toUpperCase(),
+                    bold: true,
+                    font: 'Arial',
+                    size: 15,
+                    color: '0F1A2E',
+                  }),
+                ],
+                spacing: { after: 60 },
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: card.body,
+                    font: 'Arial',
+                    size: 15,
+                    color: '64748B',
+                  }),
+                ],
+              }),
+            ],
+            shading: { fill: 'F6F9FB', color: 'auto', type: ShadingType.CLEAR },
+            verticalAlign: VerticalAlign.TOP,
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            margins: {
+              top: 100,
+              bottom: 100,
+              left: 120,
+              right: 120,
+            },
+            borders: DOCX_TABLE_BORDERS,
+          });
+        }),
+      }),
+    ],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: DOCX_TABLE_BORDERS,
+  });
 
-  const infoTable = new Table({
-    rows: infoRows,
+  // ─── Footer ───────────────────────────────────────────────────
+  const footerTable = new Table({
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `${COMPANY.legal} | ${COMPANY.website} | ${COMPANY.tva}`,
+                    font: 'Arial',
+                    size: 13,
+                    color: '64748B',
+                  }),
+                ],
+                alignment: AlignmentType.LEFT,
+              }),
+            ],
+            verticalAlign: VerticalAlign.CENTER,
+            width: { size: 80, type: WidthType.PERCENTAGE },
+            borders: {
+              top: { style: BorderStyle.SINGLE, size: 1, color: 'E2E8F0' },
+              bottom: DOCX_NO_BORDER,
+              left: DOCX_NO_BORDER,
+              right: DOCX_NO_BORDER,
+            },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: 'Page 1/1',
+                    font: 'Arial',
+                    size: 13,
+                    color: '64748B',
+                  }),
+                ],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            verticalAlign: VerticalAlign.CENTER,
+            width: { size: 20, type: WidthType.PERCENTAGE },
+            borders: {
+              top: { style: BorderStyle.SINGLE, size: 1, color: 'E2E8F0' },
+              bottom: DOCX_NO_BORDER,
+              left: DOCX_NO_BORDER,
+              right: DOCX_NO_BORDER,
+            },
+          }),
+        ],
+      }),
+    ],
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: {
-      top: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-      bottom: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-      left: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-      right: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-      insideHorizontal: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-      insideVertical: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+      top: DOCX_NO_BORDER,
+      bottom: DOCX_NO_BORDER,
+      left: DOCX_NO_BORDER,
+      right: DOCX_NO_BORDER,
+      insideHorizontal: DOCX_NO_BORDER,
+      insideVertical: DOCX_NO_BORDER,
     },
   });
 
-  // ─── Assemble document ─────────────────────────────────────
+  // ─── Assemble document ────────────────────────────────────────
   const doc = new Document({
     sections: [
       {
         children: [
           // Header banner
           headerBanner,
+          // Spacer
+          new Paragraph({ spacing: { after: 160 }, children: [] }),
+          // Title row
+          titleRow,
+          // Spacer
           new Paragraph({ spacing: { after: 200 }, children: [] }),
-          // Title + Réf / Date
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: 'Quote Request',
-                bold: true,
-                font: 'Arial',
-                size: 36,
-                color: '1E2D3D',
-              }),
-              new TextRun({
-                text: `\tRef: ${ofNumber}     Date: ${date}`,
-                font: 'Arial',
-                size: 18,
-                color: '1E2D3D',
-              }),
-            ],
-            spacing: { after: 300 },
-            tabStops: [{ type: 'right' as any, position: 9000 }],
-          }),
-          // Section label
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: 'P A R T S   D E T A I L S',
-                bold: true,
-                font: 'Arial',
-                size: 16,
-                color: '3ECDC6',
-              }),
-            ],
-            spacing: { after: 100 },
-          }),
           // Parts table
           new Table({
             rows: [partTableHeaderRow, ...dataRows],
@@ -759,49 +825,16 @@ export async function generateDocx(ofNumber: string, parts: Part[]): Promise<Buf
             layout: TableLayoutType.FIXED,
             borders: DOCX_TABLE_BORDERS,
           }),
-          new Paragraph({ spacing: { after: 300 }, children: [] }),
-          // Information label
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: 'I N F O R M A T I O N',
-                bold: true,
-                font: 'Arial',
-                size: 16,
-                color: '3ECDC6',
-              }),
-            ],
-            spacing: { after: 100 },
-          }),
-          // Info cards table
-          infoTable,
+          // Spacer
           new Paragraph({ spacing: { after: 200 }, children: [] }),
-          // Footer line 1
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: COMPANY.legalLine1,
-                font: 'Arial',
-                size: 12,
-                color: '1E2D3D',
-                bold: true,
-              }),
-            ],
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 20 },
-          }),
-          // Footer line 2
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: COMPANY.legalLine2,
-                font: 'Arial',
-                size: 12,
-                color: '3ECDC6',
-              }),
-            ],
-            alignment: AlignmentType.CENTER,
-          }),
+          // Info cards section label
+          infoSectionLabel,
+          // Info cards 2x2 table
+          infoCardsTable,
+          // Spacer
+          new Paragraph({ spacing: { after: 300 }, children: [] }),
+          // Footer table
+          footerTable,
         ],
       },
     ],
