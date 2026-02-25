@@ -4,10 +4,52 @@ import { config } from '../config';
 import { ofLogger } from '../utils/logger';
 
 let dbxInstance: Dropbox | null = null;
+let rootNamespaceId: string | null = null;
 
 /** Reset the cached client (e.g. after an auth error) */
 export function resetClient(): void {
   dbxInstance = null;
+  rootNamespaceId = null;
+}
+
+/**
+ * Detect the root namespace for the Dropbox account.
+ * For Dropbox Business/Team accounts, the user's default namespace
+ * may differ from the team's root namespace where shared folders live.
+ * We need to set pathRoot to the root_namespace_id so API calls resolve
+ * paths relative to the team space (where /Analyses/RIJ/Plans/ lives).
+ */
+async function detectRootNamespace(dbx: Dropbox): Promise<string | null> {
+  const log = ofLogger('dropbox');
+  try {
+    const account = await dbx.usersGetCurrentAccount();
+    const rootInfo = account.result.root_info;
+    const rootNs = rootInfo.root_namespace_id;
+    const homeNs = rootInfo.home_namespace_id;
+
+    log.info(
+      {
+        rootNamespaceId: rootNs,
+        homeNamespaceId: homeNs,
+        rootInfoTag: (rootInfo as any)['.tag'],
+        accountId: account.result.account_id,
+        displayName: account.result.name?.display_name,
+      },
+      'Dropbox account info retrieved',
+    );
+
+    if (rootNs !== homeNs) {
+      log.info(
+        { rootNamespaceId: rootNs, homeNamespaceId: homeNs },
+        'Team account detected — root and home namespaces differ. Will use root namespace for path resolution.',
+      );
+    }
+
+    return rootNs;
+  } catch (err: any) {
+    log.warn({ err: err.message }, 'Failed to detect Dropbox root namespace — using default');
+    return null;
+  }
 }
 
 /** Get or create a Dropbox client, handling token refresh if OAuth2 is configured */
@@ -16,31 +58,55 @@ async function getClient(): Promise<Dropbox> {
 
   const log = ofLogger('dropbox');
 
+  let dbx: Dropbox;
+
   // If a long-lived access token is provided, use it directly
   if (config.dropbox.accessToken) {
-    dbxInstance = new Dropbox({
+    dbx = new Dropbox({
       accessToken: config.dropbox.accessToken,
       fetch: fetch as any,
     });
-    return dbxInstance;
-  }
-
-  // Otherwise use OAuth2 refresh token flow
-  if (!config.dropbox.refreshToken || !config.dropbox.clientSecret) {
+  } else if (config.dropbox.refreshToken && config.dropbox.clientSecret) {
+    // Otherwise use OAuth2 refresh token flow
+    log.info('Creating Dropbox client with OAuth2 refresh token flow');
+    const auth = new DropboxAuth({
+      clientId: config.dropbox.clientId,
+      clientSecret: config.dropbox.clientSecret,
+      refreshToken: config.dropbox.refreshToken,
+      fetch: fetch as any,
+    });
+    dbx = new Dropbox({ auth, fetch: fetch as any });
+  } else {
     throw new Error(
       'Dropbox auth not configured: set DROPBOX_ACCESS_TOKEN or both DROPBOX_CLIENT_SECRET and DROPBOX_REFRESH_TOKEN',
     );
   }
 
-  log.info('Creating Dropbox client with OAuth2 refresh token flow');
-  const auth = new DropboxAuth({
-    clientId: config.dropbox.clientId,
-    clientSecret: config.dropbox.clientSecret,
-    refreshToken: config.dropbox.refreshToken,
-    fetch: fetch as any,
-  });
+  // Detect root namespace and recreate client with pathRoot if needed
+  const nsId = await detectRootNamespace(dbx);
+  if (nsId) {
+    rootNamespaceId = nsId;
+    const pathRoot = JSON.stringify({ '.tag': 'root', root: nsId });
+    log.info({ pathRoot }, 'Recreating Dropbox client with pathRoot for team namespace');
 
-  dbxInstance = new Dropbox({ auth, fetch: fetch as any });
+    if (config.dropbox.accessToken) {
+      dbx = new Dropbox({
+        accessToken: config.dropbox.accessToken,
+        pathRoot,
+        fetch: fetch as any,
+      });
+    } else {
+      const auth = new DropboxAuth({
+        clientId: config.dropbox.clientId,
+        clientSecret: config.dropbox.clientSecret,
+        refreshToken: config.dropbox.refreshToken,
+        fetch: fetch as any,
+      });
+      dbx = new Dropbox({ auth, pathRoot, fetch: fetch as any });
+    }
+  }
+
+  dbxInstance = dbx;
   return dbxInstance;
 }
 
@@ -338,9 +404,17 @@ export async function findMatchingFolder(
   const folders = entries.filter(e => e.tag === 'folder');
   const lowerPartId = partId.toLowerCase();
 
+  log.info(
+    { parentPath, partId, totalEntries: entries.length, folderCount: folders.length, sampleFolders: folders.slice(0, 10).map(f => f.name) },
+    'findMatchingFolder: listed parent folder',
+  );
+
   // Priority 1: exact match (case-insensitive)
   const exact = folders.find(f => f.name.toLowerCase() === lowerPartId);
-  if (exact) return exact.pathDisplay;
+  if (exact) {
+    log.info({ partId, matchedName: exact.name, matchedPath: exact.pathDisplay }, 'findMatchingFolder: exact match found');
+    return exact.pathDisplay;
+  }
 
   // Priority 2: folder name starts with the partId
   const startsWith = folders.filter(f => f.name.toLowerCase().startsWith(lowerPartId));
@@ -415,4 +489,24 @@ export async function downloadFile(path: string): Promise<Buffer> {
 export async function deletePath(path: string): Promise<void> {
   const dbx = await getClient();
   await dbx.filesDeleteV2({ path });
+}
+
+/**
+ * Get Dropbox account info including namespace details.
+ * Useful for diagnosing path resolution issues.
+ */
+export async function getAccountInfo(): Promise<Record<string, unknown>> {
+  const dbx = await getClient();
+  const account = await dbx.usersGetCurrentAccount();
+  const rootInfo = account.result.root_info;
+  return {
+    accountId: account.result.account_id,
+    displayName: account.result.name?.display_name,
+    email: account.result.email,
+    rootNamespaceId: rootInfo.root_namespace_id,
+    homeNamespaceId: rootInfo.home_namespace_id,
+    rootInfoTag: (rootInfo as any)['.tag'],
+    configuredPathRoot: rootNamespaceId,
+    isTeamAccount: rootInfo.root_namespace_id !== rootInfo.home_namespace_id,
+  };
 }

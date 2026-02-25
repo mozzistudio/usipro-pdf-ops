@@ -8,6 +8,26 @@ import * as dropboxService from '../services/dropbox';
 export const apiRouter = Router();
 
 /**
+ * GET /api/debug/dropbox-info
+ *
+ * Returns Dropbox account info including namespace details.
+ * Useful for diagnosing path resolution issues on team/business accounts.
+ */
+apiRouter.get('/api/debug/dropbox-info', async (_req: Request, res: Response) => {
+  logger.info('Debug: fetching Dropbox account info');
+  try {
+    const info = await dropboxService.getAccountInfo();
+    res.json({ status: 'ok', ...info });
+  } catch (err: any) {
+    logger.error({ err: err.message, status: err?.status }, 'Debug: failed to get Dropbox info');
+    res.status(500).json({
+      status: 'error',
+      message: err?.error?.error_summary || err.message,
+    });
+  }
+});
+
+/**
  * GET /api/debug/list-plans/:id
  *
  * Lists the contents of /Analyses/RIJ/Plans/:id on Dropbox.
@@ -33,11 +53,16 @@ apiRouter.get('/api/debug/list-plans/:id', async (req: Request, res: Response) =
     });
   } catch (err: any) {
     const summary = err?.error?.error_summary || err.message;
-    const notFound = summary.includes('path/not_found');
+    const notFound = typeof summary === 'string' && summary.includes('path/not_found');
+    logger.error(
+      { partId, folderPath, errStatus: err?.status, errSummary: err?.error?.error_summary, errMessage: err.message },
+      'Debug: list-plans failed',
+    );
     res.status(notFound ? 404 : 500).json({
       status: 'error',
       folder: folderPath,
       message: notFound ? `Dossier introuvable: ${folderPath}` : summary,
+      details: { status: err?.status, errorSummary: err?.error?.error_summary },
     });
   }
 });

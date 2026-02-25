@@ -45,14 +45,19 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
     let files: Array<{ name: string; pathLower: string; pathDisplay: string }> = [];
     try {
       files = await dropboxService.listFiles(sourcePath);
-      log.info({ partId, sourcePath, fileCount: files.length, fileNames: files.map(f => f.name) }, 'Part folder found');
+      log.info({ partId, sourcePath, fileCount: files.length, fileNames: files.map(f => f.name) }, 'Part folder found — direct listing succeeded');
     } catch (err: any) {
-      const summary = typeof err?.error === 'string'
+      const errSummary = typeof err?.error === 'string'
         ? err.error
         : err?.error?.error_summary || '';
-      if (typeof summary === 'string' && summary.includes('path/not_found')) {
-        // Fallback: search for a folder whose name matches the partId
-        log.info({ partId }, 'Exact folder not found — searching for matching folder');
+      log.warn(
+        { partId, sourcePath, errStatus: err?.status, errSummary, errMessage: err?.message },
+        'Direct folder listing failed',
+      );
+
+      if (typeof errSummary === 'string' && errSummary.includes('path/not_found')) {
+        // Fallback 1: search for a folder whose name matches the partId
+        log.info({ partId, plansBasePath }, 'Exact folder not found — trying fallback: folder name matching in parent');
         try {
           const matchedPath = await dropboxService.findMatchingFolder(plansBasePath, partId);
           if (matchedPath) {
@@ -61,16 +66,63 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
             files = await dropboxService.listFiles(sourcePath);
             log.info({ partId, sourcePath, fileCount: files.length, fileNames: files.map(f => f.name) }, 'Matched folder listed');
           } else {
-            log.warn({ partId, sourcePath }, 'No matching folder found — skipping');
-            missingParts.push(partId);
-            continue;
+            log.warn({ partId, plansBasePath }, 'No matching folder found in parent listing');
           }
         } catch (fallbackErr: any) {
-          log.warn({ partId, err: fallbackErr.message }, 'Fallback folder search failed — skipping');
+          log.warn(
+            { partId, errMessage: fallbackErr?.message, errStatus: fallbackErr?.status, errSummary: fallbackErr?.error?.error_summary },
+            'Fallback folder search failed',
+          );
+        }
+
+        // Fallback 2: use Dropbox search API if folder matching didn't find files
+        if (files.length === 0) {
+          log.info({ partId, plansBasePath }, 'Trying fallback: Dropbox search API');
+          try {
+            const searchResults = await dropboxService.searchByName(partId, plansBasePath);
+            log.info(
+              { partId, searchResultCount: searchResults.length, searchResults: searchResults.map(r => ({ tag: r.tag, name: r.name, path: r.pathDisplay })) },
+              'Dropbox search API results',
+            );
+
+            // Look for a folder matching the partId in search results
+            const matchedFolder = searchResults.find(
+              r => r.tag === 'folder' && r.name.toLowerCase() === partId.toLowerCase(),
+            );
+            if (matchedFolder) {
+              sourcePath = matchedFolder.pathDisplay;
+              log.info({ partId, matchedPath: sourcePath }, 'Found folder via Dropbox search API');
+              files = await dropboxService.listFiles(sourcePath);
+              log.info({ partId, sourcePath, fileCount: files.length, fileNames: files.map(f => f.name) }, 'Search-matched folder listed');
+            } else {
+              // Also check if search found files directly (PDF/STEP under plans path)
+              const techFiles = searchResults.filter(
+                r => r.tag === 'file' && (isPdf(r.name) || isStep(r.name)),
+              );
+              if (techFiles.length > 0) {
+                log.info({ partId, fileCount: techFiles.length }, 'Found technical files directly via search API');
+                files = techFiles.map(f => ({ name: f.name, pathLower: f.pathLower, pathDisplay: f.pathDisplay }));
+              }
+            }
+          } catch (searchErr: any) {
+            log.warn(
+              { partId, errMessage: searchErr?.message, errStatus: searchErr?.status },
+              'Dropbox search API fallback failed',
+            );
+          }
+        }
+
+        if (files.length === 0) {
+          log.warn({ partId, sourcePath }, 'All search methods failed — skipping part');
           missingParts.push(partId);
           continue;
         }
       } else {
+        // Non path/not_found error — log details and rethrow
+        log.error(
+          { partId, sourcePath, errStatus: err?.status, errSummary, errMessage: err?.message, errBody: err?.error },
+          'Unexpected Dropbox error during folder listing',
+        );
         throw err;
       }
     }
@@ -81,8 +133,11 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
       try {
         files = await dropboxService.listFilesRecursive(sourcePath);
         log.info({ partId, fileCount: files.length, fileNames: files.map(f => f.name) }, 'Recursive search results');
-      } catch {
-        // Ignore recursive search errors
+      } catch (recErr: any) {
+        log.warn(
+          { partId, sourcePath, errMessage: recErr?.message, errStatus: recErr?.status },
+          'Recursive search failed',
+        );
       }
     }
 
@@ -91,6 +146,8 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
       missingParts.push(partId);
       continue;
     }
+
+    log.info({ partId, fileCount: files.length, fileNames: files.map(f => f.name) }, 'Processing files for part');
 
     for (const file of files) {
       const ext = getExtension(file.name);
@@ -105,6 +162,8 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
         log.info({ from: file.pathDisplay, to: destPath }, 'Copying STEP');
         await dropboxService.copyFile(file.pathDisplay, destPath);
         copiedFiles++;
+      } else {
+        log.info({ partId, fileName: file.name, ext }, 'Skipping non-technical file');
       }
     }
   }
