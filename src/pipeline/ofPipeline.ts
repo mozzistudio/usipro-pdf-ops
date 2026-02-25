@@ -5,7 +5,6 @@ import { ofLogger } from '../utils/logger';
 import * as dropboxService from '../services/dropbox';
 import * as documentGenerator from '../services/documentGenerator';
 import * as zipService from '../services/zip';
-import { fetchDocsFromWebhook } from '../services/webhookService';
 
 /**
  * Execute the full OF pipeline for an unlimited number of parts.
@@ -31,18 +30,18 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
   await dropboxService.createFolder(paths.dp);
   log.info({ paths }, 'Folder structure created');
 
-  // ─── Step 2: Call Make webhook to get Dropbox doc paths ──────
-  log.info({ partCount: parts.length }, 'Step 2: Fetching docs from Make webhook');
+  // ─── Step 2: Search Dropbox directly for technical docs ──────
+  log.info({ partCount: parts.length }, 'Step 2: Searching Dropbox for technical docs');
   const partIds = parts.map(p => p.id.trim());
-  const webhookDocs = await fetchDocsFromWebhook(ofNumber, partIds);
-  log.info({ docCount: webhookDocs.length }, 'Webhook returned docs');
+  const webhookDocs = await dropboxService.fetchDocsFromDropbox(partIds);
+  log.info({ docCount: webhookDocs.length }, 'Dropbox search returned docs');
 
   const missingParts: string[] = [];
   let copiedFiles = 0;
 
   for (const doc of webhookDocs) {
-    const sourcePath = doc.path_display || doc.path_lower || doc.path || '';
-    const fileName = doc.name || sourcePath.split('/').pop() || '';
+    const sourcePath = doc.path_display;
+    const fileName = doc.name;
 
     if (!sourcePath) {
       log.warn({ doc }, 'Doc entry has no path — skipping');
@@ -75,14 +74,14 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
 
   // ─── Abort if no technical files were found ─────────────────────
   if (copiedFiles === 0) {
-    log.warn({ missingParts }, 'No technical files returned by webhook — aborting pipeline');
+    log.warn({ missingParts }, 'No technical files found in Dropbox — aborting pipeline');
     await Promise.all([
       dropboxService.deletePath(paths.nm).catch(() => {}),
       dropboxService.deletePath(paths.dp).catch(() => {}),
       dropboxService.deletePath(paths.main).catch(() => {}),
     ]);
     throw new Error(
-      `Aucun fichier technique (PDF/STEP) retourné par le webhook pour les pièces: ${partIds.join(', ')}`,
+      `Aucun fichier technique (PDF/STEP) trouvé dans Dropbox pour les pièces: ${partIds.join(', ')}`,
     );
   }
 

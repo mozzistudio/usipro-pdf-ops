@@ -400,6 +400,52 @@ export async function searchByName(
 }
 
 /**
+ * For each part ID, list files in /Analyses/RIJ/Plans/{id} and return
+ * PDF/STP/STEP entries. Replaces the Make.com webhook that did the same.
+ */
+export async function fetchDocsFromDropbox(
+  partIds: string[],
+): Promise<Array<{ name: string; path_display: string }>> {
+  const log = ofLogger('dropbox');
+  const basePath = '/Analyses/RIJ/Plans';
+  const results: Array<{ name: string; path_display: string }> = [];
+
+  for (const id of partIds) {
+    const folderPath = `${basePath}/${id}`;
+    log.info({ folderPath }, 'Listing files for part');
+
+    try {
+      const files = await listFiles(folderPath);
+      const matching = files.filter(f => {
+        const lower = f.name.toLowerCase();
+        return lower.endsWith('.pdf') || lower.endsWith('.stp') || lower.endsWith('.step');
+      });
+
+      log.info(
+        { partId: id, totalFiles: files.length, matchingFiles: matching.length },
+        'Dropbox folder listed for part',
+      );
+
+      for (const f of matching) {
+        results.push({
+          name: f.name,
+          path_display: f.pathDisplay,
+        });
+      }
+    } catch (err: any) {
+      if (err?.error?.error_summary?.includes('path/not_found')) {
+        log.warn({ partId: id, folderPath }, 'Folder not found for part — skipping');
+      } else {
+        log.error({ partId: id, error: err?.message || err }, 'Error listing folder for part');
+      }
+    }
+  }
+
+  log.info({ totalDocs: results.length }, 'Dropbox doc search completed');
+  return results;
+}
+
+/**
  * Download a file from Dropbox. Returns the file contents as a Buffer.
  */
 export async function downloadFile(path: string): Promise<Buffer> {
