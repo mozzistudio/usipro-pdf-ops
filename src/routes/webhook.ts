@@ -3,8 +3,44 @@ import { FormPayload } from '../types';
 import { parseFormPayload } from '../utils/helpers';
 import { logger } from '../utils/logger';
 import { runPipeline } from '../pipeline/ofPipeline';
+import * as dropboxService from '../services/dropbox';
 
 export const apiRouter = Router();
+
+/**
+ * GET /api/debug/list-plans/:id
+ *
+ * Lists the contents of /Analyses/RIJ/Plans/:id on Dropbox.
+ * Useful for debugging missing files.
+ */
+apiRouter.get('/api/debug/list-plans/:id', async (req: Request, res: Response) => {
+  const partId = req.params.id.trim();
+  const folderPath = `/Analyses/RIJ/Plans/${partId}`;
+
+  logger.info({ partId, folderPath }, 'Debug: listing plans folder');
+
+  try {
+    const entries = await dropboxService.listFolderEntries(folderPath);
+    res.json({
+      status: 'ok',
+      folder: folderPath,
+      count: entries.length,
+      entries: entries.map((e) => ({
+        type: e.tag,
+        name: e.name,
+        path: e.pathDisplay,
+      })),
+    });
+  } catch (err: any) {
+    const summary = err?.error?.error_summary || err.message;
+    const notFound = summary.includes('path/not_found');
+    res.status(notFound ? 404 : 500).json({
+      status: 'error',
+      folder: folderPath,
+      message: notFound ? `Dossier introuvable: ${folderPath}` : summary,
+    });
+  }
+});
 
 /**
  * POST /api/submit
@@ -37,6 +73,7 @@ apiRouter.post('/api/submit', async (req: Request, res: Response) => {
       of: result.ofNumber,
       dropboxLink: result.dropboxLink,
       missingParts: result.missingParts,
+      zipBase64: result.zipBase64,
     });
   } catch (err: any) {
     // Extract detailed error info (Dropbox SDK embeds it in err.error)

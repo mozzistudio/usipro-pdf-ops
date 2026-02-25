@@ -1,3 +1,4 @@
+import JSZip from 'jszip';
 import { OFData, PipelineResult } from '../types';
 import { buildDropboxPaths, getExtension, isPdf, isStep } from '../utils/helpers';
 import { ofLogger } from '../utils/logger';
@@ -34,6 +35,8 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
   const missingParts: string[] = [];
   const plansBasePath = '/Analyses/RIJ/Plans';
 
+  let copiedFiles = 0;
+
   for (const part of parts) {
     const partId = part.id.trim();
     const sourcePath = `${plansBasePath}/${partId}`;
@@ -68,12 +71,28 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
         const destPath = `${paths.nm}/${partId}.pdf`;
         log.info({ from: file.pathDisplay, to: destPath }, 'Copying PDF');
         await dropboxService.copyFile(file.pathDisplay, destPath);
+        copiedFiles++;
       } else if (isStep(file.name)) {
         const destPath = `${paths.dp}/${partId}.${ext}`;
         log.info({ from: file.pathDisplay, to: destPath }, 'Copying STEP');
         await dropboxService.copyFile(file.pathDisplay, destPath);
+        copiedFiles++;
       }
     }
+  }
+
+  // ─── Abort if no technical files were found ─────────────────────
+  if (copiedFiles === 0) {
+    log.warn({ missingParts }, 'No technical files found for any part — aborting pipeline');
+    // Clean up the empty folders we created
+    await Promise.all([
+      dropboxService.deletePath(paths.nm).catch(() => {}),
+      dropboxService.deletePath(paths.dp).catch(() => {}),
+      dropboxService.deletePath(paths.main).catch(() => {}),
+    ]);
+    throw new Error(
+      `Aucun fichier technique (PDF/STEP) trouvé pour les pièces: ${missingParts.join(', ')}`,
+    );
   }
 
   // ─── Step 3: Create ZIP from NM folder ────────────────────────
@@ -96,14 +115,36 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
   ]);
   log.info('Files uploaded to Dropbox');
 
-  // ─── Step 6: Delete temporary NM folder ───────────────────────
-  log.info('Step 6: Deleting temporary NM folder');
+  // ─── Step 6: Build full ZIP of the OF folder contents ──────────
+  log.info('Step 6: Building full ZIP of OF folder');
+  const fullZip = new JSZip();
+  fullZip.file(`${ofNumber}.pdf`, pdfBuffer);
+  fullZip.file(`${ofNumber}.docx`, docxBuffer);
+  fullZip.file(`NM${ofNumber}.zip`, zipBuffer);
+
+  // Include STEP files from DP folder
+  const dpFiles = await dropboxService.listFiles(paths.dp);
+  for (const f of dpFiles) {
+    const content = await dropboxService.downloadFile(f.pathDisplay);
+    fullZip.file(`DP${ofNumber}/${f.name}`, content);
+  }
+
+  const fullZipBuffer = await fullZip.generateAsync({
+    type: 'nodebuffer',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  });
+  const zipBase64 = fullZipBuffer.toString('base64');
+  log.info({ zipSizeBytes: fullZipBuffer.length }, 'Full ZIP built');
+
+  // ─── Step 7: Delete temporary NM folder ───────────────────────
+  log.info('Step 7: Deleting temporary NM folder');
   await dropboxService.deletePath(paths.nm);
 
-  // ─── Step 7: Create shared link for OF folder ─────────────────
-  log.info('Step 7: Creating shared link for OF folder');
+  // ─── Step 8: Create shared link for OF folder ─────────────────
+  log.info('Step 8: Creating shared link for OF folder');
   const dropboxLink = await dropboxService.createSharedLink(paths.main);
 
   log.info({ dropboxLink, missingParts }, 'Pipeline completed successfully');
-  return { ofNumber, dropboxLink, missingParts };
+  return { ofNumber, dropboxLink, missingParts, zipBase64 };
 }
