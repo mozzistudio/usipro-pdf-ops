@@ -414,6 +414,168 @@
       to { transform: rotate(360deg); }
     }
 
+    /* ── RESULT OUTPUT ── */
+    .result-section { color: var(--text); }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--success);
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(39,174,96,0.15);
+    }
+
+    .result-check {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: rgba(39,174,96,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .result-actions {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .btn-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      border: none;
+      transition: all 0.18s;
+      line-height: 1;
+    }
+
+    .btn-dropbox { background: var(--accent); color: #fff; }
+    .btn-dropbox:hover {
+      background: var(--accent-deep);
+      box-shadow: 0 3px 12px rgba(26,188,156,0.35);
+      transform: translateY(-1px);
+    }
+
+    .btn-download { background: var(--dark); color: #fff; }
+    .btn-download:hover {
+      background: #162240;
+      box-shadow: 0 3px 12px rgba(15,26,46,0.25);
+      transform: translateY(-1px);
+    }
+
+    .result-inner-card {
+      background: #f8fafb;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-bottom: 12px;
+    }
+
+    .result-inner-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.8px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    /* folder tree */
+    .tree-root {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 6px;
+    }
+
+    .tree-folder-icon { color: #e67e22; font-size: 15px; }
+
+    .tree-children {
+      margin-left: 8px;
+      border-left: 2px solid #e2e8f0;
+      padding-left: 14px;
+    }
+
+    .tree-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      padding: 4px 0;
+      color: var(--text);
+    }
+
+    .file-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .file-dot.pdf  { background: #e74c3c; }
+    .file-dot.docx { background: #2980b9; }
+    .file-dot.zip  { background: #8e44ad; }
+    .file-dot.dir  { background: #e67e22; }
+
+    .tree-row .file-name { flex: 1; font-weight: 500; }
+
+    .file-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .file-badge.pdf  { background: rgba(231,76,60,0.1);  color: #c0392b; }
+    .file-badge.docx { background: rgba(41,128,185,0.1); color: #1a6fa5; }
+    .file-badge.zip  { background: rgba(142,68,173,0.1); color: #7d3c98; }
+    .file-badge.dir  { background: rgba(230,126,34,0.1); color: #d35400; }
+
+    .tree-note { font-size: 11.5px; color: var(--text-muted); }
+
+    /* parts chips */
+    .parts-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .part-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      font-weight: 600;
+    }
+    .part-chip.found {
+      background: rgba(39,174,96,0.1);
+      color: #1e8449;
+      border: 1px solid rgba(39,174,96,0.22);
+    }
+    .part-chip.missing {
+      background: rgba(230,126,34,0.1);
+      color: #a04000;
+      border: 1px solid rgba(230,126,34,0.25);
+    }
+    .part-chip .chip-icon { font-size: 11px; }
+
     /* ── FOOTER ── */
     .footer {
       text-align: center;
@@ -619,14 +781,107 @@
         const result = await res.json();
 
         if (res.ok) {
-          let msg = 'Dossier <strong>' + result.of + '</strong> traité avec succès.';
-          if (result.dropboxLink) {
-            msg += '<br><br><a href="' + result.dropboxLink + '" target="_blank" style="color:var(--accent-deep);font-weight:600;">Ouvrir le dossier Dropbox</a>';
-          }
-          if (result.missingParts && result.missingParts.length > 0) {
-            msg += '<br><br><span style="color:#e67e22;">Pièces non trouvées : ' + result.missingParts.join(', ') + '</span>';
-          }
+          const ofNum = result.of;
+          const submittedIds = data.parts.map(p => p.id);
+          const missingIds = result.missingParts || [];
+          const foundIds = submittedIds.filter(id => !missingIds.includes(id));
+
+          // ── Folder tree ──
+          const nmChildrenHtml = foundIds.length > 0
+            ? `<div class="tree-children">
+                ${foundIds.map(id => `<div class="tree-row">
+                  <span class="file-dot pdf"></span>
+                  <span class="file-name">${id}.pdf</span>
+                  <span class="file-badge pdf">PDF</span>
+                </div>`).join('')}
+              </div>`
+            : '';
+
+          const treeItems = [
+            { name: ofNum + '.pdf',        type: 'pdf',  note: 'Demande de devis', children: '' },
+            { name: ofNum + '.docx',       type: 'docx', note: 'Demande de devis', children: '' },
+            { name: 'NM' + ofNum + '.zip', type: 'zip',  note: 'PDFs techniques',  children: nmChildrenHtml },
+            { name: 'DP' + ofNum + '/',    type: 'dir',  note: 'Fichiers STEP',    children: '' },
+          ];
+          const treeHtml = treeItems.map(r =>
+            `<div>
+              <div class="tree-row">
+                <span class="file-dot ${r.type}"></span>
+                <span class="file-name">${r.name}</span>
+                <span class="file-badge ${r.type}">${r.type === 'dir' ? 'DIR' : r.type.toUpperCase()}</span>
+                <span class="tree-note">${r.note}</span>
+              </div>
+              ${r.children}
+            </div>`
+          ).join('');
+
+          // ── Parts chips ──
+          const chipsHtml = [
+            ...foundIds.map(id => `<span class="part-chip found"><span class="chip-icon">✓</span>${id}</span>`),
+            ...missingIds.map(id => `<span class="part-chip missing"><span class="chip-icon">✗</span>${id}</span>`),
+          ].join('');
+
+          // ── Action buttons ──
+          const dropboxBtn = result.dropboxLink
+            ? `<a href="${result.dropboxLink}" target="_blank" class="btn-action btn-dropbox">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                Ouvrir dans Dropbox
+              </a>`
+            : '';
+
+          const zipBtn = result.zipBase64
+            ? `<button type="button" class="btn-action btn-download" id="btnDownloadZip">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Télécharger le ZIP
+              </button>`
+            : '';
+
+          const msg = `
+            <div class="result-section">
+              <div class="result-header">
+                <span class="result-check">✓</span>
+                Dossier <strong>OF${ofNum}</strong> traité avec succès.
+              </div>
+
+              <div class="result-actions">
+                ${dropboxBtn}
+                ${zipBtn}
+              </div>
+
+              <div class="result-inner-card">
+                <div class="result-inner-label">Structure du dossier</div>
+                <div class="tree-root">
+                  <span class="tree-folder-icon">▶</span>
+                  <span>OF${ofNum}/</span>
+                </div>
+                <div class="tree-children">${treeHtml}</div>
+              </div>
+
+              ${chipsHtml ? `<div class="result-inner-card">
+                <div class="result-inner-label">Pièces traitées</div>
+                <div class="parts-chips">${chipsHtml}</div>
+              </div>` : ''}
+            </div>`;
+
           showStatus('success', msg);
+
+          if (result.zipBase64) {
+            const btnDl = document.getElementById('btnDownloadZip');
+            if (btnDl) {
+              btnDl.addEventListener('click', () => {
+                const bytes = Uint8Array.from(atob(result.zipBase64), c => c.charCodeAt(0));
+                const blob = new Blob([bytes], { type: 'application/zip' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'OF' + ofNum + '.zip';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+              });
+            }
+          }
         } else {
           showStatus('error', result.message || 'Une erreur est survenue.');
         }
