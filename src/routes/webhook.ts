@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { FormPayload } from '../types';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { FormPayload, FinalizeRequest, AddUsIproTableRequest } from '../types';
 import { parseFormPayload } from '../utils/helpers';
 import { logger } from '../utils/logger';
-import { runPipeline } from '../pipeline/ofPipeline';
+import { runPipelinePhase1, runPipelinePhase2 } from '../pipeline/ofPipeline';
 import * as dropboxService from '../services/dropbox';
 import * as pdfEditor from '../services/pdfEditor';
 import * as pdfAnonymizer from '../services/pdfAnonymizer';
@@ -66,6 +67,60 @@ apiRouter.post('/api/anonymize-pdf', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/add-usipro-table
+ *
+ * Adds a USI-PRO table to the original PDF at the specified zone.
+ * Whites out the zone first, then draws the branded table.
+ */
+apiRouter.post('/api/add-usipro-table', async (req: Request, res: Response) => {
+  const { pdfBase64, planId, lotId, zone, cartoucheData } = req.body as AddUsIproTableRequest;
+
+  if (!pdfBase64 || !planId || !lotId || !zone) {
+    res.status(400).json({ error: 'pdfBase64, planId, lotId et zone sont requis' });
+    return;
+  }
+
+  try {
+    const pdfBytes = Buffer.from(pdfBase64, 'base64');
+    const doc = await PDFDocument.load(pdfBytes);
+    const fonts = {
+      reg: await doc.embedFont(StandardFonts.Helvetica),
+      bold: await doc.embedFont(StandardFonts.HelveticaBold),
+    };
+
+    // Embed logo
+    let logoImg = null;
+    try {
+      const logoBuf = pdfAnonymizer.getLogoPng();
+      if (logoBuf) logoImg = await doc.embedPng(logoBuf);
+    } catch {
+      // Continue without logo
+    }
+
+    const page = doc.getPage(zone.page);
+    if (!page) {
+      res.status(400).json({ error: `Page ${zone.page} introuvable` });
+      return;
+    }
+
+    const data = cartoucheData || {
+      designation: '—',
+      material: '—',
+      applicableStd: '—',
+      finish: '—',
+    };
+
+    await pdfAnonymizer.drawUsIproTable(page, zone, planId, lotId, data, logoImg, fonts);
+
+    const result = Buffer.from(await doc.save());
+    res.json({ pdfBase64: result.toString('base64') });
+  } catch (err: any) {
+    logger.error({ err: err.message }, 'add-usipro-table failed');
+    res.status(500).json({ error: 'Échec ajout table USI-PRO' });
+  }
+});
+
+/**
  * GET /api/debug/list-plans/:id
  *
  * Lists the contents of /Analyses/RIJ/Plans/:id on Dropbox.
@@ -103,8 +158,8 @@ apiRouter.get('/api/debug/list-plans/:id', async (req: Request, res: Response) =
 /**
  * POST /api/submit
  *
- * Receives form submissions directly from the frontend.
- * Runs the pipeline and returns the Dropbox link as output.
+ * Phase 1: Receives form submissions, runs search + anonymization,
+ * returns PDFs for user validation.
  */
 apiRouter.post('/api/submit', async (req: Request, res: Response) => {
   const payload = req.body as FormPayload;
@@ -120,11 +175,53 @@ apiRouter.post('/api/submit', async (req: Request, res: Response) => {
 
   logger.info(
     { of: ofData.ofNumber, partCount: ofData.parts.length },
-    'Form submitted — running pipeline',
+    'Form submitted — running pipeline phase 1',
   );
 
   try {
-    const result = await runPipeline(ofData);
+    const result = await runPipelinePhase1(ofData);
+
+    res.status(200).json({
+      status: 'pending_validation',
+      sessionId: result.sessionId,
+      of: result.resolvedOF,
+      pdfs: result.pdfs,
+      missingParts: result.missingParts,
+    });
+  } catch (err: any) {
+    const detail = err?.error?.error_summary || err?.error || err.message;
+    logger.error(
+      { of: ofData.ofNumber, err: err.message, detail, status: err?.status, stack: err.stack },
+      'Pipeline phase 1 failed',
+    );
+    res.status(500).json({
+      status: 'error',
+      message: `Le traitement de l'OF ${ofData.ofNumber} a échoué: ${detail}`,
+    });
+  }
+});
+
+/**
+ * POST /api/finalize
+ *
+ * Phase 2: Receives validated PDFs, creates ZIP, generates devis,
+ * uploads to Dropbox, returns final result.
+ */
+apiRouter.post('/api/finalize', async (req: Request, res: Response) => {
+  const { sessionId, validatedPdfs } = req.body as FinalizeRequest;
+
+  if (!sessionId || !Array.isArray(validatedPdfs) || validatedPdfs.length === 0) {
+    res.status(400).json({ status: 'error', message: 'sessionId et validatedPdfs sont requis' });
+    return;
+  }
+
+  logger.info(
+    { sessionId, pdfCount: validatedPdfs.length },
+    'Finalize request — running pipeline phase 2',
+  );
+
+  try {
+    const result = await runPipelinePhase2(sessionId, validatedPdfs);
 
     res.status(200).json({
       status: 'success',
@@ -135,15 +232,14 @@ apiRouter.post('/api/submit', async (req: Request, res: Response) => {
       mainPath: result.mainPath,
     });
   } catch (err: any) {
-    // Extract detailed error info (Dropbox SDK embeds it in err.error)
     const detail = err?.error?.error_summary || err?.error || err.message;
     logger.error(
-      { of: ofData.ofNumber, err: err.message, detail, status: err?.status, stack: err.stack },
-      'Pipeline failed',
+      { sessionId, err: err.message, detail, stack: err.stack },
+      'Pipeline phase 2 failed',
     );
     res.status(500).json({
       status: 'error',
-      message: `Le traitement de l'OF ${ofData.ofNumber} a échoué: ${detail}`,
+      message: `La finalisation a échoué: ${detail}`,
     });
   }
 });

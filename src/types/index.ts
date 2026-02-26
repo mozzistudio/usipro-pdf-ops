@@ -37,3 +37,38 @@ export interface PipelineResult {
   /** Dropbox path of the main OF folder (e.g. /RIJ/OF364575J) */
   mainPath: string;
 }
+
+/** Phase 1 response — returned after anonymization, before user validation */
+export interface Phase1Response {
+  status: 'pending_validation';
+  sessionId: string;
+  of: string;
+  pdfs: Array<{ partId: string; originalBase64: string; anonymizedBase64: string }>;
+  missingParts: string[];
+}
+
+/** Phase 2 request — sent after user validates all PDFs */
+export interface FinalizeRequest {
+  sessionId: string;
+  validatedPdfs: Array<{ partId: string; pdfBase64: string }>;
+}
+
+/** Request body for /api/add-usipro-table */
+export interface AddUsIproTableRequest {
+  pdfBase64: string;
+  planId: string;
+  lotId: string;
+  zone: {
+    page: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  cartoucheData?: {
+    designation: string;
+    material: string;
+    applicableStd: string;
+    finish: string;
+  };
+}

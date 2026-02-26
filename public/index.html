@@ -409,6 +409,313 @@
       to { transform: rotate(360deg); }
     }
 
+    /* ── PDF VALIDATION SECTION ── */
+    #pdfSection {
+      display: none;
+      max-width: 1320px;
+      margin: 0 auto 32px;
+      padding: 0 24px;
+    }
+
+    #pdfSection .section-label {
+      margin-bottom: 16px;
+    }
+
+    #pdfStepIndicator {
+      display: none;
+      font-size: 12px;
+      font-weight: 700;
+      background: rgba(26,188,156,0.15);
+      color: var(--accent-deep);
+      padding: 3px 10px;
+      border-radius: 12px;
+    }
+
+    .pdf-viewer-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin-bottom: 16px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+    }
+
+    .pdf-viewer-card.pdf-card-validated {
+      border-color: rgba(39,174,96,0.35);
+    }
+
+    .pdf-card-header {
+      background: var(--dark);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 16px;
+      color: rgba(255,255,255,0.85);
+      font-size: 13px;
+    }
+
+    .pdf-card-name {
+      font-weight: 600;
+      font-family: 'Courier New', monospace;
+    }
+
+    .pdf-card-info {
+      font-size: 11px;
+      color: rgba(255,255,255,0.45);
+      margin-left: auto;
+    }
+
+    .pdf-validation-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .pdf-validation-badge.validated {
+      background: rgba(39,174,96,0.2);
+      color: #27ae60;
+    }
+
+    .pdf-pages-list {
+      padding: 16px;
+      max-height: 75vh;
+      overflow-y: auto;
+    }
+
+    .pdf-page-entry { margin-bottom: 12px; }
+
+    .pdf-page-label {
+      font-size: 10.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .pdf-comparison {
+      display: flex;
+      gap: 16px;
+    }
+
+    .pdf-comparison-col {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .comparison-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      margin-bottom: 6px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+
+    .comparison-label.original {
+      background: rgba(52,73,94,0.08);
+      color: #34495e;
+    }
+
+    .comparison-label.anonymized {
+      background: rgba(26,188,156,0.1);
+      color: var(--accent-deep);
+    }
+
+    .canvas-wrapper {
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    .canvas-wrapper canvas {
+      display: block;
+      max-width: 100%;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    .pdf-loading {
+      padding: 24px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .spinner-small {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(26,188,156,0.3);
+      border-top-color: var(--dark);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    /* ── VALIDATION BARS ── */
+    .pdf-validation-bar,
+    .pdf-reject-bar,
+    .pdf-table-bar,
+    .pdf-confirm-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      background: var(--surface-alt);
+      flex-wrap: wrap;
+    }
+
+    .btn-validate {
+      background: var(--success);
+      color: #fff;
+      border: none;
+      padding: 9px 20px;
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-validate:hover { background: #219a52; transform: translateY(-1px); }
+
+    .btn-reject {
+      background: transparent;
+      color: var(--error);
+      border: 1.5px solid var(--error);
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-reject:hover { background: rgba(231,76,60,0.06); transform: translateY(-1px); }
+
+    .btn-add-table {
+      background: transparent;
+      color: var(--accent-deep);
+      border: 1.5px solid var(--accent);
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-add-table:hover { background: rgba(26,188,156,0.06); transform: translateY(-1px); }
+
+    .btn-apply-zones,
+    .btn-apply-table {
+      background: var(--dark);
+      color: #fff;
+      border: none;
+      padding: 9px 20px;
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-apply-zones:hover,
+    .btn-apply-table:hover { background: #162240; transform: translateY(-1px); }
+
+    .btn-cancel-action {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1.5px solid var(--border);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-cancel-action:hover { border-color: var(--text-muted); color: var(--text); }
+
+    .reject-hint,
+    .table-hint {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      width: 100%;
+      margin-bottom: 4px;
+    }
+
+    .validated-label {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--success);
+    }
+
+    /* ── TABLE DATA FORM (add table mode) ── */
+    .table-data-form {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      width: 100%;
+      margin-bottom: 8px;
+    }
+
+    .table-data-form label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .table-data-form input {
+      padding: 6px 10px;
+      font-size: 12.5px;
+      border-radius: 6px;
+    }
+
+    /* ── USI-PRO TABLE OVERLAY (draggable/resizable) ── */
+    .usipro-table-overlay {
+      position: absolute;
+      border: 2px dashed var(--accent);
+      background: rgba(26,188,156,0.08);
+      cursor: move;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+
+    .overlay-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent-deep);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+
+    .resize-handle {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background: var(--accent);
+      border: 1px solid #fff;
+      border-radius: 2px;
+      z-index: 21;
+    }
+    .resize-nw { top: -5px; left: -5px; cursor: nw-resize; }
+    .resize-ne { top: -5px; right: -5px; cursor: ne-resize; }
+    .resize-sw { bottom: -5px; left: -5px; cursor: sw-resize; }
+    .resize-se { bottom: -5px; right: -5px; cursor: se-resize; }
+
     /* ── OUTPUT LAYOUT ── */
     #outputLayout {
       display: none;
@@ -543,18 +850,6 @@
       text-align: center;
       color: var(--text-muted);
       font-size: 14px;
-    }
-
-    .spinner-small {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      border: 2px solid rgba(26,188,156,0.3);
-      border-top-color: var(--dark);
-      border-radius: 50%;
-      animation: spin 0.6s linear infinite;
-      vertical-align: middle;
-      margin-right: 6px;
     }
 
     /* ── RECAP CARD (right column) ── */
@@ -787,6 +1082,7 @@
     @media (max-width: 960px) {
       #outputLayout { flex-direction: column; }
       .output-right { position: static; flex: none; width: 100%; }
+      .pdf-comparison { flex-direction: column; }
     }
 
     @media (max-width: 800px) {
@@ -799,6 +1095,8 @@
       .table-section { overflow-x: auto; }
       .parts-table { min-width: 700px; }
       #outputLayout { padding: 0 12px; }
+      #pdfSection { padding: 0 12px; }
+      .table-data-form { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -814,11 +1112,11 @@
       <span class="nav-title">Opérations PDF</span>
       <span class="nav-subtitle">USI-PRO</span>
     </div>
-    <div class="navbar-badge">Formulaire interne</div>
+    <a href="/guide.html" class="navbar-badge" style="text-decoration:none">&#10067; Guide</a>
   </nav>
 
   <!-- FORM -->
-  <div class="container">
+  <div class="container" id="formContainer">
     <form id="ofForm" autocomplete="off">
 
       <!-- OF Number -->
@@ -862,6 +1160,15 @@
     </form>
   </div>
 
+  <!-- PDF VALIDATION SECTION (shown after phase 1) -->
+  <div id="pdfSection" style="display:none">
+    <div class="section-label">
+      Validation des plans
+      <span id="pdfStepIndicator"></span>
+    </div>
+    <div id="pdfCardsContainer"></div>
+  </div>
+
   <!-- Back button (outside flex layout) -->
   <div id="backBtnWrapper" style="display:none; max-width:1320px; margin:20px auto 0; padding:0 24px">
     <button type="button" class="btn-back" id="btnBack">
@@ -900,6 +1207,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="/pdf-viewer.js"></script>
   <script>
     // ── PDF SLIDER ─────────────────────────────────────────────────
     let _sliderPdfs = [];   // [{ name, base64 }]
@@ -951,7 +1259,7 @@
 
       const container = document.getElementById('sliderPages');
       container.innerHTML =
-        '<div class="slider-loading"><span class="spinner-small"></span>Chargement…</div>';
+        '<div class="slider-loading"><span class="spinner-small"></span>Chargement...</div>';
 
       const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
       const pdfDoc = await pdfjsLib.getDocument({ data: bytes }).promise;
@@ -996,6 +1304,8 @@
     const statusMsg = document.getElementById('statusMsg');
 
     let rowCounter = 0;
+    let _sessionId = null;
+    let _submittedData = null;
 
     function addRow() {
       rowCounter++;
@@ -1079,7 +1389,8 @@
 
     function showOutputLayout(recapHtml) {
       document.getElementById('recapCard').innerHTML = recapHtml;
-      document.querySelector('.container').style.display = 'none';
+      document.getElementById('formContainer').style.display = 'none';
+      document.getElementById('pdfSection').style.display = 'none';
       document.getElementById('backBtnWrapper').style.display = '';
       document.getElementById('outputLayout').classList.add('visible');
       document.getElementById('backBtnWrapper').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1089,11 +1400,184 @@
       document.getElementById('outputLayout').classList.remove('visible');
       document.getElementById('backBtnWrapper').style.display = 'none';
       document.getElementById('pdfSliderCard').style.display = 'none';
-      document.querySelector('.container').style.display = '';
+      document.getElementById('pdfSection').style.display = 'none';
+      document.getElementById('formContainer').style.display = '';
+      if (typeof window.resetPdfViewer === 'function') window.resetPdfViewer();
       hideStatus();
+      _sessionId = null;
+      _submittedData = null;
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
+    // ── onAllPdfsValidated callback — called by pdf-viewer.js ──
+    window.onAllPdfsValidated = async function (store) {
+      if (!_sessionId) return;
+
+      // Collect validated PDFs
+      const validatedPdfs = [];
+      for (const [name, entry] of Object.entries(store)) {
+        if (entry.validated && entry.finalBase64) {
+          validatedPdfs.push({
+            partId: entry.partId,
+            pdfBase64: entry.finalBase64,
+          });
+        }
+      }
+
+      // Hide validation section, show loading
+      document.getElementById('pdfSection').style.display = 'none';
+      document.getElementById('formContainer').style.display = '';
+      showLoading('<span class="spinner"></span>Finalisation et upload Dropbox en cours...');
+
+      try {
+        const res = await fetch('/api/finalize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: _sessionId, validatedPdfs }),
+        });
+
+        const result = await res.json();
+
+        if (res.ok && result.status === 'success') {
+          hideStatus();
+          displayFinalRecap(result);
+        } else {
+          showError(result.message || 'La finalisation a échoué.');
+        }
+      } catch (err) {
+        showError('Erreur de connexion au serveur lors de la finalisation.');
+      } finally {
+        btnSubmit.disabled = false;
+      }
+    };
+
+    // ── Display final recap with folder tree ──
+    function displayFinalRecap(result) {
+      const ofNum = result.of;
+      const submittedIds = _submittedData ? _submittedData.parts.map(p => p.id) : [];
+      const missingIds = result.missingParts || [];
+      const foundIds = submittedIds.filter(id => !missingIds.includes(id));
+
+      // ── Folder tree ──
+      const nmChildrenHtml = foundIds.length > 0
+        ? `<div class="tree-children">
+            ${foundIds.map(id => `<div class="tree-row">
+              <span class="file-dot pdf"></span>
+              <span class="file-name">${id}.pdf</span>
+              <span class="file-badge pdf">PDF</span>
+            </div>`).join('')}
+          </div>`
+        : '';
+
+      const dpChildrenHtml = `<div class="tree-children">
+          <div class="tree-row">
+            <span class="file-dot pdf"></span>
+            <span class="file-name">${ofNum}.pdf</span>
+            <span class="file-badge pdf">PDF</span>
+            <span class="tree-note">Demande de devis</span>
+          </div>
+          <div class="tree-row">
+            <span class="file-dot docx"></span>
+            <span class="file-name">${ofNum}.docx</span>
+            <span class="file-badge docx">DOCX</span>
+            <span class="tree-note">Demande de devis</span>
+          </div>
+        </div>`;
+
+      const treeHtml = `
+        <div>
+          <div class="tree-row">
+            <span class="file-dot zip"></span>
+            <span class="file-name">NM${ofNum}.zip</span>
+            <span class="file-badge zip">ZIP</span>
+            <span class="nm-status-badge done">&#10003; Anonymisé &amp; Validé</span>
+          </div>
+          ${nmChildrenHtml}
+        </div>
+        <div>
+          <div class="tree-row">
+            <span class="file-dot dir"></span>
+            <span class="file-name">DP${ofNum}/</span>
+            <span class="file-badge dir">DIR</span>
+            <span class="tree-note">Plans &amp; Fichiers STEP</span>
+          </div>
+          ${dpChildrenHtml}
+        </div>`;
+
+      // ── Parts chips ──
+      const chipsHtml = [
+        ...foundIds.map(id => `<span class="part-chip found"><span class="chip-icon">&#10003;</span>${id}</span>`),
+        ...missingIds.map(id => `<span class="part-chip missing"><span class="chip-icon">&#10007;</span>${id}</span>`),
+      ].join('');
+
+      // ── Action buttons ──
+      const dropboxBtn = result.dropboxLink
+        ? `<a href="${result.dropboxLink}" target="_blank" class="btn-action btn-dropbox">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            Ouvrir dans Dropbox
+          </a>`
+        : '';
+
+      const zipBtn = result.zipBase64
+        ? `<button type="button" class="btn-action btn-download" id="btnDownloadZip">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Télécharger le ZIP
+          </button>`
+        : '';
+
+      const recapHtml = `
+        <div class="result-header">
+          <span class="result-check">&#10003;</span>
+          Dossier <strong>OF${ofNum}</strong> traité avec succès.
+        </div>
+
+        <div class="result-actions">
+          ${dropboxBtn}
+          ${zipBtn}
+        </div>
+
+        <div class="result-inner-card">
+          <div class="result-inner-label">Structure du dossier</div>
+          <div class="tree-root">
+            <span class="tree-folder-icon">&#9654;</span>
+            <span>OF${ofNum}/</span>
+          </div>
+          <div class="tree-children">${treeHtml}</div>
+        </div>
+
+        ${chipsHtml ? `<div class="result-inner-card">
+          <div class="result-inner-label">Pièces traitées</div>
+          <div class="parts-chips">${chipsHtml}</div>
+        </div>` : ''}
+      `;
+
+      showOutputLayout(recapHtml);
+
+      if (result.zipBase64) {
+        showPdfSlider(result.zipBase64, ofNum);
+      }
+
+      // Attach download handler
+      if (result.zipBase64) {
+        const btnDl = document.getElementById('btnDownloadZip');
+        if (btnDl) {
+          btnDl.addEventListener('click', () => {
+            const bytes = Uint8Array.from(atob(result.zipBase64), c => c.charCodeAt(0));
+            const blob = new Blob([bytes], { type: 'application/zip' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'OF' + ofNum + '.zip';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          });
+        }
+      }
+    }
+
+    // ── FORM SUBMIT → Phase 1 ──
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
@@ -1109,9 +1593,10 @@
         return;
       }
 
+      _submittedData = data;
       btnSubmit.disabled = true;
       document.getElementById('outputLayout').classList.remove('visible');
-      showLoading('<span class="spinner"></span>Envoi en cours… Le traitement peut prendre quelques minutes.');
+      showLoading('<span class="spinner"></span>Traitement en cours... Recherche et anonymisation des plans.');
 
       try {
         const res = await fetch('/api/submit', {
@@ -1122,139 +1607,27 @@
 
         const result = await res.json();
 
-        if (res.ok) {
+        if (res.ok && result.status === 'pending_validation') {
           hideStatus();
+          _sessionId = result.sessionId;
 
-          const ofNum = result.of;
-          const mainPath = result.mainPath;
-          const submittedIds = data.parts.map(p => p.id);
-          const missingIds = result.missingParts || [];
-          const foundIds = submittedIds.filter(id => !missingIds.includes(id));
+          // Hide form, show validation section
+          document.getElementById('formContainer').style.display = 'none';
 
-          // ── Folder tree ──
-          const nmChildrenHtml = foundIds.length > 0
-            ? `<div class="tree-children">
-                ${foundIds.map(id => `<div class="tree-row">
-                  <span class="file-dot pdf"></span>
-                  <span class="file-name">${id}.pdf</span>
-                  <span class="file-badge pdf">PDF</span>
-                </div>`).join('')}
-              </div>`
-            : '';
-
-          const dpChildrenHtml = `<div class="tree-children">
-              <div class="tree-row">
-                <span class="file-dot pdf"></span>
-                <span class="file-name">${ofNum}.pdf</span>
-                <span class="file-badge pdf">PDF</span>
-                <span class="tree-note">Demande de devis</span>
-              </div>
-              <div class="tree-row">
-                <span class="file-dot docx"></span>
-                <span class="file-name">${ofNum}.docx</span>
-                <span class="file-badge docx">DOCX</span>
-                <span class="tree-note">Demande de devis</span>
-              </div>
-            </div>`;
-
-          const treeHtml = `
-            <div>
-              <div class="tree-row">
-                <span class="file-dot zip"></span>
-                <span class="file-name">NM${ofNum}.zip</span>
-                <span class="file-badge zip">ZIP</span>
-                <span class="nm-status-badge done">✓ Anonymisé</span>
-              </div>
-              ${nmChildrenHtml}
-            </div>
-            <div>
-              <div class="tree-row">
-                <span class="file-dot dir"></span>
-                <span class="file-name">DP${ofNum}/</span>
-                <span class="file-badge dir">DIR</span>
-                <span class="tree-note">Plans &amp; Fichiers STEP</span>
-              </div>
-              ${dpChildrenHtml}
-            </div>`;
-
-          // ── Parts chips ──
-          const chipsHtml = [
-            ...foundIds.map(id => `<span class="part-chip found"><span class="chip-icon">✓</span>${id}</span>`),
-            ...missingIds.map(id => `<span class="part-chip missing"><span class="chip-icon">✗</span>${id}</span>`),
-          ].join('');
-
-          // ── Action buttons ──
-          const dropboxBtn = result.dropboxLink
-            ? `<a href="${result.dropboxLink}" target="_blank" class="btn-action btn-dropbox">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                Ouvrir dans Dropbox
-              </a>`
-            : '';
-
-          const zipBtn = result.zipBase64
-            ? `<button type="button" class="btn-action btn-download" id="btnDownloadZip">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Télécharger le ZIP
-              </button>`
-            : '';
-
-          const recapHtml = `
-            <div class="result-header">
-              <span class="result-check">✓</span>
-              Dossier <strong>OF${ofNum}</strong> traité avec succès.
-            </div>
-
-            <div class="result-actions">
-              ${dropboxBtn}
-              ${zipBtn}
-            </div>
-
-            <div class="result-inner-card">
-              <div class="result-inner-label">Structure du dossier</div>
-              <div class="tree-root">
-                <span class="tree-folder-icon">▶</span>
-                <span>OF${ofNum}/</span>
-              </div>
-              <div class="tree-children">${treeHtml}</div>
-            </div>
-
-            ${chipsHtml ? `<div class="result-inner-card">
-              <div class="result-inner-label">Pièces traitées</div>
-              <div class="parts-chips">${chipsHtml}</div>
-            </div>` : ''}
-          `;
-
-          showOutputLayout(recapHtml);
-
-          if (result.zipBase64) {
-            showPdfSlider(result.zipBase64, ofNum);
+          // Show PDF validation UI
+          if (result.pdfs && result.pdfs.length > 0) {
+            window.showPdfViewerFromPhase1(result.pdfs, result.of);
+          } else {
+            showError('Aucun plan PDF trouvé pour les pièces soumises.');
+            document.getElementById('formContainer').style.display = '';
+            btnSubmit.disabled = false;
           }
-
-          // Attach download handler
-          if (result.zipBase64) {
-            const btnDl = document.getElementById('btnDownloadZip');
-            if (btnDl) {
-              btnDl.addEventListener('click', () => {
-                const bytes = Uint8Array.from(atob(result.zipBase64), c => c.charCodeAt(0));
-                const blob = new Blob([bytes], { type: 'application/zip' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'OF' + ofNum + '.zip';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-              });
-            }
-          }
-
         } else {
           showError(result.message || 'Une erreur est survenue.');
+          btnSubmit.disabled = false;
         }
       } catch (err) {
         showError('Erreur de connexion au serveur. Veuillez réessayer.');
-      } finally {
         btnSubmit.disabled = false;
       }
     });

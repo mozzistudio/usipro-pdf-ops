@@ -1,14 +1,13 @@
 /**
- * PDF Viewer — validation workflow
+ * PDF Viewer — validation workflow with 3 actions per PDF
  *
  * Per-PDF flow (one at a time):
- *  1. Extract PDFs from the NM ZIP inside the full ZIP
- *  2. Call /api/anonymize-pdf for each PDF → render side-by-side (original | anonymized)
- *  3. User can "Valider" (accept) or type a prompt and click "Affiner" (refine)
- *     "Affiner" re-calls /api/anonymize-pdf with refinementPrompt → re-renders
- *  4. Validated → auto-advance to next PDF (counter: N / total)
- *  5. Once all PDFs are validated, window.onAllPdfsValidated() is called
- *     which calls /api/finalize-pdfs to upload the anonymized NM ZIP to Dropbox
+ *  1. Show side-by-side (Original | Anonymized) from phase 1 data
+ *  2. Three actions:
+ *     A. ACCEPT — keep anonymized as-is
+ *     B. REJECT — draw zones on canvas → /api/anonymize-zone → validate corrected
+ *     C. ADD TABLE — drag/drop USI-PRO table overlay on original → /api/add-usipro-table
+ *  3. When all validated → window.onAllPdfsValidated(store) called
  */
 (function () {
   'use strict';
@@ -16,47 +15,48 @@
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-  // { filename: { originalBase64, anonymizedBase64, validated, ofNum } }
+  // { filename: { partId, originalBase64, anonymizedBase64, finalBase64, validated, ofNum } }
   const store = {};
   let _totalCount = 0;
   let _currentIndex = 0;
   let _names = [];
 
   // ── Public API ──────────────────────────────────────────────────
-  window.showPdfViewer = async function (zipBase64, ofNum) {
+
+  /**
+   * Initialize viewer with pre-anonymized PDFs from phase 1.
+   * @param {Array<{partId, originalBase64, anonymizedBase64}>} pdfs
+   * @param {string} ofNum
+   */
+  window.showPdfViewerFromPhase1 = function (pdfs, ofNum) {
     const section = document.getElementById('pdfSection');
     const container = document.getElementById('pdfCardsContainer');
 
     section.style.display = 'block';
-    container.innerHTML =
-      '<div class="pdf-loading"><span class="spinner-small"></span>Chargement des plans…</div>';
-    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-    let pdfs;
-    try {
-      pdfs = await extractPdfs(zipBase64, ofNum);
-    } catch (err) {
-      container.innerHTML =
-        '<div class="pdf-loading" style="color:var(--error)">Erreur lors de l\'extraction des plans.</div>';
-      console.error('[pdf-viewer] extract error:', err);
-      return;
-    }
-
-    const names = Object.keys(pdfs).sort();
-    _names = names;
-    _currentIndex = 0;
     container.innerHTML = '';
-    _totalCount = names.length;
 
-    if (names.length === 0) {
+    _names = pdfs.map(p => p.partId + '.pdf').sort();
+    _currentIndex = 0;
+    _totalCount = _names.length;
+
+    if (_names.length === 0) {
       container.innerHTML = '<div class="pdf-loading">Aucun plan PDF disponible.</div>';
       updateCounter();
       return;
     }
 
-    // Build cards + track originals — show only the first card
-    names.forEach((name, i) => {
-      store[name] = { originalBase64: pdfs[name], anonymizedBase64: null, validated: false, ofNum };
+    // Build store + cards
+    pdfs.sort((a, b) => a.partId.localeCompare(b.partId));
+    pdfs.forEach((p, i) => {
+      const name = p.partId + '.pdf';
+      store[name] = {
+        partId: p.partId,
+        originalBase64: p.originalBase64,
+        anonymizedBase64: p.anonymizedBase64,
+        finalBase64: null,
+        validated: false,
+        ofNum,
+      };
       const card = buildCard(name);
       card.style.display = i === 0 ? 'block' : 'none';
       container.appendChild(card);
@@ -64,8 +64,17 @@
 
     updateCounter();
 
-    // Anonymize + render in parallel (each card updates independently when ready)
-    await Promise.all(names.map((name) => anonymizeAndRender(name, pdfs[name], ofNum)));
+    // Render all cards (only first is visible)
+    pdfs.forEach(p => {
+      const name = p.partId + '.pdf';
+      renderSideBySide(name, p.originalBase64, p.anonymizedBase64).then(() => {
+        const fid = fkey(name);
+        const vbar = document.getElementById('vbar-' + fid);
+        if (vbar) vbar.style.display = 'flex';
+      });
+    });
+
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   window.resetPdfViewer = function () {
@@ -106,29 +115,6 @@
     if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  // ── ZIP extraction ──────────────────────────────────────────────
-  async function extractPdfs(zipBase64, ofNum) {
-    const bytes = Uint8Array.from(atob(zipBase64), (c) => c.charCodeAt(0));
-    const fullZip = await JSZip.loadAsync(bytes);
-
-    const nmFile = fullZip.file('NM' + ofNum + '.zip');
-    if (!nmFile) return {};
-
-    const nmZip = await JSZip.loadAsync(await nmFile.async('arraybuffer'));
-    const pdfs = {};
-    const tasks = [];
-
-    nmZip.forEach((path, file) => {
-      if (!file.dir && path.toLowerCase().endsWith('.pdf')) {
-        const name = path.split('/').pop() || path;
-        tasks.push(file.async('base64').then((b) => (pdfs[name] = b)));
-      }
-    });
-
-    await Promise.all(tasks);
-    return pdfs;
-  }
-
   // ── Card DOM ────────────────────────────────────────────────────
   function buildCard(name) {
     const fid = fkey(name);
@@ -146,77 +132,483 @@
         <span class="pdf-card-name">${name}</span>
         <span class="pdf-card-info" id="info-${fid}"></span>
         <span class="pdf-validation-badge" id="badge-${fid}"></span>
-        <button class="btn-dl-modified" onclick="downloadPdf('${name}')">↓ Télécharger</button>
       </div>
-      <div class="pdf-pages-list" id="pglist-${fid}">
-        <div class="pdf-loading"><span class="spinner-small"></span>Anonymisation…</div>
-      </div>
+      <div class="pdf-pages-list" id="pglist-${fid}"></div>
       <div class="pdf-validation-bar" id="vbar-${fid}" style="display:none">
-        <button class="btn-validate" onclick="validatePdf('${name}')">✓ Valider</button>
-        <div class="affiner-group">
-          <input class="affiner-input" id="affinerInput-${fid}"
-                 placeholder="Ex: DESIGNATION = SUPPORT OPTIQUE, MATERIAL = Inox 316L"
-                 onkeydown="if(event.key==='Enter'){event.preventDefault();affinerPdf('${name}')}" />
-          <button class="btn-affiner" onclick="affinerPdf('${name}')">↺ Affiner</button>
+        <button class="btn-validate" onclick="acceptPdf('${name}')">✓ Accepter</button>
+        <button class="btn-reject" onclick="rejectPdf('${name}')">✗ Corriger</button>
+        <button class="btn-add-table" onclick="addTablePdf('${name}')">+ Table USI-PRO</button>
+      </div>
+      <div class="pdf-reject-bar" id="rbar-${fid}" style="display:none">
+        <p class="reject-hint">Dessinez des rectangles sur les zones à masquer, puis cliquez Appliquer.</p>
+        <button class="btn-apply-zones" onclick="applyZones('${name}')">Appliquer les corrections</button>
+        <button class="btn-cancel-action" onclick="cancelAction('${name}')">Annuler</button>
+      </div>
+      <div class="pdf-table-bar" id="tbar-${fid}" style="display:none">
+        <p class="table-hint">Positionnez et redimensionnez l'overlay de la table USI-PRO sur le PDF original.</p>
+        <div class="table-data-form">
+          <label>Désignation: <input type="text" id="tbl-desig-${fid}" placeholder="—"></label>
+          <label>Matériau: <input type="text" id="tbl-mat-${fid}" placeholder="—"></label>
+          <label>Norme: <input type="text" id="tbl-std-${fid}" placeholder="—"></label>
+          <label>Finition: <input type="text" id="tbl-fin-${fid}" placeholder="—"></label>
         </div>
+        <button class="btn-apply-table" onclick="applyTable('${name}')">Appliquer la table</button>
+        <button class="btn-cancel-action" onclick="cancelAction('${name}')">Annuler</button>
+      </div>
+      <div class="pdf-confirm-bar" id="cbar-${fid}" style="display:none">
+        <button class="btn-validate" onclick="confirmValidation('${name}')">✓ Valider la correction</button>
+        <button class="btn-cancel-action" onclick="cancelAction('${name}')">Annuler</button>
       </div>
     `;
     return card;
   }
 
-  // ── Anonymize + render ──────────────────────────────────────────
-  async function anonymizeAndRender(name, originalBase64, ofNum, refinementPrompt) {
+  // ── ACCEPT ──────────────────────────────────────────────────────
+  window.acceptPdf = function (name) {
+    if (!store[name]) return;
+    store[name].finalBase64 = store[name].anonymizedBase64;
+    markValidated(name);
+  };
+
+  // ── REJECT (draw zones) ─────────────────────────────────────────
+  window.rejectPdf = function (name) {
+    if (!store[name]) return;
     const fid = fkey(name);
-    const planId = name.replace(/\.pdf$/i, '');
 
-    try {
-      const body = { pdfBase64: originalBase64, planId, lotId: ofNum };
-      if (refinementPrompt) body.refinementPrompt = refinementPrompt;
+    // Hide action bar, show reject bar
+    hide('vbar-' + fid);
+    show('rbar-' + fid);
 
-      const resp = await fetch('/api/anonymize-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+    // Enable zone drawing on the anonymized canvas
+    enableZoneDrawing(name);
+  };
+
+  // Zone drawing state
+  const zoneState = {};
+
+  function enableZoneDrawing(name) {
+    const fid = fkey(name);
+    const pgList = document.getElementById('pglist-' + fid);
+    if (!pgList) return;
+
+    zoneState[name] = { zones: [], rects: [] };
+
+    // Find all anonymized-side canvases
+    const anonCols = pgList.querySelectorAll('.pdf-comparison-col');
+    anonCols.forEach(col => {
+      if (!col.querySelector('.comparison-label.anonymized')) return;
+      const canvas = col.querySelector('canvas');
+      if (!canvas) return;
+
+      // Create overlay canvas for drawing
+      const wrapper = canvas.parentElement;
+      wrapper.style.position = 'relative';
+
+      const overlay = document.createElement('canvas');
+      overlay.className = 'zone-overlay';
+      overlay.width = canvas.width;
+      overlay.height = canvas.height;
+      overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;cursor:crosshair;z-index:10;';
+      wrapper.appendChild(overlay);
+
+      const ctx = overlay.getContext('2d');
+      let drawing = false;
+      let startX, startY;
+
+      overlay.addEventListener('mousedown', e => {
+        const rect = overlay.getBoundingClientRect();
+        const scaleX = overlay.width / rect.width;
+        const scaleY = overlay.height / rect.height;
+        startX = (e.clientX - rect.left) * scaleX;
+        startY = (e.clientY - rect.top) * scaleY;
+        drawing = true;
       });
 
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const { pdfBase64, format } = await resp.json();
+      overlay.addEventListener('mousemove', e => {
+        if (!drawing) return;
+        const rect = overlay.getBoundingClientRect();
+        const scaleX = overlay.width / rect.width;
+        const scaleY = overlay.height / rect.height;
+        const curX = (e.clientX - rect.left) * scaleX;
+        const curY = (e.clientY - rect.top) * scaleY;
 
-      store[name].anonymizedBase64 = pdfBase64;
+        // Redraw all existing zones + current selection
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+        drawAllZones(ctx, zoneState[name].zones);
+        ctx.fillStyle = 'rgba(231,76,60,0.25)';
+        ctx.strokeStyle = 'rgba(231,76,60,0.8)';
+        ctx.lineWidth = 2;
+        ctx.fillRect(startX, startY, curX - startX, curY - startY);
+        ctx.strokeRect(startX, startY, curX - startX, curY - startY);
+      });
 
-      const infoEl = document.getElementById('info-' + fid);
-      if (infoEl && format) infoEl.dataset.format = format;
+      overlay.addEventListener('mouseup', e => {
+        if (!drawing) return;
+        drawing = false;
+        const rect = overlay.getBoundingClientRect();
+        const scaleX = overlay.width / rect.width;
+        const scaleY = overlay.height / rect.height;
+        const endX = (e.clientX - rect.left) * scaleX;
+        const endY = (e.clientY - rect.top) * scaleY;
 
-      await renderSideBySide(name, originalBase64, pdfBase64, format);
+        const x = Math.min(startX, endX);
+        const y = Math.min(startY, endY);
+        const w = Math.abs(endX - startX);
+        const h = Math.abs(endY - startY);
 
-      // Show validation bar
-      const vbar = document.getElementById('vbar-' + fid);
-      if (vbar) vbar.style.display = 'flex';
+        if (w > 5 && h > 5) {
+          // Get page index from the entry
+          const entry = wrapper.closest('.pdf-page-entry');
+          const allEntries = Array.from(pgList.querySelectorAll('.pdf-page-entry'));
+          const pageIdx = allEntries.indexOf(entry);
 
-    } catch (err) {
-      const pgList = document.getElementById('pglist-' + fid);
-      if (pgList)
-        pgList.innerHTML =
-          '<div class="pdf-loading" style="color:var(--error)">Erreur anonymisation — ' +
-          err.message + '</div>';
-      console.error('[pdf-viewer] error for', name, err);
+          zoneState[name].zones.push({
+            canvasX: x, canvasY: y, canvasW: w, canvasH: h,
+            page: pageIdx,
+            overlayCanvas: overlay,
+          });
+        }
+
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+        drawAllZones(ctx, zoneState[name].zones.filter(z => z.overlayCanvas === overlay));
+      });
+    });
+  }
+
+  function drawAllZones(ctx, zones) {
+    ctx.fillStyle = 'rgba(231,76,60,0.25)';
+    ctx.strokeStyle = 'rgba(231,76,60,0.8)';
+    ctx.lineWidth = 2;
+    for (const z of zones) {
+      ctx.fillRect(z.canvasX, z.canvasY, z.canvasW, z.canvasH);
+      ctx.strokeRect(z.canvasX, z.canvasY, z.canvasW, z.canvasH);
     }
   }
 
-  // ── Validate a PDF → advance to next ───────────────────────────
-  window.validatePdf = function (name) {
-    if (!store[name]) return;
-    store[name].validated = true;
-
+  function disableZoneDrawing(name) {
     const fid = fkey(name);
+    const pgList = document.getElementById('pglist-' + fid);
+    if (!pgList) return;
+    pgList.querySelectorAll('.zone-overlay').forEach(o => o.remove());
+    delete zoneState[name];
+  }
+
+  // ── APPLY ZONES ─────────────────────────────────────────────────
+  window.applyZones = async function (name) {
+    if (!store[name] || !zoneState[name]) return;
+    const fid = fkey(name);
+
+    const zones = zoneState[name].zones;
+    if (zones.length === 0) return;
+
+    // Get PDF page dimensions to convert canvas coords → PDF coords
+    const pdfB64 = store[name].anonymizedBase64;
+    const pdfBytes = Uint8Array.from(atob(pdfB64), c => c.charCodeAt(0));
+    const pdfDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+
+    const pdfZones = [];
+    for (const z of zones) {
+      const page = await pdfDoc.getPage(z.page + 1);
+      const vp = page.getViewport({ scale: 1 });
+      const canvas = z.overlayCanvas;
+
+      const scale = canvas.width / vp.width;
+      const pageH = vp.height;
+
+      pdfZones.push({
+        page: z.page,
+        x: z.canvasX / scale,
+        y: pageH - (z.canvasY + z.canvasH) / scale,
+        width: z.canvasW / scale,
+        height: z.canvasH / scale,
+      });
+    }
+
+    // Show loading
+    const rbar = document.getElementById('rbar-' + fid);
+    if (rbar) rbar.innerHTML = '<div class="pdf-loading"><span class="spinner-small"></span>Application des corrections…</div>';
+
+    try {
+      const resp = await fetch('/api/anonymize-zone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdfBase64: pdfB64, zones: pdfZones }),
+      });
+
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const { pdfBase64: correctedB64 } = await resp.json();
+
+      store[name].anonymizedBase64 = correctedB64;
+      disableZoneDrawing(name);
+
+      // Re-render side-by-side with corrected version
+      await renderSideBySide(name, store[name].originalBase64, correctedB64);
+
+      // Show confirm bar
+      hide('rbar-' + fid);
+      show('cbar-' + fid);
+    } catch (err) {
+      console.error('[pdf-viewer] applyZones error:', err);
+      if (rbar) rbar.innerHTML = '<div class="pdf-loading" style="color:var(--error)">Erreur: ' + err.message + '</div>';
+    }
+  };
+
+  // ── ADD TABLE ───────────────────────────────────────────────────
+  window.addTablePdf = function (name) {
+    if (!store[name]) return;
+    const fid = fkey(name);
+
+    hide('vbar-' + fid);
+    show('tbar-' + fid);
+
+    // Render original only (full width) and add draggable overlay
+    renderOriginalWithOverlay(name);
+  };
+
+  async function renderOriginalWithOverlay(name) {
+    const fid = fkey(name);
+    const pgList = document.getElementById('pglist-' + fid);
+    if (!pgList) return;
+
+    const toBytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const origDoc = await pdfjsLib.getDocument({ data: toBytes(store[name].originalBase64) }).promise;
+
+    pgList.innerHTML = '';
+
+    const colW = Math.max(pgList.clientWidth - 40, 400);
+
+    for (let pn = 1; pn <= origDoc.numPages; pn++) {
+      const entry = document.createElement('div');
+      entry.className = 'pdf-page-entry';
+      entry.dataset.pageIndex = String(pn - 1);
+
+      if (origDoc.numPages > 1) {
+        const lbl = document.createElement('div');
+        lbl.className = 'pdf-page-label';
+        lbl.textContent = 'Page ' + pn + ' / ' + origDoc.numPages;
+        entry.appendChild(lbl);
+      }
+
+      const page = await origDoc.getPage(pn);
+      const naturalVP = page.getViewport({ scale: 1 });
+      const scale = Math.min(colW / naturalVP.width, 2.0);
+      const vp = page.getViewport({ scale });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(vp.width);
+      canvas.height = Math.round(vp.height);
+      canvas.dataset.pdfWidth = String(naturalVP.width);
+      canvas.dataset.pdfHeight = String(naturalVP.height);
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'canvas-wrapper';
+      wrapper.style.position = 'relative';
+      wrapper.style.width = canvas.width + 'px';
+      wrapper.appendChild(canvas);
+
+      // Add draggable overlay on first page only
+      if (pn === 1) {
+        const canvasScale = canvas.width / naturalVP.width;
+        // Default table size: 540×70 pts (from pdfAnonymizer.ts)
+        const overlayW = Math.round(540 * canvasScale);
+        const overlayH = Math.round(70 * canvasScale);
+
+        const overlay = document.createElement('div');
+        overlay.className = 'usipro-table-overlay';
+        overlay.id = 'tableOverlay-' + fid;
+        overlay.style.width = overlayW + 'px';
+        overlay.style.height = overlayH + 'px';
+        overlay.style.left = (canvas.width - overlayW - 20) + 'px';
+        overlay.style.top = (canvas.height - overlayH - 20) + 'px';
+        overlay.innerHTML = `
+          <div class="overlay-label">TABLE USI-PRO</div>
+          <div class="resize-handle resize-nw" data-dir="nw"></div>
+          <div class="resize-handle resize-ne" data-dir="ne"></div>
+          <div class="resize-handle resize-sw" data-dir="sw"></div>
+          <div class="resize-handle resize-se" data-dir="se"></div>
+        `;
+
+        wrapper.appendChild(overlay);
+        makeDraggableResizable(overlay, wrapper);
+      }
+
+      entry.appendChild(wrapper);
+      pgList.appendChild(entry);
+    }
+  }
+
+  function makeDraggableResizable(overlay, container) {
+    let isDragging = false;
+    let isResizing = false;
+    let resizeDir = '';
+    let startX, startY, startLeft, startTop, startW, startH;
+
+    overlay.addEventListener('mousedown', e => {
+      if (e.target.classList.contains('resize-handle')) {
+        isResizing = true;
+        resizeDir = e.target.dataset.dir;
+      } else {
+        isDragging = true;
+      }
+      startX = e.clientX;
+      startY = e.clientY;
+      startLeft = overlay.offsetLeft;
+      startTop = overlay.offsetTop;
+      startW = overlay.offsetWidth;
+      startH = overlay.offsetHeight;
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (!isDragging && !isResizing) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      if (isDragging) {
+        let newLeft = startLeft + dx;
+        let newTop = startTop + dy;
+        // Constrain within container
+        newLeft = Math.max(0, Math.min(newLeft, container.offsetWidth - overlay.offsetWidth));
+        newTop = Math.max(0, Math.min(newTop, container.offsetHeight - overlay.offsetHeight));
+        overlay.style.left = newLeft + 'px';
+        overlay.style.top = newTop + 'px';
+      } else if (isResizing) {
+        let newW = startW, newH = startH, newLeft = startLeft, newTop = startTop;
+
+        if (resizeDir.includes('e')) newW = Math.max(100, startW + dx);
+        if (resizeDir.includes('w')) { newW = Math.max(100, startW - dx); newLeft = startLeft + dx; }
+        if (resizeDir.includes('s')) newH = Math.max(40, startH + dy);
+        if (resizeDir.includes('n')) { newH = Math.max(40, startH - dy); newTop = startTop + dy; }
+
+        overlay.style.width = newW + 'px';
+        overlay.style.height = newH + 'px';
+        overlay.style.left = newLeft + 'px';
+        overlay.style.top = newTop + 'px';
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      isDragging = false;
+      isResizing = false;
+    });
+  }
+
+  // ── APPLY TABLE ─────────────────────────────────────────────────
+  window.applyTable = async function (name) {
+    if (!store[name]) return;
+    const fid = fkey(name);
+
+    const overlay = document.getElementById('tableOverlay-' + fid);
+    if (!overlay) return;
+
+    const wrapper = overlay.parentElement;
+    const canvas = wrapper.querySelector('canvas');
+    const entry = wrapper.closest('.pdf-page-entry');
+    const pageIdx = parseInt(entry.dataset.pageIndex || '0');
+
+    const pdfW = parseFloat(canvas.dataset.pdfWidth);
+    const pdfH = parseFloat(canvas.dataset.pdfHeight);
+    const canvasScale = canvas.width / pdfW;
+
+    // Convert overlay position from canvas coords to PDF coords
+    const canvasX = overlay.offsetLeft;
+    const canvasY = overlay.offsetTop;
+    const canvasW = overlay.offsetWidth;
+    const canvasH = overlay.offsetHeight;
+
+    const zone = {
+      page: pageIdx,
+      x: canvasX / canvasScale,
+      y: pdfH - (canvasY + canvasH) / canvasScale,
+      width: canvasW / canvasScale,
+      height: canvasH / canvasScale,
+    };
+
+    const cartoucheData = {
+      designation: document.getElementById('tbl-desig-' + fid)?.value || '—',
+      material: document.getElementById('tbl-mat-' + fid)?.value || '—',
+      applicableStd: document.getElementById('tbl-std-' + fid)?.value || '—',
+      finish: document.getElementById('tbl-fin-' + fid)?.value || '—',
+    };
+
+    const partId = store[name].partId;
+    const tbar = document.getElementById('tbar-' + fid);
+    if (tbar) tbar.innerHTML = '<div class="pdf-loading"><span class="spinner-small"></span>Application de la table…</div>';
+
+    try {
+      const resp = await fetch('/api/add-usipro-table', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pdfBase64: store[name].originalBase64,
+          planId: partId,
+          lotId: store[name].ofNum,
+          zone,
+          cartoucheData,
+        }),
+      });
+
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const { pdfBase64: modifiedB64 } = await resp.json();
+
+      store[name].anonymizedBase64 = modifiedB64;
+
+      // Re-render side-by-side: Original | Modified
+      await renderSideBySide(name, store[name].originalBase64, modifiedB64);
+
+      hide('tbar-' + fid);
+      show('cbar-' + fid);
+    } catch (err) {
+      console.error('[pdf-viewer] applyTable error:', err);
+      if (tbar) tbar.innerHTML = '<div class="pdf-loading" style="color:var(--error)">Erreur: ' + err.message + '</div>';
+    }
+  };
+
+  // ── CONFIRM VALIDATION (after reject/add-table corrections) ────
+  window.confirmValidation = function (name) {
+    if (!store[name]) return;
+    store[name].finalBase64 = store[name].anonymizedBase64;
+    markValidated(name);
+  };
+
+  // ── CANCEL ACTION ───────────────────────────────────────────────
+  window.cancelAction = function (name) {
+    if (!store[name]) return;
+    const fid = fkey(name);
+
+    disableZoneDrawing(name);
+
+    // Re-render original side-by-side
+    const origAnon = store[name].anonymizedBase64;
+    renderSideBySide(name, store[name].originalBase64, origAnon).then(() => {
+      hide('rbar-' + fid);
+      hide('tbar-' + fid);
+      hide('cbar-' + fid);
+      show('vbar-' + fid);
+    });
+  };
+
+  // ── Mark as validated and advance ───────────────────────────────
+  function markValidated(name) {
+    store[name].validated = true;
+    const fid = fkey(name);
+
     const card = document.getElementById('card-' + fid);
     if (card) card.classList.add('pdf-card-validated');
+
     const badge = document.getElementById('badge-' + fid);
     if (badge) { badge.textContent = '✓ Validé'; badge.className = 'pdf-validation-badge validated'; }
-    const vbar = document.getElementById('vbar-' + fid);
-    if (vbar) vbar.innerHTML = '<span class="validated-label">✓ PDF validé</span>';
 
-    // Advance to next card
+    // Hide all action bars, show validated label
+    ['vbar', 'rbar', 'tbar', 'cbar'].forEach(bar => hide(bar + '-' + fid));
+    const vbar = document.getElementById('vbar-' + fid);
+    if (vbar) {
+      vbar.innerHTML = '<span class="validated-label">✓ PDF validé</span>';
+      vbar.style.display = 'flex';
+    }
+
+    // Advance to next
     if (_currentIndex < _totalCount - 1) {
       _currentIndex++;
       showCurrentCard();
@@ -225,33 +617,9 @@
     }
 
     checkAllValidated();
-  };
+  }
 
-  // ── Affiner a PDF ───────────────────────────────────────────────
-  window.affinerPdf = async function (name) {
-    if (!store[name]) return;
-    const fid = fkey(name);
-    const input = document.getElementById('affinerInput-' + fid);
-    const prompt = input ? input.value.trim() : '';
-
-    // Show loading only on the anonymized columns — keep originals visible
-    const pgList = document.getElementById('pglist-' + fid);
-    if (pgList) {
-      pgList.querySelectorAll('.pdf-comparison-col').forEach((col) => {
-        if (col.querySelector('.comparison-label.anonymized')) {
-          col.innerHTML =
-            '<div class="comparison-label anonymized">Anonymisé</div>' +
-            '<div class="pdf-loading anon-loading"><span class="spinner-small"></span>Affinage…</div>';
-        }
-      });
-    }
-    const vbar = document.getElementById('vbar-' + fid);
-    if (vbar) vbar.style.display = 'none';
-
-    await anonymizeAndRender(name, store[name].originalBase64, store[name].ofNum, prompt || undefined);
-  };
-
-  // ── Check if all PDFs are validated → trigger finalization ─────
+  // ── Check if all PDFs are validated ─────────────────────────────
   function checkAllValidated() {
     const total = _totalCount;
     const validated = Object.values(store).filter((s) => s.validated).length;
@@ -263,10 +631,9 @@
   }
 
   // ── Render side-by-side: original | anonymized ──────────────────
-  async function renderSideBySide(name, originalBase64, anonymizedBase64, format) {
+  async function renderSideBySide(name, originalBase64, anonymizedBase64) {
     const fid = fkey(name);
     const pgList = document.getElementById('pglist-' + fid);
-    const infoEl = document.getElementById('info-' + fid);
     if (!pgList) return;
 
     const toBytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -276,20 +643,21 @@
       pdfjsLib.getDocument({ data: toBytes(anonymizedBase64) }).promise,
     ]);
 
+    const infoEl = document.getElementById('info-' + fid);
     if (infoEl) {
       const pages = anonDoc.numPages + ' page' + (anonDoc.numPages > 1 ? 's' : '');
-      infoEl.textContent = format ? `${pages} · ${format}` : pages;
+      infoEl.textContent = pages;
     }
 
     pgList.innerHTML = '';
 
     const numPages = Math.max(origDoc.numPages, anonDoc.numPages);
-    // Width per column: half of pgList minus padding & gap
     const colW = Math.max((pgList.clientWidth - 60) / 2, 240);
 
     for (let pn = 1; pn <= numPages; pn++) {
       const entry = document.createElement('div');
       entry.className = 'pdf-page-entry';
+      entry.dataset.pageIndex = String(pn - 1);
 
       if (numPages > 1) {
         const lbl = document.createElement('div');
@@ -308,7 +676,8 @@
         lbl.className = 'comparison-label original';
         lbl.textContent = 'Original';
         col.appendChild(lbl);
-        col.appendChild(wrapCanvas(await renderPage(origDoc, pn, colW)));
+        const page = await origDoc.getPage(pn);
+        col.appendChild(wrapCanvas(await renderPage(page, colW)));
         comparison.appendChild(col);
       }
 
@@ -319,7 +688,8 @@
         lbl.className = 'comparison-label anonymized';
         lbl.textContent = 'Anonymisé';
         col.appendChild(lbl);
-        col.appendChild(wrapCanvas(await renderPage(anonDoc, pn, colW)));
+        const page = await anonDoc.getPage(pn);
+        col.appendChild(wrapCanvas(await renderPage(page, colW)));
         comparison.appendChild(col);
       }
 
@@ -328,14 +698,15 @@
     }
   }
 
-  async function renderPage(pdfDoc, pn, availW) {
-    const page = await pdfDoc.getPage(pn);
+  async function renderPage(page, availW) {
     const naturalVP = page.getViewport({ scale: 1 });
     const scale = Math.min(availW / naturalVP.width, 2.0);
     const vp = page.getViewport({ scale });
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(vp.width);
     canvas.height = Math.round(vp.height);
+    canvas.dataset.pdfWidth = String(naturalVP.width);
+    canvas.dataset.pdfHeight = String(naturalVP.height);
     await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
     return canvas;
   }
@@ -351,8 +722,10 @@
   // ── Download ────────────────────────────────────────────────────
   window.downloadPdf = function (name) {
     const s = store[name];
-    if (!s || !s.anonymizedBase64) return;
-    const bytes = Uint8Array.from(atob(s.anonymizedBase64), (c) => c.charCodeAt(0));
+    if (!s) return;
+    const b64 = s.finalBase64 || s.anonymizedBase64;
+    if (!b64) return;
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
     const blob = new Blob([bytes], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -364,7 +737,18 @@
     URL.revokeObjectURL(url);
   };
 
+  // ── Helpers ────────────────────────────────────────────────────
   function fkey(name) {
     return 'pv_' + name.replace(/[^a-zA-Z0-9]/g, '_');
+  }
+
+  function show(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'flex';
+  }
+
+  function hide(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
   }
 })();
