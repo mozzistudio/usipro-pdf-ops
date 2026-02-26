@@ -121,7 +121,28 @@ function detect(text: string, w: number, h: number): Fmt {
   if (has(SIGS.ETUDEMA))
     return { key: 'ETUDEMA_A2', zones: [[1125, 915, w, h]] };
 
+  // INGETEP must be checked before TURBOMECA — INGETEP drawings often
+  // reference SAFDIN/SAFRAN as the customer, which would falsely trigger
+  // the TURBOMECA format and apply wrong (too aggressive) masking zones.
+  if (has(SIGS.INGETEP)) {
+    // A1: ~2384 x 1684 — cartouche occupies bottom-right ~35% width × ~15% height
+    if (near(w, 2384) && near(h, 1684))
+      return { key: 'INGETEP_A1', zones: [[1550, 1440, w, h]] };
+    // A2: ~1684 x 1191
+    if (near(w, 1684) && near(h, 1191))
+      return { key: 'INGETEP_A2', zones: [[1095, 1010, w, h]] };
+    // A3: ~1191 x 842
+    if (near(w, 1191) && near(h, 842))
+      return { key: 'INGETEP_A3', zones: [[775, 715, w, h]] };
+    // Generic fallback — proportional to A1 reference ratios
+    const cx = Math.round(w * 0.65);
+    const cy = Math.round(h * 0.855);
+    return { key: 'INGETEP_GENERIC', zones: [[cx, cy, w, h]] };
+  }
+
   if (has(SIGS.TURBOMECA)) {
+    if (near(w, 2384) && near(h, 1684))
+      return { key: 'TURBOMECA_A1', zones: [[1060, 0, w, 170], [1296, 1020, w, h]] };
     if (near(w, 1684) && near(h, 1191))
       return { key: 'TURBOMECA_A2', zones: [[780, 0, w, 85], [1140, 860, w, h]] };
     return { key: 'TURBOMECA_A3', zones: [[530, 0, w, 85], [648, 510, w, h]] };
@@ -147,9 +168,6 @@ function detect(text: string, w: number, h: number): Fmt {
 
   if (has(SIGS.SNP2I))
     return { key: 'SNP2I_A3', zones: [[480, 720, w, h]] };
-
-  if (has(SIGS.INGETEP))
-    return { key: 'INGETEP_A1', zones: [[1790, 1440, w, h]] };
 
   if (has(SIGS.ALPHANOV))
     return { key: 'ALPHANOV_A3', zones: [[555, 718, w, h]] };
@@ -292,6 +310,7 @@ function extractCartoucheData(text: string): CartoucheData {
   };
 
   const designation = extract([
+    /PART\s*:\s*(.+)/i,
     /d[eé]signation\s*[:\-]\s*(.+)/i,
     /designation\s*[:\-]\s*(.+)/i,
     /intitul[eé]\s*[:\-]\s*(.+)/i,
@@ -311,6 +330,7 @@ function extractCartoucheData(text: string): CartoucheData {
   ]);
 
   const applicableStd = extract([
+    /GEN\s*TOL\s*:\s*(.+)/i,
     /tol[eé]rances?\s*g[eé]n[eé]rales?\s*[:\-]?\s*(ISO\s*\d+[^\n\r]*)/i,
     /(ISO\s*2768[\s\-][^\n\r]{1,20})/i,
     /(ISO\s*\d{4}[\s\-][^\n\r]{1,20})/i,
