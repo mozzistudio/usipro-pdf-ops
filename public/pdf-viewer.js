@@ -1,13 +1,15 @@
 /**
- * PDF Viewer — validation workflow with 3 actions per PDF
+ * PDF Viewer — Page-by-page validation workflow with AI correction mode
  *
- * Per-PDF flow (one at a time):
- *  1. Show side-by-side (Original | Anonymized) from phase 1 data
- *  2. Three actions:
- *     A. ACCEPT — keep anonymized as-is
- *     B. REJECT — draw zones on canvas → /api/anonymize-zone → validate corrected
- *     C. ADD TABLE — drag/drop USI-PRO table overlay on original → /api/add-usipro-table
- *  3. When all validated → window.onAllPdfsValidated(store) called
+ * Flow:
+ *  1. Show pages one at a time (side-by-side Original | Anonymized)
+ *  2. Per-page actions:
+ *     A. ACCEPT — keep anonymized page as-is
+ *     B. CORRIGER — open fullscreen correction mode (draw zones + AI prompt)
+ *     C. ADD TABLE — drag/drop USI-PRO table overlay on original page
+ *  3. Navigate between pages with Prev/Next
+ *  4. Counter: "3 / 8 pages validées"
+ *  5. When all pages validated → window.onAllPdfsValidated(store)
  */
 (function () {
   'use strict';
@@ -15,19 +17,15 @@
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-  // { filename: { partId, originalBase64, anonymizedBase64, finalBase64, validated, ofNum } }
+  // ── State ──────────────────────────────────────────────────────
+  // store[filename] = { partId, originalBase64, anonymizedBase64, ofNum, pages: [] }
+  // pages[i] = { validated, correctedBase64 }
   const store = {};
-  let _totalCount = 0;
-  let _currentIndex = 0;
-  let _names = [];
+  let _allPages = []; // flat list: [{ filename, pageIndex, totalPages }]
+  let _currentPageIdx = 0;
 
-  // ── Public API ──────────────────────────────────────────────────
+  // ── Public API ─────────────────────────────────────────────────
 
-  /**
-   * Initialize viewer with pre-anonymized PDFs from phase 1.
-   * @param {Array<{partId, originalBase64, anonymizedBase64}>} pdfs
-   * @param {string} ofNum
-   */
   window.showPdfViewerFromPhase1 = function (pdfs, ofNum) {
     const section = document.getElementById('pdfSection');
     const container = document.getElementById('pdfCardsContainer');
@@ -35,46 +33,46 @@
     section.style.display = 'block';
     container.innerHTML = '';
 
-    _names = pdfs.map(p => p.partId + '.pdf').sort();
-    _currentIndex = 0;
-    _totalCount = _names.length;
+    // Reset state
+    Object.keys(store).forEach(k => delete store[k]);
+    _allPages = [];
+    _currentPageIdx = 0;
 
-    if (_names.length === 0) {
+    if (pdfs.length === 0) {
       container.innerHTML = '<div class="pdf-loading">Aucun plan PDF disponible.</div>';
       updateCounter();
       return;
     }
 
-    // Build store + cards
+    // Build store entries (page counts filled async)
     pdfs.sort((a, b) => a.partId.localeCompare(b.partId));
-    pdfs.forEach((p, i) => {
+    const loadPromises = pdfs.map(async (p) => {
       const name = p.partId + '.pdf';
+      const bytes = Uint8Array.from(atob(p.anonymizedBase64), c => c.charCodeAt(0));
+      const doc = await pdfjsLib.getDocument({ data: bytes }).promise;
+      const numPages = doc.numPages;
+
       store[name] = {
         partId: p.partId,
         originalBase64: p.originalBase64,
         anonymizedBase64: p.anonymizedBase64,
-        finalBase64: null,
-        validated: false,
         ofNum,
+        pages: Array.from({ length: numPages }, () => ({ validated: false, correctedBase64: null })),
       };
-      const card = buildCard(name);
-      card.style.display = i === 0 ? 'block' : 'none';
-      container.appendChild(card);
+
+      for (let i = 0; i < numPages; i++) {
+        _allPages.push({ filename: name, pageIndex: i, totalPages: numPages });
+      }
     });
 
-    updateCounter();
-
-    // Render all cards (only first is visible)
-    pdfs.forEach(p => {
-      const name = p.partId + '.pdf';
-      renderSideBySide(name, p.originalBase64, p.anonymizedBase64).then(() => {
-        const fid = fkey(name);
-        const vbar = document.getElementById('vbar-' + fid);
-        if (vbar) vbar.style.display = 'flex';
-      });
+    Promise.all(loadPromises).then(() => {
+      // Sort: by filename then page index
+      _allPages.sort((a, b) => a.filename.localeCompare(b.filename) || a.pageIndex - b.pageIndex);
+      _currentPageIdx = 0;
+      renderCurrentPage();
+      updateCounter();
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
-
-    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   window.resetPdfViewer = function () {
@@ -82,361 +80,746 @@
     if (s) s.style.display = 'none';
     const c = document.getElementById('pdfCardsContainer');
     if (c) c.innerHTML = '';
-    Object.keys(store).forEach((k) => delete store[k]);
-    _totalCount = 0;
-    _currentIndex = 0;
-    _names = [];
+    Object.keys(store).forEach(k => delete store[k]);
+    _allPages = [];
+    _currentPageIdx = 0;
     updateCounter();
+    closeCorrectionMode();
   };
 
-  // ── Counter display ──────────────────────────────────────────────
+  // ── Counter ────────────────────────────────────────────────────
+
   function updateCounter() {
     const el = document.getElementById('pdfStepIndicator');
     if (!el) return;
-    if (_totalCount === 0) {
+    if (_allPages.length === 0) {
       el.style.display = 'none';
       el.textContent = '';
       return;
     }
     el.style.display = 'inline-block';
-    const display = Math.min(_currentIndex + 1, _totalCount);
-    el.textContent = `${display} / ${_totalCount}`;
+    const validatedCount = countValidated();
+    el.textContent = `${validatedCount} / ${_allPages.length} pages validées`;
   }
 
-  // ── Show card at _currentIndex ───────────────────────────────────
-  function showCurrentCard() {
-    _names.forEach((name, i) => {
-      const fid = fkey(name);
-      const card = document.getElementById('card-' + fid);
-      if (card) card.style.display = i === _currentIndex ? 'block' : 'none';
-    });
-    updateCounter();
-    const section = document.getElementById('pdfSection');
-    if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  function countValidated() {
+    let count = 0;
+    for (const name of Object.keys(store)) {
+      for (const pg of store[name].pages) {
+        if (pg.validated) count++;
+      }
+    }
+    return count;
   }
 
-  // ── Card DOM ────────────────────────────────────────────────────
-  function buildCard(name) {
-    const fid = fkey(name);
+  // ── Page rendering ─────────────────────────────────────────────
+
+  async function renderCurrentPage() {
+    const container = document.getElementById('pdfCardsContainer');
+    if (!container || _allPages.length === 0) return;
+
+    const entry = _allPages[_currentPageIdx];
+    if (!entry) return;
+
+    const s = store[entry.filename];
+    if (!s) return;
+
+    container.innerHTML = '';
+
     const card = document.createElement('div');
     card.className = 'pdf-viewer-card';
-    card.id = 'card-' + fid;
-    card.innerHTML = `
-      <div class="pdf-card-header">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-             stroke="rgba(255,255,255,0.45)" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-        </svg>
-        <span class="pdf-card-name">${name}</span>
-        <span class="pdf-card-info" id="info-${fid}"></span>
-        <span class="pdf-validation-badge" id="badge-${fid}"></span>
-      </div>
-      <div class="pdf-pages-list" id="pglist-${fid}"></div>
-      <div class="pdf-validation-bar" id="vbar-${fid}" style="display:none">
-        <button class="btn-validate" onclick="acceptPdf('${name}')">✓ Accepter</button>
-        <button class="btn-reject" onclick="rejectPdf('${name}')">✗ Corriger</button>
-        <button class="btn-add-table" onclick="addTablePdf('${name}')">+ Table USI-PRO</button>
-      </div>
-      <div class="pdf-reject-bar" id="rbar-${fid}" style="display:none">
-        <p class="reject-hint">Dessinez des rectangles sur les zones à masquer, puis cliquez Appliquer.</p>
-        <button class="btn-apply-zones" onclick="applyZones('${name}')">Appliquer les corrections</button>
-        <button class="btn-cancel-action" onclick="cancelAction('${name}')">Annuler</button>
-      </div>
-      <div class="pdf-table-bar" id="tbar-${fid}" style="display:none">
-        <p class="table-hint">Positionnez et redimensionnez l'overlay de la table USI-PRO sur le PDF original.</p>
-        <div class="table-data-form">
-          <label>Désignation: <input type="text" id="tbl-desig-${fid}" placeholder="—"></label>
-          <label>Matériau: <input type="text" id="tbl-mat-${fid}" placeholder="—"></label>
-          <label>Norme: <input type="text" id="tbl-std-${fid}" placeholder="—"></label>
-          <label>Finition: <input type="text" id="tbl-fin-${fid}" placeholder="—"></label>
-        </div>
-        <button class="btn-apply-table" onclick="applyTable('${name}')">Appliquer la table</button>
-        <button class="btn-cancel-action" onclick="cancelAction('${name}')">Annuler</button>
-      </div>
-      <div class="pdf-confirm-bar" id="cbar-${fid}" style="display:none">
-        <button class="btn-validate" onclick="confirmValidation('${name}')">✓ Valider la correction</button>
-        <button class="btn-cancel-action" onclick="cancelAction('${name}')">Annuler</button>
-      </div>
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'pdf-card-header';
+    header.innerHTML = `
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+           stroke="rgba(255,255,255,0.45)" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      <span class="pdf-card-name">${entry.filename}</span>
+      <span class="pdf-card-info">Page ${entry.pageIndex + 1} / ${entry.totalPages}</span>
+      <span class="pdf-validation-badge ${s.pages[entry.pageIndex].validated ? 'validated' : ''}"
+        >${s.pages[entry.pageIndex].validated ? '✓ Validée' : ''}</span>
     `;
-    return card;
+    card.appendChild(header);
+
+    // Pages list (single page, side-by-side)
+    const pgList = document.createElement('div');
+    pgList.className = 'pdf-pages-list';
+    card.appendChild(pgList);
+
+    // Render side-by-side for this single page
+    const toBytes = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const anonB64 = s.pages[entry.pageIndex].correctedBase64 || s.anonymizedBase64;
+
+    const [origDoc, anonDoc] = await Promise.all([
+      pdfjsLib.getDocument({ data: toBytes(s.originalBase64) }).promise,
+      pdfjsLib.getDocument({ data: toBytes(anonB64) }).promise,
+    ]);
+
+    const pageEntry = document.createElement('div');
+    pageEntry.className = 'pdf-page-entry';
+    pageEntry.dataset.pageIndex = String(entry.pageIndex);
+
+    const comparison = document.createElement('div');
+    comparison.className = 'pdf-comparison';
+    const colW = Math.max((pgList.clientWidth || 800) / 2 - 30, 240);
+
+    // Original side
+    if (entry.pageIndex < origDoc.numPages) {
+      const col = document.createElement('div');
+      col.className = 'pdf-comparison-col';
+      const lbl = document.createElement('div');
+      lbl.className = 'comparison-label original';
+      lbl.textContent = 'Original';
+      col.appendChild(lbl);
+      const page = await origDoc.getPage(entry.pageIndex + 1);
+      col.appendChild(wrapCanvas(await renderPage(page, colW)));
+      comparison.appendChild(col);
+    }
+
+    // Anonymized side
+    if (entry.pageIndex < anonDoc.numPages) {
+      const col = document.createElement('div');
+      col.className = 'pdf-comparison-col';
+      const lbl = document.createElement('div');
+      lbl.className = 'comparison-label anonymized';
+      lbl.textContent = 'Anonymisé';
+      col.appendChild(lbl);
+      const page = await anonDoc.getPage(entry.pageIndex + 1);
+      col.appendChild(wrapCanvas(await renderPage(page, colW)));
+      comparison.appendChild(col);
+    }
+
+    pageEntry.appendChild(comparison);
+    pgList.appendChild(pageEntry);
+
+    // Action bars
+    const isValidated = s.pages[entry.pageIndex].validated;
+
+    if (isValidated) {
+      const vbar = document.createElement('div');
+      vbar.className = 'pdf-validation-bar';
+      vbar.style.display = 'flex';
+      vbar.innerHTML = '<span class="validated-label">✓ Page validée</span>';
+      card.appendChild(vbar);
+    } else {
+      const vbar = document.createElement('div');
+      vbar.className = 'pdf-validation-bar';
+      vbar.style.display = 'flex';
+      vbar.innerHTML = `
+        <button class="btn-validate" id="btnAcceptPage">✓ Accepter</button>
+        <button class="btn-reject" id="btnCorrectPage">✗ Corriger</button>
+        <button class="btn-add-table" id="btnAddTablePage">+ Table USI-PRO</button>
+      `;
+      card.appendChild(vbar);
+    }
+
+    // Navigation bar
+    const nav = document.createElement('div');
+    nav.className = 'pdf-validation-bar';
+    nav.style.display = 'flex';
+    nav.style.justifyContent = 'space-between';
+    nav.style.borderTop = '1px solid rgba(255,255,255,0.06)';
+    nav.style.marginTop = '0';
+    nav.innerHTML = `
+      <button class="btn-cancel-action" id="btnPrevPage" ${_currentPageIdx === 0 ? 'disabled' : ''}>&#8592; Précédent</button>
+      <button class="btn-cancel-action" id="btnNextPage" ${_currentPageIdx >= _allPages.length - 1 ? 'disabled' : ''}>Suivant &#8594;</button>
+    `;
+    card.appendChild(nav);
+
+    container.appendChild(card);
+
+    // Bind events
+    const btnAccept = document.getElementById('btnAcceptPage');
+    const btnCorrect = document.getElementById('btnCorrectPage');
+    const btnAddTable = document.getElementById('btnAddTablePage');
+    const btnPrev = document.getElementById('btnPrevPage');
+    const btnNext = document.getElementById('btnNextPage');
+
+    if (btnAccept) btnAccept.onclick = () => acceptCurrentPage();
+    if (btnCorrect) btnCorrect.onclick = () => openCorrectionMode();
+    if (btnAddTable) btnAddTable.onclick = () => openAddTableMode();
+    if (btnPrev) btnPrev.onclick = () => { _currentPageIdx--; renderCurrentPage(); updateCounter(); };
+    if (btnNext) btnNext.onclick = () => { _currentPageIdx++; renderCurrentPage(); updateCounter(); };
   }
 
-  // ── ACCEPT ──────────────────────────────────────────────────────
-  window.acceptPdf = function (name) {
-    if (!store[name]) return;
-    store[name].finalBase64 = store[name].anonymizedBase64;
-    markValidated(name);
-  };
+  // ── Accept current page ────────────────────────────────────────
 
-  // ── REJECT (draw zones) ─────────────────────────────────────────
-  window.rejectPdf = function (name) {
-    if (!store[name]) return;
-    const fid = fkey(name);
+  function acceptCurrentPage() {
+    const entry = _allPages[_currentPageIdx];
+    if (!entry) return;
+    const s = store[entry.filename];
+    if (!s) return;
 
-    // Hide action bar, show reject bar
-    hide('vbar-' + fid);
-    show('rbar-' + fid);
+    s.pages[entry.pageIndex].validated = true;
+    // If no correction was made, keep anonymized as-is
+    if (!s.pages[entry.pageIndex].correctedBase64) {
+      s.pages[entry.pageIndex].correctedBase64 = null; // will use anonymizedBase64
+    }
 
-    // Enable zone drawing on the anonymized canvas
-    enableZoneDrawing(name);
-  };
+    advanceAfterValidation();
+  }
 
-  // Zone drawing state
-  const zoneState = {};
+  function advanceAfterValidation() {
+    updateCounter();
 
-  function enableZoneDrawing(name) {
-    const fid = fkey(name);
-    const pgList = document.getElementById('pglist-' + fid);
-    if (!pgList) return;
+    // Check if all done
+    if (checkAllValidated()) return;
 
-    zoneState[name] = { zones: [], rects: [] };
+    // Move to next unvalidated page
+    const startIdx = _currentPageIdx;
+    for (let i = 1; i <= _allPages.length; i++) {
+      const idx = (startIdx + i) % _allPages.length;
+      const e = _allPages[idx];
+      if (!store[e.filename].pages[e.pageIndex].validated) {
+        _currentPageIdx = idx;
+        renderCurrentPage();
+        return;
+      }
+    }
 
-    // Find all anonymized-side canvases
-    const anonCols = pgList.querySelectorAll('.pdf-comparison-col');
-    anonCols.forEach(col => {
-      if (!col.querySelector('.comparison-label.anonymized')) return;
-      const canvas = col.querySelector('canvas');
-      if (!canvas) return;
+    // All validated (shouldn't reach here normally)
+    renderCurrentPage();
+  }
 
-      // Create overlay canvas for drawing
-      const wrapper = canvas.parentElement;
-      wrapper.style.position = 'relative';
+  function checkAllValidated() {
+    const total = _allPages.length;
+    const validated = countValidated();
+    if (total > 0 && validated >= total) {
+      // Build final store for onAllPdfsValidated
+      const finalStore = {};
+      for (const [name, s] of Object.entries(store)) {
+        // Rebuild final PDF from page corrections
+        finalStore[name] = {
+          partId: s.partId,
+          originalBase64: s.originalBase64,
+          anonymizedBase64: s.anonymizedBase64,
+          finalBase64: s.anonymizedBase64, // default to anonymized
+          validated: true,
+          ofNum: s.ofNum,
+        };
 
-      const overlay = document.createElement('canvas');
-      overlay.className = 'zone-overlay';
-      overlay.width = canvas.width;
-      overlay.height = canvas.height;
-      overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;cursor:crosshair;z-index:10;';
-      wrapper.appendChild(overlay);
-
-      const ctx = overlay.getContext('2d');
-      let drawing = false;
-      let startX, startY;
-
-      overlay.addEventListener('mousedown', e => {
-        const rect = overlay.getBoundingClientRect();
-        const scaleX = overlay.width / rect.width;
-        const scaleY = overlay.height / rect.height;
-        startX = (e.clientX - rect.left) * scaleX;
-        startY = (e.clientY - rect.top) * scaleY;
-        drawing = true;
-      });
-
-      overlay.addEventListener('mousemove', e => {
-        if (!drawing) return;
-        const rect = overlay.getBoundingClientRect();
-        const scaleX = overlay.width / rect.width;
-        const scaleY = overlay.height / rect.height;
-        const curX = (e.clientX - rect.left) * scaleX;
-        const curY = (e.clientY - rect.top) * scaleY;
-
-        // Redraw all existing zones + current selection
-        ctx.clearRect(0, 0, overlay.width, overlay.height);
-        drawAllZones(ctx, zoneState[name].zones);
-        ctx.fillStyle = 'rgba(231,76,60,0.25)';
-        ctx.strokeStyle = 'rgba(231,76,60,0.8)';
-        ctx.lineWidth = 2;
-        ctx.fillRect(startX, startY, curX - startX, curY - startY);
-        ctx.strokeRect(startX, startY, curX - startX, curY - startY);
-      });
-
-      overlay.addEventListener('mouseup', e => {
-        if (!drawing) return;
-        drawing = false;
-        const rect = overlay.getBoundingClientRect();
-        const scaleX = overlay.width / rect.width;
-        const scaleY = overlay.height / rect.height;
-        const endX = (e.clientX - rect.left) * scaleX;
-        const endY = (e.clientY - rect.top) * scaleY;
-
-        const x = Math.min(startX, endX);
-        const y = Math.min(startY, endY);
-        const w = Math.abs(endX - startX);
-        const h = Math.abs(endY - startY);
-
-        if (w > 5 && h > 5) {
-          // Get page index from the entry
-          const entry = wrapper.closest('.pdf-page-entry');
-          const allEntries = Array.from(pgList.querySelectorAll('.pdf-page-entry'));
-          const pageIdx = allEntries.indexOf(entry);
-
-          zoneState[name].zones.push({
-            canvasX: x, canvasY: y, canvasW: w, canvasH: h,
-            page: pageIdx,
-            overlayCanvas: overlay,
-          });
+        // If any page has corrections, we need to assemble
+        const hasCorrections = s.pages.some(p => p.correctedBase64);
+        if (hasCorrections) {
+          // For now, use the last corrected full PDF if available
+          // The corrections are applied to the full PDF on the server side
+          const lastCorrected = [...s.pages].reverse().find(p => p.correctedBase64);
+          if (lastCorrected) {
+            finalStore[name].finalBase64 = lastCorrected.correctedBase64;
+          }
         }
+      }
 
-        ctx.clearRect(0, 0, overlay.width, overlay.height);
-        drawAllZones(ctx, zoneState[name].zones.filter(z => z.overlayCanvas === overlay));
-      });
+      if (typeof window.onAllPdfsValidated === 'function') {
+        window.onAllPdfsValidated(finalStore);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  // ── Correction mode (fullscreen) ──────────────────────────────
+
+  let _correctionZones = [];
+  let _correctionOverlay = null;
+
+  function openCorrectionMode() {
+    const entry = _allPages[_currentPageIdx];
+    if (!entry) return;
+    const s = store[entry.filename];
+    if (!s) return;
+
+    _correctionZones = [];
+
+    // Create fullscreen overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'correction-overlay';
+    overlay.id = 'correctionOverlay';
+
+    overlay.innerHTML = `
+      <div class="correction-topbar">
+        <button class="correction-back-btn" id="corrBackBtn">&#8592; Retour</button>
+        <span class="correction-title">${entry.filename} — Page ${entry.pageIndex + 1}</span>
+        <span class="correction-page-info">Mode correction</span>
+      </div>
+      <div class="correction-body">
+        <div class="correction-canvas-area" id="corrCanvasArea"></div>
+        <div class="correction-panel">
+          <div class="correction-panel-header">
+            <h3>Zones de correction</h3>
+            <p>Dessinez des rectangles sur les zones problématiques</p>
+          </div>
+          <div class="correction-zones-list" id="corrZonesList">
+            <div class="correction-zones-empty">Aucune zone sélectionnée. Dessinez sur le PDF.</div>
+          </div>
+          <div class="correction-prompt-area">
+            <label for="corrPrompt">Prompt de correction (optionnel)</label>
+            <textarea id="corrPrompt" placeholder="Ex: Le nom ALPHANOV est encore visible en bas à droite..."></textarea>
+          </div>
+          <div class="correction-actions">
+            <button class="correction-btn-submit" id="corrSubmitBtn">Appliquer les corrections</button>
+            <button class="correction-btn-clear" id="corrClearBtn">Effacer les zones</button>
+          </div>
+          <div class="correction-ai-result" id="corrAiResult" style="display:none"></div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+    _correctionOverlay = overlay;
+
+    // Render the anonymized page large in the canvas area
+    renderCorrectionCanvas(entry, s);
+
+    // Bind events
+    document.getElementById('corrBackBtn').onclick = () => closeCorrectionMode();
+    document.getElementById('corrSubmitBtn').onclick = () => submitCorrection();
+    document.getElementById('corrClearBtn').onclick = () => clearCorrectionZones();
+  }
+
+  async function renderCorrectionCanvas(entry, s) {
+    const area = document.getElementById('corrCanvasArea');
+    if (!area) return;
+
+    const anonB64 = s.pages[entry.pageIndex].correctedBase64 || s.anonymizedBase64;
+    const bytes = Uint8Array.from(atob(anonB64), c => c.charCodeAt(0));
+    const doc = await pdfjsLib.getDocument({ data: bytes }).promise;
+    const page = await doc.getPage(entry.pageIndex + 1);
+
+    const naturalVP = page.getViewport({ scale: 1 });
+    const maxW = Math.min(area.clientWidth - 48, 1200);
+    const scale = Math.min(maxW / naturalVP.width, 3.0);
+    const vp = page.getViewport({ scale });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(vp.width);
+    canvas.height = Math.round(vp.height);
+    canvas.dataset.pdfWidth = String(naturalVP.width);
+    canvas.dataset.pdfHeight = String(naturalVP.height);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'correction-canvas-wrapper';
+    wrapper.style.width = canvas.width + 'px';
+    wrapper.appendChild(canvas);
+
+    // Overlay for zone drawing
+    const zoneCanvas = document.createElement('canvas');
+    zoneCanvas.className = 'zone-overlay';
+    zoneCanvas.width = canvas.width;
+    zoneCanvas.height = canvas.height;
+    wrapper.appendChild(zoneCanvas);
+
+    area.innerHTML = '';
+    area.appendChild(wrapper);
+
+    // Enable drawing
+    enableCorrectionDrawing(zoneCanvas, canvas);
+  }
+
+  function enableCorrectionDrawing(zoneCanvas, pdfCanvas) {
+    const ctx = zoneCanvas.getContext('2d');
+    let drawing = false;
+    let startX, startY;
+
+    zoneCanvas.addEventListener('mousedown', e => {
+      const rect = zoneCanvas.getBoundingClientRect();
+      const scaleX = zoneCanvas.width / rect.width;
+      const scaleY = zoneCanvas.height / rect.height;
+      startX = (e.clientX - rect.left) * scaleX;
+      startY = (e.clientY - rect.top) * scaleY;
+      drawing = true;
+    });
+
+    zoneCanvas.addEventListener('mousemove', e => {
+      if (!drawing) return;
+      const rect = zoneCanvas.getBoundingClientRect();
+      const scaleX = zoneCanvas.width / rect.width;
+      const scaleY = zoneCanvas.height / rect.height;
+      const curX = (e.clientX - rect.left) * scaleX;
+      const curY = (e.clientY - rect.top) * scaleY;
+
+      ctx.clearRect(0, 0, zoneCanvas.width, zoneCanvas.height);
+      drawCorrectionZones(ctx);
+      ctx.fillStyle = 'rgba(231,76,60,0.25)';
+      ctx.strokeStyle = 'rgba(231,76,60,0.8)';
+      ctx.lineWidth = 2;
+      ctx.fillRect(startX, startY, curX - startX, curY - startY);
+      ctx.strokeRect(startX, startY, curX - startX, curY - startY);
+    });
+
+    zoneCanvas.addEventListener('mouseup', e => {
+      if (!drawing) return;
+      drawing = false;
+      const rect = zoneCanvas.getBoundingClientRect();
+      const scaleX = zoneCanvas.width / rect.width;
+      const scaleY = zoneCanvas.height / rect.height;
+      const endX = (e.clientX - rect.left) * scaleX;
+      const endY = (e.clientY - rect.top) * scaleY;
+
+      const x = Math.min(startX, endX);
+      const y = Math.min(startY, endY);
+      const w = Math.abs(endX - startX);
+      const h = Math.abs(endY - startY);
+
+      if (w > 5 && h > 5) {
+        // Convert to percent of canvas
+        _correctionZones.push({
+          x_percent: x / zoneCanvas.width,
+          y_percent: y / zoneCanvas.height,
+          width_percent: w / zoneCanvas.width,
+          height_percent: h / zoneCanvas.height,
+          canvasX: x,
+          canvasY: y,
+          canvasW: w,
+          canvasH: h,
+        });
+        updateCorrectionZonesList();
+      }
+
+      ctx.clearRect(0, 0, zoneCanvas.width, zoneCanvas.height);
+      drawCorrectionZones(ctx);
     });
   }
 
-  function drawAllZones(ctx, zones) {
+  function drawCorrectionZones(ctx) {
     ctx.fillStyle = 'rgba(231,76,60,0.25)';
     ctx.strokeStyle = 'rgba(231,76,60,0.8)';
     ctx.lineWidth = 2;
-    for (const z of zones) {
+    for (const z of _correctionZones) {
       ctx.fillRect(z.canvasX, z.canvasY, z.canvasW, z.canvasH);
       ctx.strokeRect(z.canvasX, z.canvasY, z.canvasW, z.canvasH);
     }
   }
 
-  function disableZoneDrawing(name) {
-    const fid = fkey(name);
-    const pgList = document.getElementById('pglist-' + fid);
-    if (!pgList) return;
-    pgList.querySelectorAll('.zone-overlay').forEach(o => o.remove());
-    delete zoneState[name];
-  }
+  function updateCorrectionZonesList() {
+    const list = document.getElementById('corrZonesList');
+    if (!list) return;
 
-  // ── APPLY ZONES ─────────────────────────────────────────────────
-  window.applyZones = async function (name) {
-    if (!store[name] || !zoneState[name]) return;
-    const fid = fkey(name);
-
-    const zones = zoneState[name].zones;
-    if (zones.length === 0) return;
-
-    // Get PDF page dimensions to convert canvas coords → PDF coords
-    const pdfB64 = store[name].anonymizedBase64;
-    const pdfBytes = Uint8Array.from(atob(pdfB64), c => c.charCodeAt(0));
-    const pdfDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
-
-    const pdfZones = [];
-    for (const z of zones) {
-      const page = await pdfDoc.getPage(z.page + 1);
-      const vp = page.getViewport({ scale: 1 });
-      const canvas = z.overlayCanvas;
-
-      const scale = canvas.width / vp.width;
-      const pageH = vp.height;
-
-      pdfZones.push({
-        page: z.page,
-        x: z.canvasX / scale,
-        y: pageH - (z.canvasY + z.canvasH) / scale,
-        width: z.canvasW / scale,
-        height: z.canvasH / scale,
-      });
+    if (_correctionZones.length === 0) {
+      list.innerHTML = '<div class="correction-zones-empty">Aucune zone sélectionnée. Dessinez sur le PDF.</div>';
+      return;
     }
 
+    list.innerHTML = _correctionZones.map((z, i) => `
+      <div class="correction-zone-item">
+        <span class="zone-color"></span>
+        <span class="zone-label">Zone ${i + 1} — ${(z.width_percent * 100).toFixed(0)}% x ${(z.height_percent * 100).toFixed(0)}%</span>
+        <button class="zone-remove" data-idx="${i}" title="Supprimer">&times;</button>
+      </div>
+    `).join('');
+
+    list.querySelectorAll('.zone-remove').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.idx);
+        _correctionZones.splice(idx, 1);
+        updateCorrectionZonesList();
+        // Redraw canvas zones
+        const zoneCanvas = document.querySelector('#corrCanvasArea .zone-overlay');
+        if (zoneCanvas) {
+          const ctx = zoneCanvas.getContext('2d');
+          ctx.clearRect(0, 0, zoneCanvas.width, zoneCanvas.height);
+          drawCorrectionZones(ctx);
+        }
+      });
+    });
+  }
+
+  function clearCorrectionZones() {
+    _correctionZones = [];
+    updateCorrectionZonesList();
+    const zoneCanvas = document.querySelector('#corrCanvasArea .zone-overlay');
+    if (zoneCanvas) {
+      const ctx = zoneCanvas.getContext('2d');
+      ctx.clearRect(0, 0, zoneCanvas.width, zoneCanvas.height);
+    }
+  }
+
+  async function submitCorrection() {
+    const entry = _allPages[_currentPageIdx];
+    if (!entry) return;
+    const s = store[entry.filename];
+    if (!s) return;
+
+    if (_correctionZones.length === 0) return;
+
+    const prompt = document.getElementById('corrPrompt')?.value || '';
+    const submitBtn = document.getElementById('corrSubmitBtn');
+    const actionsDiv = submitBtn?.parentElement;
+
     // Show loading
-    const rbar = document.getElementById('rbar-' + fid);
-    if (rbar) rbar.innerHTML = '<div class="pdf-loading"><span class="spinner-small"></span>Application des corrections…</div>';
+    if (actionsDiv) {
+      actionsDiv.innerHTML = '<div class="correction-loading"><span class="spinner-small"></span>Correction en cours...</div>';
+    }
+
+    const zones = _correctionZones.map(z => ({
+      x_percent: z.x_percent,
+      y_percent: z.y_percent,
+      width_percent: z.width_percent,
+      height_percent: z.height_percent,
+    }));
+
+    const pdfB64 = s.pages[entry.pageIndex].correctedBase64 || s.anonymizedBase64;
 
     try {
-      const resp = await fetch('/api/anonymize-zone', {
+      const resp = await fetch('/api/correct-page', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pdfBase64: pdfB64, zones: pdfZones }),
+        body: JSON.stringify({
+          pdfBase64: pdfB64,
+          pageIndex: entry.pageIndex,
+          zones,
+          prompt: prompt || undefined,
+        }),
       });
 
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const { pdfBase64: correctedB64 } = await resp.json();
+      const result = await resp.json();
 
-      store[name].anonymizedBase64 = correctedB64;
-      disableZoneDrawing(name);
+      // Store corrected PDF
+      s.pages[entry.pageIndex].correctedBase64 = result.pdfBase64;
 
-      // Re-render side-by-side with corrected version
-      await renderSideBySide(name, store[name].originalBase64, correctedB64);
-
-      // Show confirm bar
-      hide('rbar-' + fid);
-      show('cbar-' + fid);
-    } catch (err) {
-      console.error('[pdf-viewer] applyZones error:', err);
-      if (rbar) rbar.innerHTML = '<div class="pdf-loading" style="color:var(--error)">Erreur: ' + err.message + '</div>';
-    }
-  };
-
-  // ── ADD TABLE ───────────────────────────────────────────────────
-  window.addTablePdf = function (name) {
-    if (!store[name]) return;
-    const fid = fkey(name);
-
-    hide('vbar-' + fid);
-    show('tbar-' + fid);
-
-    // Render original only (full width) and add draggable overlay
-    renderOriginalWithOverlay(name);
-  };
-
-  async function renderOriginalWithOverlay(name) {
-    const fid = fkey(name);
-    const pgList = document.getElementById('pglist-' + fid);
-    if (!pgList) return;
-
-    const toBytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-    const origDoc = await pdfjsLib.getDocument({ data: toBytes(store[name].originalBase64) }).promise;
-
-    pgList.innerHTML = '';
-
-    const colW = Math.max(pgList.clientWidth - 40, 400);
-
-    for (let pn = 1; pn <= origDoc.numPages; pn++) {
-      const entry = document.createElement('div');
-      entry.className = 'pdf-page-entry';
-      entry.dataset.pageIndex = String(pn - 1);
-
-      if (origDoc.numPages > 1) {
-        const lbl = document.createElement('div');
-        lbl.className = 'pdf-page-label';
-        lbl.textContent = 'Page ' + pn + ' / ' + origDoc.numPages;
-        entry.appendChild(lbl);
+      // Show AI result
+      const aiResult = document.getElementById('corrAiResult');
+      if (aiResult && result.analysis) {
+        aiResult.style.display = 'block';
+        let html = `<div class="ai-analysis">${result.analysis}</div>`;
+        if (result.corrections && result.corrections.length > 0) {
+          html += '<ul class="ai-corrections-list">';
+          result.corrections.forEach(c => {
+            html += `<li><strong>${c.type}</strong>: ${c.description}</li>`;
+          });
+          html += '</ul>';
+        }
+        aiResult.innerHTML = html;
       }
 
-      const page = await origDoc.getPage(pn);
-      const naturalVP = page.getViewport({ scale: 1 });
-      const scale = Math.min(colW / naturalVP.width, 2.0);
-      const vp = page.getViewport({ scale });
-
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(vp.width);
-      canvas.height = Math.round(vp.height);
-      canvas.dataset.pdfWidth = String(naturalVP.width);
-      canvas.dataset.pdfHeight = String(naturalVP.height);
-      await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
-
-      const wrapper = document.createElement('div');
-      wrapper.className = 'canvas-wrapper';
-      wrapper.style.position = 'relative';
-      wrapper.style.width = canvas.width + 'px';
-      wrapper.appendChild(canvas);
-
-      // Add draggable overlay on first page only
-      if (pn === 1) {
-        const canvasScale = canvas.width / naturalVP.width;
-        // Default table size: 540×70 pts (from pdfAnonymizer.ts)
-        const overlayW = Math.round(540 * canvasScale);
-        const overlayH = Math.round(70 * canvasScale);
-
-        const overlay = document.createElement('div');
-        overlay.className = 'usipro-table-overlay';
-        overlay.id = 'tableOverlay-' + fid;
-        overlay.style.width = overlayW + 'px';
-        overlay.style.height = overlayH + 'px';
-        overlay.style.left = (canvas.width - overlayW - 20) + 'px';
-        overlay.style.top = (canvas.height - overlayH - 20) + 'px';
-        overlay.innerHTML = `
-          <div class="overlay-label">TABLE USI-PRO</div>
-          <div class="resize-handle resize-nw" data-dir="nw"></div>
-          <div class="resize-handle resize-ne" data-dir="ne"></div>
-          <div class="resize-handle resize-sw" data-dir="sw"></div>
-          <div class="resize-handle resize-se" data-dir="se"></div>
+      // Restore actions
+      if (actionsDiv) {
+        actionsDiv.innerHTML = `
+          <button class="correction-btn-submit" id="corrValidateBtn" style="background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%)">✓ Valider cette page</button>
+          <button class="correction-btn-clear" id="corrRetryBtn">Recommencer</button>
         `;
-
-        wrapper.appendChild(overlay);
-        makeDraggableResizable(overlay, wrapper);
+        document.getElementById('corrValidateBtn').onclick = () => {
+          s.pages[entry.pageIndex].validated = true;
+          closeCorrectionMode();
+          advanceAfterValidation();
+        };
+        document.getElementById('corrRetryBtn').onclick = () => {
+          // Reset and re-render
+          _correctionZones = [];
+          updateCorrectionZonesList();
+          const area = document.getElementById('corrCanvasArea');
+          if (area) renderCorrectionCanvas(entry, s);
+          actionsDiv.innerHTML = `
+            <button class="correction-btn-submit" id="corrSubmitBtn">Appliquer les corrections</button>
+            <button class="correction-btn-clear" id="corrClearBtn">Effacer les zones</button>
+          `;
+          document.getElementById('corrSubmitBtn').onclick = () => submitCorrection();
+          document.getElementById('corrClearBtn').onclick = () => clearCorrectionZones();
+          if (aiResult) aiResult.style.display = 'none';
+        };
       }
 
-      entry.appendChild(wrapper);
-      pgList.appendChild(entry);
+      // Re-render canvas with corrected version
+      renderCorrectionCanvas(entry, s);
+    } catch (err) {
+      console.error('[pdf-viewer] submitCorrection error:', err);
+      if (actionsDiv) {
+        actionsDiv.innerHTML = `
+          <div style="color: #e74c3c; padding: 12px; font-size: 13px;">Erreur: ${err.message}</div>
+          <button class="correction-btn-submit" id="corrSubmitBtn">Réessayer</button>
+          <button class="correction-btn-clear" id="corrClearBtn">Effacer les zones</button>
+        `;
+        document.getElementById('corrSubmitBtn').onclick = () => submitCorrection();
+        document.getElementById('corrClearBtn').onclick = () => clearCorrectionZones();
+      }
     }
   }
+
+  function closeCorrectionMode() {
+    const overlay = document.getElementById('correctionOverlay');
+    if (overlay) overlay.remove();
+    _correctionOverlay = null;
+    _correctionZones = [];
+    renderCurrentPage();
+    updateCounter();
+  }
+
+  // ── Add Table mode ─────────────────────────────────────────────
+
+  async function openAddTableMode() {
+    const entry = _allPages[_currentPageIdx];
+    if (!entry) return;
+    const s = store[entry.filename];
+    if (!s) return;
+
+    const container = document.getElementById('pdfCardsContainer');
+    if (!container) return;
+
+    // Re-render current card with add-table UI
+    container.innerHTML = '';
+    const card = document.createElement('div');
+    card.className = 'pdf-viewer-card';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'pdf-card-header';
+    header.innerHTML = `
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+           stroke="rgba(255,255,255,0.45)" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      <span class="pdf-card-name">${entry.filename} — Page ${entry.pageIndex + 1}</span>
+      <span class="pdf-card-info">Mode table USI-PRO</span>
+    `;
+    card.appendChild(header);
+
+    // Render original page with draggable overlay
+    const pgList = document.createElement('div');
+    pgList.className = 'pdf-pages-list';
+    card.appendChild(pgList);
+
+    const toBytes = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const origDoc = await pdfjsLib.getDocument({ data: toBytes(s.originalBase64) }).promise;
+    const pageNum = Math.min(entry.pageIndex + 1, origDoc.numPages);
+    const page = await origDoc.getPage(pageNum);
+
+    const naturalVP = page.getViewport({ scale: 1 });
+    const colW = Math.max((pgList.clientWidth || 800) - 40, 400);
+    const scale = Math.min(colW / naturalVP.width, 2.0);
+    const vp = page.getViewport({ scale });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(vp.width);
+    canvas.height = Math.round(vp.height);
+    canvas.dataset.pdfWidth = String(naturalVP.width);
+    canvas.dataset.pdfHeight = String(naturalVP.height);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'canvas-wrapper';
+    wrapper.style.position = 'relative';
+    wrapper.style.width = canvas.width + 'px';
+    wrapper.appendChild(canvas);
+
+    // Draggable table overlay
+    const canvasScale = canvas.width / naturalVP.width;
+    const overlayW = Math.round(540 * canvasScale);
+    const overlayH = Math.round(70 * canvasScale);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'usipro-table-overlay';
+    overlay.id = 'tableOverlayPage';
+    overlay.style.width = overlayW + 'px';
+    overlay.style.height = overlayH + 'px';
+    overlay.style.left = (canvas.width - overlayW - 20) + 'px';
+    overlay.style.top = (canvas.height - overlayH - 20) + 'px';
+    overlay.innerHTML = `
+      <div class="overlay-label">TABLE USI-PRO</div>
+      <div class="resize-handle resize-nw" data-dir="nw"></div>
+      <div class="resize-handle resize-ne" data-dir="ne"></div>
+      <div class="resize-handle resize-sw" data-dir="sw"></div>
+      <div class="resize-handle resize-se" data-dir="se"></div>
+    `;
+
+    wrapper.appendChild(overlay);
+    makeDraggableResizable(overlay, wrapper);
+
+    const pageEntry = document.createElement('div');
+    pageEntry.className = 'pdf-page-entry';
+    pageEntry.dataset.pageIndex = String(entry.pageIndex);
+    pageEntry.appendChild(wrapper);
+    pgList.appendChild(pageEntry);
+
+    // Table data form + actions
+    const tbar = document.createElement('div');
+    tbar.className = 'pdf-table-bar';
+    tbar.style.display = 'block';
+    tbar.innerHTML = `
+      <p class="table-hint">Positionnez et redimensionnez l'overlay de la table USI-PRO.</p>
+      <div class="table-data-form">
+        <label>Désignation: <input type="text" id="tblDesigPage" placeholder="—"></label>
+        <label>Matériau: <input type="text" id="tblMatPage" placeholder="—"></label>
+        <label>Norme: <input type="text" id="tblStdPage" placeholder="—"></label>
+        <label>Finition: <input type="text" id="tblFinPage" placeholder="—"></label>
+      </div>
+      <button class="btn-apply-table" id="btnApplyTablePage">Appliquer la table</button>
+      <button class="btn-cancel-action" id="btnCancelTablePage">Annuler</button>
+    `;
+    card.appendChild(tbar);
+
+    container.appendChild(card);
+
+    // Bind events
+    document.getElementById('btnApplyTablePage').onclick = () => applyTableForPage(entry, s);
+    document.getElementById('btnCancelTablePage').onclick = () => { renderCurrentPage(); updateCounter(); };
+  }
+
+  async function applyTableForPage(entry, s) {
+    const overlay = document.getElementById('tableOverlayPage');
+    if (!overlay) return;
+
+    const wrapper = overlay.parentElement;
+    const canvas = wrapper.querySelector('canvas');
+
+    const pdfW = parseFloat(canvas.dataset.pdfWidth);
+    const pdfH = parseFloat(canvas.dataset.pdfHeight);
+    const canvasScale = canvas.width / pdfW;
+
+    const zone = {
+      page: entry.pageIndex,
+      x: overlay.offsetLeft / canvasScale,
+      y: pdfH - (overlay.offsetTop + overlay.offsetHeight) / canvasScale,
+      width: overlay.offsetWidth / canvasScale,
+      height: overlay.offsetHeight / canvasScale,
+    };
+
+    const cartoucheData = {
+      designation: document.getElementById('tblDesigPage')?.value || '—',
+      material: document.getElementById('tblMatPage')?.value || '—',
+      applicableStd: document.getElementById('tblStdPage')?.value || '—',
+      finish: document.getElementById('tblFinPage')?.value || '—',
+    };
+
+    const tbar = overlay.closest('.pdf-viewer-card')?.querySelector('.pdf-table-bar');
+    if (tbar) tbar.innerHTML = '<div class="pdf-loading"><span class="spinner-small"></span>Application de la table...</div>';
+
+    try {
+      const resp = await fetch('/api/add-usipro-table', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pdfBase64: s.originalBase64,
+          planId: s.partId,
+          lotId: s.ofNum,
+          zone,
+          cartoucheData,
+        }),
+      });
+
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const { pdfBase64: modifiedB64 } = await resp.json();
+
+      // Store as corrected for this page
+      s.pages[entry.pageIndex].correctedBase64 = modifiedB64;
+      s.pages[entry.pageIndex].validated = true;
+
+      advanceAfterValidation();
+    } catch (err) {
+      console.error('[pdf-viewer] applyTableForPage error:', err);
+      if (tbar) tbar.innerHTML = '<div class="pdf-loading" style="color:var(--error)">Erreur: ' + err.message + '</div>';
+    }
+  }
+
+  // ── Draggable/Resizable helper ─────────────────────────────────
 
   function makeDraggableResizable(overlay, container) {
     let isDragging = false;
@@ -468,7 +851,6 @@
       if (isDragging) {
         let newLeft = startLeft + dx;
         let newTop = startTop + dy;
-        // Constrain within container
         newLeft = Math.max(0, Math.min(newLeft, container.offsetWidth - overlay.offsetWidth));
         newTop = Math.max(0, Math.min(newTop, container.offsetHeight - overlay.offsetHeight));
         overlay.style.left = newLeft + 'px';
@@ -494,209 +876,7 @@
     });
   }
 
-  // ── APPLY TABLE ─────────────────────────────────────────────────
-  window.applyTable = async function (name) {
-    if (!store[name]) return;
-    const fid = fkey(name);
-
-    const overlay = document.getElementById('tableOverlay-' + fid);
-    if (!overlay) return;
-
-    const wrapper = overlay.parentElement;
-    const canvas = wrapper.querySelector('canvas');
-    const entry = wrapper.closest('.pdf-page-entry');
-    const pageIdx = parseInt(entry.dataset.pageIndex || '0');
-
-    const pdfW = parseFloat(canvas.dataset.pdfWidth);
-    const pdfH = parseFloat(canvas.dataset.pdfHeight);
-    const canvasScale = canvas.width / pdfW;
-
-    // Convert overlay position from canvas coords to PDF coords
-    const canvasX = overlay.offsetLeft;
-    const canvasY = overlay.offsetTop;
-    const canvasW = overlay.offsetWidth;
-    const canvasH = overlay.offsetHeight;
-
-    const zone = {
-      page: pageIdx,
-      x: canvasX / canvasScale,
-      y: pdfH - (canvasY + canvasH) / canvasScale,
-      width: canvasW / canvasScale,
-      height: canvasH / canvasScale,
-    };
-
-    const cartoucheData = {
-      designation: document.getElementById('tbl-desig-' + fid)?.value || '—',
-      material: document.getElementById('tbl-mat-' + fid)?.value || '—',
-      applicableStd: document.getElementById('tbl-std-' + fid)?.value || '—',
-      finish: document.getElementById('tbl-fin-' + fid)?.value || '—',
-    };
-
-    const partId = store[name].partId;
-    const tbar = document.getElementById('tbar-' + fid);
-    if (tbar) tbar.innerHTML = '<div class="pdf-loading"><span class="spinner-small"></span>Application de la table…</div>';
-
-    try {
-      const resp = await fetch('/api/add-usipro-table', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pdfBase64: store[name].originalBase64,
-          planId: partId,
-          lotId: store[name].ofNum,
-          zone,
-          cartoucheData,
-        }),
-      });
-
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const { pdfBase64: modifiedB64 } = await resp.json();
-
-      store[name].anonymizedBase64 = modifiedB64;
-
-      // Re-render side-by-side: Original | Modified
-      await renderSideBySide(name, store[name].originalBase64, modifiedB64);
-
-      hide('tbar-' + fid);
-      show('cbar-' + fid);
-    } catch (err) {
-      console.error('[pdf-viewer] applyTable error:', err);
-      if (tbar) tbar.innerHTML = '<div class="pdf-loading" style="color:var(--error)">Erreur: ' + err.message + '</div>';
-    }
-  };
-
-  // ── CONFIRM VALIDATION (after reject/add-table corrections) ────
-  window.confirmValidation = function (name) {
-    if (!store[name]) return;
-    store[name].finalBase64 = store[name].anonymizedBase64;
-    markValidated(name);
-  };
-
-  // ── CANCEL ACTION ───────────────────────────────────────────────
-  window.cancelAction = function (name) {
-    if (!store[name]) return;
-    const fid = fkey(name);
-
-    disableZoneDrawing(name);
-
-    // Re-render original side-by-side
-    const origAnon = store[name].anonymizedBase64;
-    renderSideBySide(name, store[name].originalBase64, origAnon).then(() => {
-      hide('rbar-' + fid);
-      hide('tbar-' + fid);
-      hide('cbar-' + fid);
-      show('vbar-' + fid);
-    });
-  };
-
-  // ── Mark as validated and advance ───────────────────────────────
-  function markValidated(name) {
-    store[name].validated = true;
-    const fid = fkey(name);
-
-    const card = document.getElementById('card-' + fid);
-    if (card) card.classList.add('pdf-card-validated');
-
-    const badge = document.getElementById('badge-' + fid);
-    if (badge) { badge.textContent = '✓ Validé'; badge.className = 'pdf-validation-badge validated'; }
-
-    // Hide all action bars, show validated label
-    ['vbar', 'rbar', 'tbar', 'cbar'].forEach(bar => hide(bar + '-' + fid));
-    const vbar = document.getElementById('vbar-' + fid);
-    if (vbar) {
-      vbar.innerHTML = '<span class="validated-label">✓ PDF validé</span>';
-      vbar.style.display = 'flex';
-    }
-
-    // Advance to next
-    if (_currentIndex < _totalCount - 1) {
-      _currentIndex++;
-      showCurrentCard();
-    } else {
-      updateCounter();
-    }
-
-    checkAllValidated();
-  }
-
-  // ── Check if all PDFs are validated ─────────────────────────────
-  function checkAllValidated() {
-    const total = _totalCount;
-    const validated = Object.values(store).filter((s) => s.validated).length;
-    if (total > 0 && validated >= total) {
-      if (typeof window.onAllPdfsValidated === 'function') {
-        window.onAllPdfsValidated(store);
-      }
-    }
-  }
-
-  // ── Render side-by-side: original | anonymized ──────────────────
-  async function renderSideBySide(name, originalBase64, anonymizedBase64) {
-    const fid = fkey(name);
-    const pgList = document.getElementById('pglist-' + fid);
-    if (!pgList) return;
-
-    const toBytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-
-    const [origDoc, anonDoc] = await Promise.all([
-      pdfjsLib.getDocument({ data: toBytes(originalBase64) }).promise,
-      pdfjsLib.getDocument({ data: toBytes(anonymizedBase64) }).promise,
-    ]);
-
-    const infoEl = document.getElementById('info-' + fid);
-    if (infoEl) {
-      const pages = anonDoc.numPages + ' page' + (anonDoc.numPages > 1 ? 's' : '');
-      infoEl.textContent = pages;
-    }
-
-    pgList.innerHTML = '';
-
-    const numPages = Math.max(origDoc.numPages, anonDoc.numPages);
-    const colW = Math.max((pgList.clientWidth - 60) / 2, 240);
-
-    for (let pn = 1; pn <= numPages; pn++) {
-      const entry = document.createElement('div');
-      entry.className = 'pdf-page-entry';
-      entry.dataset.pageIndex = String(pn - 1);
-
-      if (numPages > 1) {
-        const lbl = document.createElement('div');
-        lbl.className = 'pdf-page-label';
-        lbl.textContent = 'Page ' + pn + ' / ' + numPages;
-        entry.appendChild(lbl);
-      }
-
-      const comparison = document.createElement('div');
-      comparison.className = 'pdf-comparison';
-
-      if (pn <= origDoc.numPages) {
-        const col = document.createElement('div');
-        col.className = 'pdf-comparison-col';
-        const lbl = document.createElement('div');
-        lbl.className = 'comparison-label original';
-        lbl.textContent = 'Original';
-        col.appendChild(lbl);
-        const page = await origDoc.getPage(pn);
-        col.appendChild(wrapCanvas(await renderPage(page, colW)));
-        comparison.appendChild(col);
-      }
-
-      if (pn <= anonDoc.numPages) {
-        const col = document.createElement('div');
-        col.className = 'pdf-comparison-col';
-        const lbl = document.createElement('div');
-        lbl.className = 'comparison-label anonymized';
-        lbl.textContent = 'Anonymisé';
-        col.appendChild(lbl);
-        const page = await anonDoc.getPage(pn);
-        col.appendChild(wrapCanvas(await renderPage(page, colW)));
-        comparison.appendChild(col);
-      }
-
-      entry.appendChild(comparison);
-      pgList.appendChild(entry);
-    }
-  }
+  // ── Render helpers ─────────────────────────────────────────────
 
   async function renderPage(page, availW) {
     const naturalVP = page.getViewport({ scale: 1 });
@@ -719,13 +899,14 @@
     return wrapper;
   }
 
-  // ── Download ────────────────────────────────────────────────────
+  // ── Download ───────────────────────────────────────────────────
+
   window.downloadPdf = function (name) {
     const s = store[name];
     if (!s) return;
-    const b64 = s.finalBase64 || s.anonymizedBase64;
+    const b64 = s.anonymizedBase64;
     if (!b64) return;
-    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
     const blob = new Blob([bytes], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -736,19 +917,4 @@
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
-
-  // ── Helpers ────────────────────────────────────────────────────
-  function fkey(name) {
-    return 'pv_' + name.replace(/[^a-zA-Z0-9]/g, '_');
-  }
-
-  function show(id) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'flex';
-  }
-
-  function hide(id) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
-  }
 })();

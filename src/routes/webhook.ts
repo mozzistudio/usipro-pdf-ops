@@ -7,8 +7,12 @@ import { runPipelinePhase1, runPipelinePhase2 } from '../pipeline/ofPipeline';
 import * as dropboxService from '../services/dropbox';
 import * as pdfEditor from '../services/pdfEditor';
 import * as pdfAnonymizer from '../services/pdfAnonymizer';
+import { registerCorrectPageEndpoint } from '../services/correctPage';
 
 export const apiRouter = Router();
+
+// Register AI correction endpoint
+registerCorrectPageEndpoint(apiRouter);
 
 /**
  * POST /api/anonymize-zone
