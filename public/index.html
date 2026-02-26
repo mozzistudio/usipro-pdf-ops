@@ -253,6 +253,7 @@
       border-radius: 6px;
       padding: 8px 10px;
       font-size: 13px;
+      vertical-align: middle;
     }
 
     .parts-table td input:focus,
@@ -737,6 +738,31 @@
     }
     .part-chip .chip-icon { font-size: 11px; }
 
+    /* ── BACK BUTTON ── */
+    .btn-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 18px;
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      transition: all 0.18s;
+      line-height: 1;
+      margin-bottom: 16px;
+    }
+
+    .btn-back:hover {
+      border-color: var(--accent);
+      color: var(--accent-deep);
+      background: rgba(26,188,156,0.04);
+    }
+
     /* ── FOOTER ── */
     .footer {
       text-align: center;
@@ -834,6 +860,13 @@
 
       <div class="status-message" id="statusMsg"></div>
     </form>
+  </div>
+
+  <!-- Back button (outside flex layout) -->
+  <div id="backBtnWrapper" style="display:none; max-width:1320px; margin:20px auto 0; padding:0 24px">
+    <button type="button" class="btn-back" id="btnBack">
+      &#8592; Retour au formulaire
+    </button>
   </div>
 
   <!-- OUTPUT (shown on success) -->
@@ -1046,9 +1079,20 @@
 
     function showOutputLayout(recapHtml) {
       document.getElementById('recapCard').innerHTML = recapHtml;
+      document.querySelector('.container').style.display = 'none';
+      document.getElementById('backBtnWrapper').style.display = '';
       document.getElementById('outputLayout').classList.add('visible');
-      document.getElementById('outputLayout').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById('backBtnWrapper').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+
+    document.getElementById('btnBack').addEventListener('click', () => {
+      document.getElementById('outputLayout').classList.remove('visible');
+      document.getElementById('backBtnWrapper').style.display = 'none';
+      document.getElementById('pdfSliderCard').style.display = 'none';
+      document.querySelector('.container').style.display = '';
+      hideStatus();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -1119,7 +1163,6 @@
                 <span class="file-dot zip"></span>
                 <span class="file-name">NM${ofNum}.zip</span>
                 <span class="file-badge zip">ZIP</span>
-                <span class="tree-note">PDFs techniques</span>
                 <span class="nm-status-badge done">✓ Anonymisé</span>
               </div>
               ${nmChildrenHtml}
