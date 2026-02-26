@@ -34,4 +34,6 @@ export interface PipelineResult {
   missingParts: string[];
   /** Base64-encoded ZIP containing the full OF folder contents */
   zipBase64: string;
+  /** Dropbox path of the main OF folder (e.g. /RIJ/OF364575J) */
+  mainPath: string;
 }

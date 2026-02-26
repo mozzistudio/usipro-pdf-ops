@@ -7,7 +7,7 @@ import { apiRouter } from './routes/webhook';
 const app = express();
 
 // Parse JSON bodies
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 // Serve the frontend (public/ directory)
 app.use(express.static(path.join(__dirname, '..', 'public')));
