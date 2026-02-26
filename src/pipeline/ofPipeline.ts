@@ -5,6 +5,7 @@ import { ofLogger } from '../utils/logger';
 import * as dropboxService from '../services/dropbox';
 import * as documentGenerator from '../services/documentGenerator';
 import * as zipService from '../services/zip';
+import * as pdfAnonymizer from '../services/pdfAnonymizer';
 
 /**
  * Execute the full OF pipeline for an unlimited number of parts.
@@ -99,6 +100,21 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
     );
   }
 
+  // ─── Step 2.5: Anonymize PDFs in NM folder ───────────────────
+  log.info('Step 2.5: Anonymizing PDFs in NM folder');
+  const pdfDocs = webhookDocs.filter(d => isPdf(d.name));
+  for (const doc of pdfDocs) {
+    const nmPath = `${paths.nm}/${doc.partId}.pdf`;
+    try {
+      const pdfBytes = await dropboxService.downloadFile(nmPath);
+      const { pdf: anonBytes } = await pdfAnonymizer.anonymizePdf(pdfBytes, doc.partId, resolvedOF);
+      await dropboxService.uploadFile(nmPath, anonBytes);
+      log.info({ partId: doc.partId }, 'PDF anonymized in NM folder');
+    } catch (err: any) {
+      log.warn({ partId: doc.partId, err: err.message }, 'Failed to anonymize PDF — keeping original');
+    }
+  }
+
   // ─── Step 3: Create ZIP from NM folder ────────────────────────
   log.info('Step 3: Creating ZIP archive');
   const zipBuffer = await zipService.createZipFromDropboxFolder(paths.nm, resolvedOF);
@@ -155,5 +171,5 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
   const dropboxLink = await dropboxService.createSharedLink(paths.main);
 
   log.info({ dropboxLink, missingParts }, 'Pipeline completed successfully');
-  return { ofNumber: resolvedOF, dropboxLink, missingParts, zipBase64 };
+  return { ofNumber: resolvedOF, dropboxLink, missingParts, zipBase64, mainPath: paths.main };
 }

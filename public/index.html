@@ -378,13 +378,6 @@
       line-height: 1.6;
     }
 
-    .status-message.success {
-      display: block;
-      background: rgba(39,174,96,0.06);
-      color: var(--success);
-      border: 1px solid rgba(39,174,96,0.2);
-    }
-
     .status-message.error {
       display: block;
       background: rgba(231,76,60,0.06);
@@ -415,8 +408,162 @@
       to { transform: rotate(360deg); }
     }
 
-    /* ── RESULT OUTPUT ── */
-    .result-section { color: var(--text); }
+    /* ── OUTPUT LAYOUT ── */
+    #outputLayout {
+      display: none;
+      max-width: 1320px;
+      margin: 0 auto 48px;
+      padding: 0 24px;
+      gap: 24px;
+      align-items: flex-start;
+    }
+
+    #outputLayout.visible {
+      display: flex;
+    }
+
+    .output-left {
+      flex: 3;
+      min-width: 0;
+    }
+
+    .output-right {
+      flex: 0 0 380px;
+      position: sticky;
+      top: 80px;
+    }
+
+    /* ── PDF SLIDER ── */
+    .pdf-slider-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+    }
+
+    .slider-header {
+      background: var(--dark);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 16px;
+    }
+
+    .btn-slider-nav {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.85);
+      border-radius: 6px;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 15px;
+      transition: all 0.15s;
+      flex-shrink: 0;
+      line-height: 1;
+      padding: 0;
+    }
+
+    .btn-slider-nav:hover:not(:disabled) {
+      background: rgba(255,255,255,0.16);
+      border-color: rgba(255,255,255,0.25);
+    }
+
+    .btn-slider-nav:disabled {
+      opacity: 0.25;
+      cursor: not-allowed;
+    }
+
+    .slider-title-area {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .slider-filename {
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+      font-family: 'Courier New', monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .slider-counter {
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(26,188,156,0.2);
+      color: var(--accent);
+      padding: 2px 9px;
+      border-radius: 20px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .slider-pages {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-height: 75vh;
+      overflow-y: auto;
+    }
+
+    .slider-page-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .slider-page-label {
+      font-size: 10.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--text-muted);
+    }
+
+    .slider-pages canvas {
+      display: block;
+      max-width: 100%;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    .slider-loading {
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .spinner-small {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(26,188,156,0.3);
+      border-top-color: var(--dark);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    /* ── RECAP CARD (right column) ── */
+    .recap-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+    }
 
     .result-header {
       display: flex;
@@ -522,6 +669,7 @@
       font-size: 13px;
       padding: 4px 0;
       color: var(--text);
+      flex-wrap: wrap;
     }
 
     .file-dot {
@@ -535,7 +683,7 @@
     .file-dot.zip  { background: #8e44ad; }
     .file-dot.dir  { background: #e67e22; }
 
-    .tree-row .file-name { flex: 1; font-weight: 500; }
+    .tree-row .file-name { flex: 1; font-weight: 500; min-width: 0; }
 
     .file-badge {
       font-size: 10px;
@@ -552,6 +700,18 @@
     .file-badge.dir  { background: rgba(230,126,34,0.1); color: #d35400; }
 
     .tree-note { font-size: 11.5px; color: var(--text-muted); }
+
+    /* NM ZIP status badge */
+    .nm-status-badge {
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      transition: all 0.3s;
+    }
+    .nm-status-badge.pending { background: rgba(230,126,34,0.12); color: #c87f00; }
+    .nm-status-badge.done    { background: rgba(39,174,96,0.12);  color: #1e8449; }
 
     /* parts chips */
     .parts-chips { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -598,6 +758,11 @@
     }
 
     /* ── RESPONSIVE ── */
+    @media (max-width: 960px) {
+      #outputLayout { flex-direction: column; }
+      .output-right { position: static; flex: none; width: 100%; }
+    }
+
     @media (max-width: 800px) {
       .navbar { padding: 0 16px; }
       .navbar-badge { display: none; }
@@ -607,6 +772,7 @@
       .of-section input { max-width: 100%; }
       .table-section { overflow-x: auto; }
       .parts-table { min-width: 700px; }
+      #outputLayout { padding: 0 12px; }
     }
   </style>
 </head>
@@ -625,7 +791,7 @@
     <div class="navbar-badge">Formulaire interne</div>
   </nav>
 
-  <!-- CONTENT -->
+  <!-- FORM -->
   <div class="container">
     <form id="ofForm" autocomplete="off">
 
@@ -670,11 +836,126 @@
     </form>
   </div>
 
+  <!-- OUTPUT (shown on success) -->
+  <div id="outputLayout">
+
+    <!-- LEFT: PDF Slider -->
+    <div class="output-left">
+      <div class="pdf-slider-card" id="pdfSliderCard" style="display:none">
+        <div class="slider-header">
+          <button id="btnSliderPrev" class="btn-slider-nav" disabled>&#8592;</button>
+          <div class="slider-title-area">
+            <span id="sliderFilename" class="slider-filename"></span>
+            <span id="sliderCounter" class="slider-counter"></span>
+          </div>
+          <button id="btnSliderNext" class="btn-slider-nav" disabled>&#8594;</button>
+        </div>
+        <div id="sliderPages" class="slider-pages"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Recap -->
+    <div class="output-right">
+      <div class="recap-card" id="recapCard"></div>
+    </div>
+
+  </div>
+
   <div class="footer">
     <a href="/privacy-policy.html">Politique de Confidentialité</a>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>
+    // ── PDF SLIDER ─────────────────────────────────────────────────
+    let _sliderPdfs = [];   // [{ name, base64 }]
+    let _sliderIdx  = 0;
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    async function showPdfSlider(zipBase64, ofNum) {
+      const card = document.getElementById('pdfSliderCard');
+      try {
+        // Extract NM ZIP from full ZIP
+        const fullZipBytes = Uint8Array.from(atob(zipBase64), c => c.charCodeAt(0));
+        const fullZip = await JSZip.loadAsync(fullZipBytes);
+        const nmEntry = fullZip.file(`NM${ofNum}.zip`);
+        if (!nmEntry) return;
+
+        const nmBytes = await nmEntry.async('uint8array');
+        const nmZip = await JSZip.loadAsync(nmBytes);
+
+        _sliderPdfs = [];
+        for (const [name, file] of Object.entries(nmZip.files)) {
+          if (!file.dir && name.toLowerCase().endsWith('.pdf')) {
+            const b64 = await file.async('base64');
+            _sliderPdfs.push({ name, base64: b64 });
+          }
+        }
+        _sliderPdfs.sort((a, b) => a.name.localeCompare(b.name));
+
+        if (_sliderPdfs.length === 0) return;
+
+        _sliderIdx = 0;
+        card.style.display = '';
+        await renderSliderAt(0);
+      } catch (e) {
+        console.error('[slider]', e);
+      }
+    }
+
+    async function renderSliderAt(idx) {
+      _sliderIdx = idx;
+      const { name, base64 } = _sliderPdfs[idx];
+
+      document.getElementById('sliderFilename').textContent = name;
+      document.getElementById('sliderCounter').textContent =
+        `${idx + 1} / ${_sliderPdfs.length}`;
+      document.getElementById('btnSliderPrev').disabled = idx === 0;
+      document.getElementById('btnSliderNext').disabled = idx === _sliderPdfs.length - 1;
+
+      const container = document.getElementById('sliderPages');
+      container.innerHTML =
+        '<div class="slider-loading"><span class="spinner-small"></span>Chargement…</div>';
+
+      const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      const pdfDoc = await pdfjsLib.getDocument({ data: bytes }).promise;
+
+      container.innerHTML = '';
+      for (let p = 1; p <= pdfDoc.numPages; p++) {
+        const page = await pdfDoc.getPage(p);
+        const baseVP = page.getViewport({ scale: 1 });
+        const scale = Math.min((container.clientWidth - 40) / baseVP.width, 2.2);
+        const vp = page.getViewport({ scale });
+
+        const canvas = document.createElement('canvas');
+        canvas.width  = vp.width;
+        canvas.height = vp.height;
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+
+        const wrap = document.createElement('div');
+        wrap.className = 'slider-page-wrap';
+        if (pdfDoc.numPages > 1) {
+          const lbl = document.createElement('div');
+          lbl.className = 'slider-page-label';
+          lbl.textContent = `Page ${p} / ${pdfDoc.numPages}`;
+          wrap.appendChild(lbl);
+        }
+        wrap.appendChild(canvas);
+        container.appendChild(wrap);
+      }
+    }
+
+    document.getElementById('btnSliderPrev').addEventListener('click', () => {
+      if (_sliderIdx > 0) renderSliderAt(_sliderIdx - 1);
+    });
+    document.getElementById('btnSliderNext').addEventListener('click', () => {
+      if (_sliderIdx < _sliderPdfs.length - 1) renderSliderAt(_sliderIdx + 1);
+    });
+    // ────────────────────────────────────────────────────────────────
+
     const partsBody = document.getElementById('partsBody');
     const btnAdd = document.getElementById('btnAdd');
     const form = document.getElementById('ofForm');
@@ -748,9 +1029,25 @@
       return { of: ofValue, parts };
     }
 
-    function showStatus(type, message) {
-      statusMsg.className = 'status-message ' + type;
+    function showError(message) {
+      statusMsg.className = 'status-message error';
       statusMsg.innerHTML = message;
+    }
+
+    function showLoading(message) {
+      statusMsg.className = 'status-message loading';
+      statusMsg.innerHTML = message;
+    }
+
+    function hideStatus() {
+      statusMsg.className = 'status-message';
+      statusMsg.innerHTML = '';
+    }
+
+    function showOutputLayout(recapHtml) {
+      document.getElementById('recapCard').innerHTML = recapHtml;
+      document.getElementById('outputLayout').classList.add('visible');
+      document.getElementById('outputLayout').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     form.addEventListener('submit', async (e) => {
@@ -759,17 +1056,18 @@
       const data = collectFormData();
 
       if (!data.of) {
-        showStatus('error', 'Veuillez entrer un numéro OF.');
+        showError('Veuillez entrer un numéro OF.');
         return;
       }
 
       if (data.parts.length === 0) {
-        showStatus('error', 'Veuillez ajouter au moins une pièce avec un ID.');
+        showError('Veuillez ajouter au moins une pièce avec un ID.');
         return;
       }
 
       btnSubmit.disabled = true;
-      showStatus('loading', '<span class="spinner"></span>Envoi en cours… Le traitement peut prendre quelques minutes.');
+      document.getElementById('outputLayout').classList.remove('visible');
+      showLoading('<span class="spinner"></span>Envoi en cours… Le traitement peut prendre quelques minutes.');
 
       try {
         const res = await fetch('/api/submit', {
@@ -781,7 +1079,10 @@
         const result = await res.json();
 
         if (res.ok) {
+          hideStatus();
+
           const ofNum = result.of;
+          const mainPath = result.mainPath;
           const submittedIds = data.parts.map(p => p.id);
           const missingIds = result.missingParts || [];
           const foundIds = submittedIds.filter(id => !missingIds.includes(id));
@@ -812,21 +1113,26 @@
               </div>
             </div>`;
 
-          const treeItems = [
-            { name: 'NM' + ofNum + '.zip', type: 'zip', note: 'PDFs techniques',      children: nmChildrenHtml },
-            { name: 'DP' + ofNum + '/',    type: 'dir', note: 'Plans & Fichiers STEP', children: dpChildrenHtml },
-          ];
-          const treeHtml = treeItems.map(r =>
-            `<div>
+          const treeHtml = `
+            <div>
               <div class="tree-row">
-                <span class="file-dot ${r.type}"></span>
-                <span class="file-name">${r.name}</span>
-                <span class="file-badge ${r.type}">${r.type === 'dir' ? 'DIR' : r.type.toUpperCase()}</span>
-                <span class="tree-note">${r.note}</span>
+                <span class="file-dot zip"></span>
+                <span class="file-name">NM${ofNum}.zip</span>
+                <span class="file-badge zip">ZIP</span>
+                <span class="tree-note">PDFs techniques</span>
+                <span class="nm-status-badge done">✓ Anonymisé</span>
               </div>
-              ${r.children}
-            </div>`
-          ).join('');
+              ${nmChildrenHtml}
+            </div>
+            <div>
+              <div class="tree-row">
+                <span class="file-dot dir"></span>
+                <span class="file-name">DP${ofNum}/</span>
+                <span class="file-badge dir">DIR</span>
+                <span class="tree-note">Plans &amp; Fichiers STEP</span>
+              </div>
+              ${dpChildrenHtml}
+            </div>`;
 
           // ── Parts chips ──
           const chipsHtml = [
@@ -849,35 +1155,39 @@
               </button>`
             : '';
 
-          const msg = `
-            <div class="result-section">
-              <div class="result-header">
-                <span class="result-check">✓</span>
-                Dossier <strong>OF${ofNum}</strong> traité avec succès.
+          const recapHtml = `
+            <div class="result-header">
+              <span class="result-check">✓</span>
+              Dossier <strong>OF${ofNum}</strong> traité avec succès.
+            </div>
+
+            <div class="result-actions">
+              ${dropboxBtn}
+              ${zipBtn}
+            </div>
+
+            <div class="result-inner-card">
+              <div class="result-inner-label">Structure du dossier</div>
+              <div class="tree-root">
+                <span class="tree-folder-icon">▶</span>
+                <span>OF${ofNum}/</span>
               </div>
+              <div class="tree-children">${treeHtml}</div>
+            </div>
 
-              <div class="result-actions">
-                ${dropboxBtn}
-                ${zipBtn}
-              </div>
+            ${chipsHtml ? `<div class="result-inner-card">
+              <div class="result-inner-label">Pièces traitées</div>
+              <div class="parts-chips">${chipsHtml}</div>
+            </div>` : ''}
+          `;
 
-              <div class="result-inner-card">
-                <div class="result-inner-label">Structure du dossier</div>
-                <div class="tree-root">
-                  <span class="tree-folder-icon">▶</span>
-                  <span>OF${ofNum}/</span>
-                </div>
-                <div class="tree-children">${treeHtml}</div>
-              </div>
+          showOutputLayout(recapHtml);
 
-              ${chipsHtml ? `<div class="result-inner-card">
-                <div class="result-inner-label">Pièces traitées</div>
-                <div class="parts-chips">${chipsHtml}</div>
-              </div>` : ''}
-            </div>`;
+          if (result.zipBase64) {
+            showPdfSlider(result.zipBase64, ofNum);
+          }
 
-          showStatus('success', msg);
-
+          // Attach download handler
           if (result.zipBase64) {
             const btnDl = document.getElementById('btnDownloadZip');
             if (btnDl) {
@@ -895,11 +1205,12 @@
               });
             }
           }
+
         } else {
-          showStatus('error', result.message || 'Une erreur est survenue.');
+          showError(result.message || 'Une erreur est survenue.');
         }
       } catch (err) {
-        showStatus('error', 'Erreur de connexion au serveur. Veuillez réessayer.');
+        showError('Erreur de connexion au serveur. Veuillez réessayer.');
       } finally {
         btnSubmit.disabled = false;
       }
