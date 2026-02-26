@@ -63,7 +63,7 @@ const TEXT_CLR   = rgb(0.12, 0.16, 0.18);
 // ── Logo cache ───────────────────────────────────────────────────
 let _logoPngCache: Buffer | null | undefined = undefined; // undefined = not yet loaded
 
-function getLogoPng(): Buffer | null {
+export function getLogoPng(): Buffer | null {
   if (_logoPngCache !== undefined) return _logoPngCache;
   try {
     const p = path.join(__dirname, '../../public/logo.png');
@@ -365,7 +365,7 @@ function extractCartoucheData(text: string): CartoucheData {
 //  │              │ FINISH       │ —         ║                    ║
 //  +──────────────+──────────────────────────+════════════════════+
 //
-async function drawUsIproTable(
+export async function drawUsIproTable(
   page: PDFPage,
   zone: { x: number; y: number; width: number; height: number },
   planId: string,

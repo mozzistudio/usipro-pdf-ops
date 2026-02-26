@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import JSZip from 'jszip';
 import { OFData, PipelineResult } from '../types';
 import { buildDropboxPaths, getExtension, isPdf, isStep } from '../utils/helpers';
@@ -6,20 +7,25 @@ import * as dropboxService from '../services/dropbox';
 import * as documentGenerator from '../services/documentGenerator';
 import * as zipService from '../services/zip';
 import * as pdfAnonymizer from '../services/pdfAnonymizer';
+import { PipelineState, saveState, getState, deleteState } from '../services/sessionStore';
 
 /**
- * Execute the full OF pipeline for an unlimited number of parts.
+ * Phase 1 — Search, copy, anonymize PDFs. Returns data for frontend validation.
  *
  * Steps:
- *  1. Create Dropbox folder structure (OF, NM, DP)
- *  2. For each part: search & copy technical files (PDF → NM, STEP → DP)
- *  3. Create ZIP archive from NM folder
- *  4. Generate PDF + DOCX locally
- *  5. Upload PDF, DOCX, ZIP to Dropbox OF folder
- *  6. Delete temporary NM folder
- *  7. Create shared link on OF folder → returned as output
+ *  1. Resolve OF number (append suffix if folder exists)
+ *  2. Create Dropbox folder structure (OF, NM, DP)
+ *  3. Search & copy technical files (PDF → NM, STEP → DP)
+ *  4. Anonymize PDFs automatically
+ *  5. Download originals + anonymized versions
+ *  6. Save state in memory, return PDFs for validation
  */
-export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
+export async function runPipelinePhase1(ofData: OFData): Promise<{
+  sessionId: string;
+  resolvedOF: string;
+  pdfs: Array<{ partId: string; originalBase64: string; anonymizedBase64: string }>;
+  missingParts: string[];
+}> {
   const { ofNumber, parts } = ofData;
   const log = ofLogger(ofNumber);
 
@@ -103,45 +109,118 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
   // ─── Step 2.5: Anonymize PDFs in NM folder ───────────────────
   log.info('Step 2.5: Anonymizing PDFs in NM folder');
   const pdfDocs = webhookDocs.filter(d => isPdf(d.name));
+  const pdfs: Array<{ partId: string; originalBase64: string; anonymizedBase64: string }> = [];
+
   for (const doc of pdfDocs) {
     const nmPath = `${paths.nm}/${doc.partId}.pdf`;
     try {
       const pdfBytes = await dropboxService.downloadFile(nmPath);
+      const originalBase64 = pdfBytes.toString('base64');
+
       const { pdf: anonBytes } = await pdfAnonymizer.anonymizePdf(pdfBytes, doc.partId, resolvedOF);
+      const anonymizedBase64 = anonBytes.toString('base64');
+
+      // Upload anonymized version to NM folder
       await dropboxService.uploadFile(nmPath, anonBytes);
       log.info({ partId: doc.partId }, 'PDF anonymized in NM folder');
+
+      pdfs.push({ partId: doc.partId, originalBase64, anonymizedBase64 });
     } catch (err: any) {
       log.warn({ partId: doc.partId, err: err.message }, 'Failed to anonymize PDF — keeping original');
+      // Still include original so user can manually add table
+      try {
+        const pdfBytes = await dropboxService.downloadFile(nmPath);
+        const b64 = pdfBytes.toString('base64');
+        pdfs.push({ partId: doc.partId, originalBase64: b64, anonymizedBase64: b64 });
+      } catch {
+        // Skip entirely if download also fails
+      }
     }
   }
 
-  // ─── Step 3: Create ZIP from NM folder ────────────────────────
-  log.info('Step 3: Creating ZIP archive');
-  const zipBuffer = await zipService.createZipFromDropboxFolder(paths.nm, resolvedOF);
+  // ─── Save state & return ──────────────────────────────────────
+  const sessionId = crypto.randomUUID();
+  const state: PipelineState = {
+    ofNumber,
+    resolvedOF,
+    parts,
+    paths,
+    pdfs,
+    missingParts,
+    createdAt: Date.now(),
+  };
+  saveState(sessionId, state);
 
-  // ─── Step 4: Generate PDF + DOCX locally ──────────────────────
-  log.info('Step 4: Generating PDF and DOCX');
+  log.info({ sessionId, pdfCount: pdfs.length, missingParts }, 'Phase 1 complete — awaiting validation');
+  return { sessionId, resolvedOF, pdfs, missingParts };
+}
+
+/**
+ * Phase 2 — Finalize: upload validated PDFs, create ZIP, generate devis, shared link.
+ *
+ * Steps:
+ *  1. Upload each validated PDF to NM folder on Dropbox
+ *  2. Create NM ZIP from validated PDFs
+ *  3. Generate PDF + DOCX devis
+ *  4. Upload ZIP + devis to Dropbox
+ *  5. Build full ZIP (NM.zip + DP contents)
+ *  6. Delete temp NM folder
+ *  7. Create shared link
+ */
+export async function runPipelinePhase2(
+  sessionId: string,
+  validatedPdfs: Array<{ partId: string; pdfBase64: string }>,
+): Promise<PipelineResult> {
+  const state = getState(sessionId);
+  if (!state) {
+    throw new Error(`Session introuvable ou expirée: ${sessionId}`);
+  }
+
+  const { resolvedOF, parts, paths } = state;
+  const log = ofLogger(resolvedOF);
+
+  log.info({ sessionId, validatedCount: validatedPdfs.length }, 'Phase 2: Finalizing');
+
+  // ─── Step 1: Upload validated PDFs to NM folder + build NM ZIP ──
+  log.info('Step 1: Uploading validated PDFs and creating NM ZIP');
+  const nmZip = new JSZip();
+
+  for (const { partId, pdfBase64 } of validatedPdfs) {
+    const pdfBuffer = Buffer.from(pdfBase64, 'base64');
+    const nmPath = `${paths.nm}/${partId}.pdf`;
+    await dropboxService.uploadFile(nmPath, pdfBuffer);
+    nmZip.file(`${partId}.pdf`, pdfBuffer);
+    log.info({ partId }, 'Validated PDF uploaded to NM');
+  }
+
+  const nmZipBuffer = await nmZip.generateAsync({
+    type: 'nodebuffer',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  });
+
+  // ─── Step 2: Upload NM ZIP ────────────────────────────────────
+  log.info('Step 2: Uploading NM ZIP');
+  await dropboxService.uploadFile(`${paths.main}/NM${resolvedOF}.zip`, nmZipBuffer);
+
+  // ─── Step 3: Generate PDF + DOCX locally ──────────────────────
+  log.info('Step 3: Generating PDF and DOCX');
   const [pdfBuffer, docxBuffer] = await Promise.all([
     documentGenerator.generatePdf(resolvedOF, parts),
     documentGenerator.generateDocx(resolvedOF, parts),
   ]);
 
-  // ─── Step 5: Upload files to Dropbox ──────────────────────────
-  // PDF + DOCX go into the DP subfolder; ZIP stays at the OF root
-  log.info('Step 5: Uploading files to Dropbox');
+  // ─── Step 4: Upload devis to Dropbox ──────────────────────────
+  log.info('Step 4: Uploading devis to Dropbox');
   await Promise.all([
     dropboxService.uploadFile(`${paths.dp}/${resolvedOF}.pdf`, pdfBuffer),
     dropboxService.uploadFile(`${paths.dp}/${resolvedOF}.docx`, docxBuffer),
-    dropboxService.uploadFile(`${paths.main}/NM${resolvedOF}.zip`, zipBuffer),
   ]);
-  log.info('Files uploaded to Dropbox');
 
-  // ─── Step 6: Build full ZIP of the OF folder contents ──────────
-  log.info('Step 6: Building full ZIP of OF folder');
+  // ─── Step 5: Build full ZIP ───────────────────────────────────
+  log.info('Step 5: Building full ZIP');
   const fullZip = new JSZip();
-  fullZip.file(`NM${resolvedOF}.zip`, zipBuffer);
-
-  // PDF + DOCX inside DP subfolder
+  fullZip.file(`NM${resolvedOF}.zip`, nmZipBuffer);
   fullZip.file(`DP${resolvedOF}/${resolvedOF}.pdf`, pdfBuffer);
   fullZip.file(`DP${resolvedOF}/${resolvedOF}.docx`, docxBuffer);
 
@@ -162,14 +241,31 @@ export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
   const zipBase64 = fullZipBuffer.toString('base64');
   log.info({ zipSizeBytes: fullZipBuffer.length }, 'Full ZIP built');
 
-  // ─── Step 7: Delete temporary NM folder ───────────────────────
-  log.info('Step 7: Deleting temporary NM folder');
+  // ─── Step 6: Delete temporary NM folder ───────────────────────
+  log.info('Step 6: Deleting temporary NM folder');
   await dropboxService.deletePath(paths.nm);
 
-  // ─── Step 8: Create shared link for OF folder ─────────────────
-  log.info('Step 8: Creating shared link for OF folder');
+  // ─── Step 7: Create shared link ───────────────────────────────
+  log.info('Step 7: Creating shared link for OF folder');
   const dropboxLink = await dropboxService.createSharedLink(paths.main);
 
+  // ─── Cleanup session state ────────────────────────────────────
+  deleteState(sessionId);
+
+  const missingParts = state.missingParts;
   log.info({ dropboxLink, missingParts }, 'Pipeline completed successfully');
   return { ofNumber: resolvedOF, dropboxLink, missingParts, zipBase64, mainPath: paths.main };
+}
+
+/**
+ * Legacy: Execute the full OF pipeline (both phases) in one call.
+ * Kept for backwards compatibility.
+ */
+export async function runPipeline(ofData: OFData): Promise<PipelineResult> {
+  const phase1 = await runPipelinePhase1(ofData);
+  const validatedPdfs = phase1.pdfs.map(p => ({
+    partId: p.partId,
+    pdfBase64: p.anonymizedBase64,
+  }));
+  return runPipelinePhase2(phase1.sessionId, validatedPdfs);
 }
