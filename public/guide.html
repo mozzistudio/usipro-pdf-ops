@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guide d'utilisation — USI-PRO Opérations PDF</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --dark: #0f1a2e;
+      --accent: #1abc9c;
+      --accent-deep: #148f77;
+      --surface: #ffffff;
+      --surface-alt: #f6f9fb;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --radius: 12px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #eef2f7;
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.7;
+    }
+
+    .navbar {
+      background: var(--dark);
+      height: 64px;
+      display: flex;
+      align-items: center;
+      padding: 0 32px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      border-bottom: 2px solid var(--accent);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+    }
+
+    .navbar-logo img { height: 36px; display: block; }
+    .navbar-divider { width: 1px; height: 28px; background: rgba(255,255,255,0.12); margin: 0 20px; }
+    .nav-title { font-size: 15px; font-weight: 600; color: #fff; }
+    .nav-subtitle { font-size: 11px; color: rgba(255,255,255,0.38); font-weight: 400; letter-spacing: 0.8px; text-transform: uppercase; }
+
+    .navbar-back {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.7);
+      border: 1px solid rgba(255,255,255,0.15);
+      text-decoration: none;
+      transition: all 0.18s;
+    }
+    .navbar-back:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
+
+    .container {
+      max-width: 760px;
+      margin: 40px auto 60px;
+      padding: 0 24px;
+    }
+
+    .hero {
+      background: var(--dark);
+      border-radius: var(--radius);
+      padding: 36px 40px;
+      margin-bottom: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), #1affd5);
+    }
+
+    .hero-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    .hero h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 10px;
+      line-height: 1.3;
+    }
+
+    .hero p {
+      font-size: 15px;
+      color: rgba(255,255,255,0.55);
+      max-width: 520px;
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 28px 32px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .step-num {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .step-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--dark);
+    }
+
+    .card p {
+      font-size: 14.5px;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+
+    .card p:last-child { margin-bottom: 0; }
+
+    .card ul {
+      list-style: none;
+      margin: 12px 0;
+    }
+
+    .card ul li {
+      font-size: 14.5px;
+      color: var(--text);
+      padding: 5px 0 5px 22px;
+      position: relative;
+    }
+
+    .card ul li::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .tip {
+      background: rgba(26,188,156,0.07);
+      border: 1px solid rgba(26,188,156,0.2);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13.5px;
+      color: #0e6655;
+      margin-top: 14px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .tip-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+
+    .warn {
+      background: rgba(230,126,34,0.07);
+      border: 1px solid rgba(230,126,34,0.22);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13.5px;
+      color: #784212;
+      margin-top: 14px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .field-example {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 3px 10px;
+      font-size: 13px;
+      font-family: 'Courier New', monospace;
+      color: var(--dark);
+      font-weight: 600;
+    }
+
+    .badge-inline {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      vertical-align: middle;
+    }
+    .badge-inline.green { background: rgba(39,174,96,0.12); color: #1e8449; }
+    .badge-inline.blue  { background: rgba(41,128,185,0.12); color: #1a6fa5; }
+    .badge-inline.red   { background: rgba(231,76,60,0.12);  color: #c0392b; }
+    .badge-inline.orange { background: rgba(230,126,34,0.12); color: #d35400; }
+
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 28px 0;
+    }
+
+    .faq-item {
+      border-bottom: 1px solid var(--border);
+      padding: 18px 0;
+    }
+    .faq-item:last-child { border-bottom: none; padding-bottom: 0; }
+
+    .faq-q {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 8px;
+      display: flex;
+      gap: 10px;
+    }
+    .faq-q::before { content: 'Q.'; color: var(--accent); font-weight: 800; }
+
+    .faq-a {
+      font-size: 14px;
+      color: var(--text-muted);
+      padding-left: 24px;
+    }
+
+    .result-preview {
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-top: 16px;
+      font-size: 13.5px;
+    }
+
+    .result-preview .rp-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    .result-preview .rp-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+    }
+
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .dot.zip  { background: #8e44ad; }
+    .dot.pdf  { background: #e74c3c; }
+    .dot.docx { background: #2980b9; }
+    .dot.dir  { background: #e67e22; }
+
+    @media (max-width: 600px) {
+      .hero { padding: 24px 20px; }
+      .card { padding: 20px 16px; }
+      .hero h1 { font-size: 21px; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-logo">
+      <img src="/logo.png" alt="Usi-Pro">
+    </div>
+    <div class="navbar-divider"></div>
+    <div>
+      <div class="nav-title">Guide d'utilisation</div>
+      <div class="nav-subtitle">Opérations PDF</div>
+    </div>
+    <a href="/" class="navbar-back">← Retour au formulaire</a>
+  </nav>
+
+  <div class="container">
+
+    <div class="hero">
+      <div class="hero-label">Mode d'emploi</div>
+      <h1>Comment utiliser le formulaire<br>Opérations PDF ?</h1>
+      <p>Ce guide explique pas à pas comment préparer et envoyer un dossier de fabrication. Pas besoin d'être technique — c'est rapide.</p>
+    </div>
+
+    <!-- ÉTAPE 1 -->
+    <div class="card">
+      <div class="step-header">
+        <div class="step-num">1</div>
+        <div class="step-title">Entrer le numéro d'OF</div>
+      </div>
+      <p>En haut du formulaire, il y a un champ <strong>Numéro OF</strong>. C'est le numéro de l'ordre de fabrication que tu traites.</p>
+      <p>Exemple : <span class="field-example">12344</span> ou <span class="field-example">43erf</span></p>
+      <div class="tip">
+        <span class="tip-icon">💡</span>
+        <span>Le numéro OF est celui du bon de commande ou du dossier client. Si tu as un doute, vérifie dans l'ERP ou demande à ton responsable.</span>
+      </div>
+    </div>
+
+    <!-- ÉTAPE 2 -->
+    <div class="card">
+      <div class="step-header">
+        <div class="step-num">2</div>
+        <div class="step-title">Ajouter les pièces</div>
+      </div>
+      <p>Dans le tableau <strong>Détails des pièces</strong>, chaque ligne correspond à une pièce de l'OF. Remplis les colonnes :</p>
+      <ul>
+        <li><strong>ID</strong> — le numéro de référence de la pièce (chiffres uniquement, ex : <span class="field-example">13340</span>)</li>
+        <li><strong>Matériel</strong> — la matière utilisée (ex : <span class="field-example">Acier inox 316L</span>)</li>
+        <li><strong>Quantité</strong> — le nombre de pièces à fabriquer</li>
+        <li><strong>Traitement</strong> — l'opération principale (ex : <span class="field-example">Tournage</span>, <span class="field-example">Fraisage</span>)</li>
+        <li><strong>Commentaire</strong> — toute info utile, optionnel (tolérance, finition, remarque…)</li>
+      </ul>
+      <p>Pour ajouter une deuxième pièce, clique sur <strong>+ Ajouter une pièce</strong>. Tu peux en ajouter autant que nécessaire.</p>
+      <div class="tip">
+        <span class="tip-icon">💡</span>
+        <span>Pour supprimer une ligne, clique sur le <strong>×</strong> à droite de la ligne.</span>
+      </div>
+    </div>
+
+    <!-- ÉTAPE 3 -->
+    <div class="card">
+      <div class="step-header">
+        <div class="step-num">3</div>
+        <div class="step-title">Envoyer le formulaire</div>
+      </div>
+      <p>Une fois tout rempli, clique sur le bouton <strong>Envoyer</strong>.</p>
+      <p>Le système va :</p>
+      <ul>
+        <li>Rechercher les PDFs techniques dans Dropbox</li>
+        <li>Anonymiser automatiquement les plans (suppression des infos confidentielles)</li>
+        <li>Générer la demande de devis en PDF et Word</li>
+        <li>Tout regrouper dans un dossier ZIP prêt à l'envoi</li>
+      </ul>
+      <div class="warn">
+        <span>⏳</span>
+        <span>Le traitement prend <strong>environ 30 à 60 secondes</strong>. Ne ferme pas la page pendant ce temps. Un message "Envoi en cours…" s'affiche pendant que ça tourne.</span>
+      </div>
+    </div>
+
+    <!-- ÉTAPE 4 — VALIDATION -->
+    <div class="card">
+      <div class="step-header">
+        <div class="step-num">4</div>
+        <div class="step-title">Valider les plans anonymisés</div>
+      </div>
+      <p>Après le traitement, l'écran de <strong>validation des plans</strong> s'affiche. Chaque page est présentée en <strong>comparaison côte à côte</strong> : l'original à gauche, la version anonymisée à droite.</p>
+      <p>Pour chaque page, tu as trois options :</p>
+      <ul>
+        <li><span class="badge-inline green">✓ Accepter</span> — la page est correctement anonymisée, tu valides</li>
+        <li><span class="badge-inline red">✗ Corriger</span> — ouvre le mode correction : dessine des zones sur le plan et l'IA corrige automatiquement</li>
+        <li><span class="badge-inline blue">+ Table USI-PRO</span> — ajoute un cartouche USI-PRO sur le plan (positionnable par glisser-déposer)</li>
+      </ul>
+      <p>Un compteur en haut indique ta progression (ex : <span class="field-example">3 / 5 pages validées</span>). Utilise les boutons <strong>Précédent</strong> et <strong>Suivant</strong> pour naviguer entre les pages.</p>
+      <div class="tip">
+        <span class="tip-icon">💡</span>
+        <span>En mode <strong>Corriger</strong>, tu peux dessiner plusieurs zones rouges sur le plan, ajouter un prompt de description, puis cliquer sur "Appliquer les corrections". L'IA analyse et masque les zones sélectionnées.</span>
+      </div>
+      <div class="warn">
+        <span>⚠️</span>
+        <span>Toutes les pages doivent être validées avant de pouvoir passer à l'étape suivante. Le système avance automatiquement vers la prochaine page non validée.</span>
+      </div>
+    </div>
+
+    <!-- ÉTAPE 5 -->
+    <div class="card">
+      <div class="step-header">
+        <div class="step-num">5</div>
+        <div class="step-title">Récupérer le résultat</div>
+      </div>
+      <p>Une fois toutes les pages validées, le résultat final s'affiche. Tu vois :</p>
+
+      <div class="result-preview">
+        <div class="rp-title">Structure du dossier généré</div>
+        <div class="rp-row"><span class="dot zip"></span> NM12344.zip &nbsp;<span class="badge-inline green">✓ Anonymisé</span></div>
+        <div style="padding-left:20px">
+          <div class="rp-row"><span class="dot pdf"></span> 13340.pdf &nbsp;<span class="badge-inline red">PDF</span></div>
+          <div class="rp-row"><span class="dot pdf"></span> 13342.pdf &nbsp;<span class="badge-inline red">PDF</span></div>
+        </div>
+        <div class="rp-row"><span class="dot dir"></span> DP12344/ &nbsp;<span class="badge-inline orange">DIR</span></div>
+        <div style="padding-left:20px">
+          <div class="rp-row"><span class="dot pdf"></span> 12344.pdf &nbsp;<span class="badge-inline red">PDF</span> &nbsp;Demande de devis</div>
+          <div class="rp-row"><span class="dot docx"></span> 12344.docx &nbsp;<span class="badge-inline blue">DOCX</span> &nbsp;Demande de devis</div>
+        </div>
+      </div>
+
+      <p style="margin-top:16px">Tu as ensuite deux options :</p>
+      <ul>
+        <li><strong>Ouvrir dans Dropbox</strong> — accède directement au dossier dans Dropbox pour le partager ou le consulter</li>
+        <li><strong>Télécharger le ZIP</strong> — télécharge tout le dossier en local sur ton ordinateur</li>
+      </ul>
+      <p>Le <strong>viewer à gauche</strong> te permet de vérifier visuellement les PDFs anonymisés avant de les envoyer au client.</p>
+      <div class="tip">
+        <span class="tip-icon">💡</span>
+        <span>Pour faire un nouvel OF, clique sur <strong>← Retour au formulaire</strong> en haut à gauche. Tes données précédentes sont encore là si tu veux les modifier.</span>
+      </div>
+    </div>
+
+    <!-- FAQ -->
+    <div class="card">
+      <div class="step-header" style="margin-bottom:8px">
+        <div class="step-title" style="font-size:18px">Questions fréquentes</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Une pièce n'apparaît pas dans le résultat, c'est normal ?</div>
+        <div class="faq-a">Ça veut dire que le PDF de cette pièce n'a pas été trouvé dans Dropbox. Vérifie que le PDF est bien déposé dans le bon dossier Dropbox avec le bon nom de fichier (ex : <code>13340.pdf</code>). Les pièces non trouvées apparaissent en orange dans la section "Pièces traitées".</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Le traitement tourne depuis longtemps, que faire ?</div>
+        <div class="faq-a">Si ça dépasse 2 minutes sans réponse, actualise la page et recommence. Si le problème persiste, contacte le support technique.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Est-ce que je peux mettre plusieurs pièces avec le même ID ?</div>
+        <div class="faq-a">Non, chaque pièce doit avoir un ID unique. Si tu as deux références identiques avec des variantes, ajoute-les comme deux lignes séparées avec des IDs distincts.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Où va le dossier dans Dropbox ?</div>
+        <div class="faq-a">Le dossier est créé automatiquement dans Dropbox avec la structure <code>OF{numéro}/</code>. Le bouton "Ouvrir dans Dropbox" t'amène directement dessus.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Le PDF est illisible ou trop petit dans le viewer ?</div>
+        <div class="faq-a">Les plans sont affichés en haute résolution dans l'écran de validation. Si le détail ne suffit pas, utilise le mode <strong>Corriger</strong> qui affiche le plan en plein écran. Tu peux aussi télécharger le ZIP et ouvrir le PDF directement sur ton ordinateur.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Comment fonctionne le mode correction IA ?</div>
+        <div class="faq-a">Dans le mode <strong>Corriger</strong>, dessine des rectangles rouges sur les zones où l'anonymisation est incomplète. Tu peux ajouter un prompt textuel pour guider l'IA. L'IA analyse les zones et applique des masques blancs pour couvrir les informations restantes. Après correction, tu peux valider la page ou recommencer.</div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>
