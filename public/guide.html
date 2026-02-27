@@ -330,6 +330,10 @@
         <span class="tip-icon">💡</span>
         <span>Le numéro OF est celui du bon de commande ou du dossier client. Si tu as un doute, vérifie dans l'ERP ou demande à ton responsable.</span>
       </div>
+      <div class="tip">
+        <span class="tip-icon">🔄</span>
+        <span>Si un dossier avec ce numéro d'OF existe déjà dans Dropbox, le système ajoute automatiquement un suffixe (<strong>A</strong>, <strong>B</strong>, <strong>C</strong>…) pour éviter les conflits. Par exemple : <span class="field-example">12344A</span>.</span>
+      </div>
     </div>
 
     <!-- ÉTAPE 2 -->
@@ -362,9 +366,11 @@
       <p>Une fois tout rempli, clique sur le bouton <strong>Envoyer</strong>.</p>
       <p>Le système va :</p>
       <ul>
-        <li>Rechercher les PDFs techniques dans Dropbox</li>
-        <li>Anonymiser automatiquement les plans (suppression des infos confidentielles)</li>
-        <li>Générer la demande de devis en PDF et Word</li>
+        <li>Rechercher les <strong>PDFs techniques</strong> et les <strong>fichiers STEP</strong> dans Dropbox</li>
+        <li>Anonymiser automatiquement les plans PDF (suppression des infos confidentielles)</li>
+        <li>Anonymiser les fichiers STEP (suppression des métadonnées propriétaires : auteur, organisation…)</li>
+        <li>Générer la demande de devis en <strong>PDF</strong> et en <strong>Word (.docx)</strong></li>
+        <li>Créer la structure de dossiers dans Dropbox : <span class="field-example">NM{OF}</span> (plans anonymisés) et <span class="field-example">DP{OF}</span> (devis + STEP)</li>
         <li>Tout regrouper dans un dossier ZIP prêt à l'envoi</li>
       </ul>
       <div class="warn">
@@ -383,8 +389,8 @@
       <p>Pour chaque page, tu as trois options :</p>
       <ul>
         <li><span class="badge-inline green">✓ Accepter</span> — la page est correctement anonymisée, tu valides</li>
-        <li><span class="badge-inline red">✗ Corriger</span> — ouvre le mode correction : dessine des zones sur le plan et l'IA corrige automatiquement</li>
-        <li><span class="badge-inline blue">+ Table USI-PRO</span> — ajoute un cartouche USI-PRO sur le plan (positionnable par glisser-déposer)</li>
+        <li><span class="badge-inline red">✗ Corriger</span> — ouvre le mode correction IA : dessine des zones rouges sur le plan, ajoute un prompt textuel optionnel, et l'IA analyse et masque les informations restantes. L'IA peut aussi suggérer des zones supplémentaires à corriger.</li>
+        <li><span class="badge-inline blue">+ Table USI-PRO</span> — ajoute un cartouche USI-PRO sur le plan. Tu peux remplir les champs optionnels (<strong>Désignation</strong>, <strong>Matière</strong>, <strong>Norme</strong>, <strong>Finition</strong>), puis <strong>glisser-déposer</strong> le cartouche où tu veux sur le plan et le <strong>redimensionner</strong> avec les poignées sur les coins et bords.</li>
       </ul>
       <p>Un compteur en haut indique ta progression (ex : <span class="field-example">3 / 5 pages validées</span>). Utilise les boutons <strong>Précédent</strong> et <strong>Suivant</strong> pour naviguer entre les pages.</p>
       <div class="tip">
@@ -403,28 +409,39 @@
         <div class="step-num">5</div>
         <div class="step-title">Récupérer le résultat</div>
       </div>
-      <p>Une fois toutes les pages validées, le résultat final s'affiche. Tu vois :</p>
+      <p>Une fois toutes les pages validées, le système finalise le dossier et l'uploade sur Dropbox. L'écran de résultat s'affiche avec deux parties :</p>
+
+      <p><strong>À gauche — Visionneuse PDF :</strong> Un viewer interactif affiche les PDFs anonymisés. Utilise les boutons <strong>← Précédent</strong> et <strong>Suivant →</strong> pour naviguer entre les fichiers, avec un compteur (ex : <span class="field-example">2 / 4</span>) et le nom du fichier affiché. Chaque page du PDF est rendue en haute résolution.</p>
+
+      <p><strong>À droite — Récapitulatif :</strong></p>
+      <ul>
+        <li>Un indicateur de succès <span class="badge-inline green">✓</span> confirme que le dossier a été traité</li>
+        <li>Les boutons d'action : <strong>Ouvrir dans Dropbox</strong> et <strong>Télécharger le ZIP</strong></li>
+        <li>L'<strong>arborescence du dossier</strong> générée</li>
+        <li>Les <strong>chips de pièces</strong> : en vert les pièces trouvées, en orange les pièces non trouvées dans Dropbox</li>
+      </ul>
 
       <div class="result-preview">
         <div class="rp-title">Structure du dossier généré</div>
-        <div class="rp-row"><span class="dot zip"></span> NM12344.zip &nbsp;<span class="badge-inline green">✓ Anonymisé</span></div>
+        <div class="rp-row"><span class="dot dir"></span> OF12344/ &nbsp;<span class="badge-inline orange">DIR</span> &nbsp;Dossier racine</div>
         <div style="padding-left:20px">
-          <div class="rp-row"><span class="dot pdf"></span> 13340.pdf &nbsp;<span class="badge-inline red">PDF</span></div>
-          <div class="rp-row"><span class="dot pdf"></span> 13342.pdf &nbsp;<span class="badge-inline red">PDF</span></div>
-        </div>
-        <div class="rp-row"><span class="dot dir"></span> DP12344/ &nbsp;<span class="badge-inline orange">DIR</span></div>
-        <div style="padding-left:20px">
-          <div class="rp-row"><span class="dot pdf"></span> 12344.pdf &nbsp;<span class="badge-inline red">PDF</span> &nbsp;Demande de devis</div>
-          <div class="rp-row"><span class="dot docx"></span> 12344.docx &nbsp;<span class="badge-inline blue">DOCX</span> &nbsp;Demande de devis</div>
+          <div class="rp-row"><span class="dot zip"></span> NM12344.zip &nbsp;<span class="badge-inline green">✓ Anonymisé &amp; Validé</span></div>
+          <div style="padding-left:20px">
+            <div class="rp-row"><span class="dot pdf"></span> 13340.pdf &nbsp;<span class="badge-inline red">PDF</span> &nbsp;Plan anonymisé</div>
+            <div class="rp-row"><span class="dot pdf"></span> 13342.pdf &nbsp;<span class="badge-inline red">PDF</span> &nbsp;Plan anonymisé</div>
+          </div>
+          <div class="rp-row"><span class="dot dir"></span> DP12344/ &nbsp;<span class="badge-inline orange">DIR</span> &nbsp;Plans &amp; Fichiers STEP</div>
+          <div style="padding-left:20px">
+            <div class="rp-row"><span class="dot pdf"></span> 12344.pdf &nbsp;<span class="badge-inline red">PDF</span> &nbsp;Demande de devis</div>
+            <div class="rp-row"><span class="dot docx"></span> 12344.docx &nbsp;<span class="badge-inline blue">DOCX</span> &nbsp;Demande de devis</div>
+          </div>
         </div>
       </div>
 
-      <p style="margin-top:16px">Tu as ensuite deux options :</p>
-      <ul>
-        <li><strong>Ouvrir dans Dropbox</strong> — accède directement au dossier dans Dropbox pour le partager ou le consulter</li>
-        <li><strong>Télécharger le ZIP</strong> — télécharge tout le dossier en local sur ton ordinateur</li>
-      </ul>
-      <p>Le <strong>viewer à gauche</strong> te permet de vérifier visuellement les PDFs anonymisés avant de les envoyer au client.</p>
+      <div class="tip">
+        <span class="tip-icon">💡</span>
+        <span><strong>NM</strong> = dossier des plans anonymisés (Non Marqués). <strong>DP</strong> = dossier contenant la demande de devis (PDF + Word) et les fichiers STEP anonymisés.</span>
+      </div>
       <div class="tip">
         <span class="tip-icon">💡</span>
         <span>Pour faire un nouvel OF, clique sur <strong>← Retour au formulaire</strong> en haut à gauche. Tes données précédentes sont encore là si tu veux les modifier.</span>
@@ -454,7 +471,17 @@
 
       <div class="faq-item">
         <div class="faq-q">Où va le dossier dans Dropbox ?</div>
-        <div class="faq-a">Le dossier est créé automatiquement dans Dropbox avec la structure <code>OF{numéro}/</code>. Le bouton "Ouvrir dans Dropbox" t'amène directement dessus.</div>
+        <div class="faq-a">Le dossier est créé automatiquement dans Dropbox avec la structure <code>OF{numéro}/</code>, contenant un sous-dossier <code>NM</code> (plans anonymisés) et <code>DP</code> (devis + STEP). Le bouton "Ouvrir dans Dropbox" t'amène directement dessus.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Les fichiers STEP sont-ils aussi anonymisés ?</div>
+        <div class="faq-a">Oui. Les fichiers STEP (format ISO 10303-21) sont automatiquement anonymisés : les métadonnées propriétaires (auteur, organisation, autorisation) sont supprimées dans l'en-tête. La géométrie (section DATA) n'est jamais modifiée. Les fichiers anonymisés sont placés dans le dossier <code>DP</code>.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Un numéro OF avec suffixe (ex: 12344A), c'est quoi ?</div>
+        <div class="faq-a">Si le dossier <code>OF12344</code> existe déjà dans Dropbox, le système crée automatiquement <code>OF12344A</code>, puis <code>OF12344B</code>, etc. Cela évite d'écraser un dossier existant.</div>
       </div>
 
       <div class="faq-item">
