@@ -68,6 +68,7 @@ async function analyzeWithAI(
   prompt: string,
 ): Promise<AICorrectionResult> {
   const Anthropic = (await import('@anthropic-ai/sdk')).default;
+  const { CLAUDE_MODEL } = await import('./claudeModel');
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('NO_API_KEY');
 
@@ -138,7 +139,7 @@ Règles:
   });
 
   const msg = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: CLAUDE_MODEL,
     max_tokens: 1024,
     system: systemPrompt,
     messages: [{ role: 'user', content: userContent }],

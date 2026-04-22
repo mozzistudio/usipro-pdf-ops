@@ -22,6 +22,7 @@ import { PDFDocument, PDFImage, PDFPage, rgb, StandardFonts } from 'pdf-lib';
 import * as fs from 'fs';
 import * as path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
+import { CLAUDE_MODEL } from './claudeModel';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { PNG } = require('pngjs') as { PNG: any };
 
@@ -257,7 +258,7 @@ User feedback: "${prompt}"
 Return JSON overrides:`;
 
     const msg = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: CLAUDE_MODEL,
       max_tokens: 256,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMsg }],
