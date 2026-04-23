@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { PDFDocument, rgb } from 'pdf-lib';
 import { logger } from '../utils/logger';
+import { renderPageToPng } from './renderPdfPage';
 
 interface CorrectionZone {
   x_percent: number;
@@ -26,37 +27,6 @@ interface AICorrectionResult {
   redraw_table?: boolean;
   table_zone?: CorrectionZone;
   cartouche_overrides?: Record<string, string>;
-}
-
-/**
- * Renders a single PDF page to a PNG buffer using @napi-rs/canvas.
- * Returns null if the library is not available.
- */
-async function renderPageToPng(
-  pdfBytes: Buffer,
-  pageIndex: number,
-): Promise<Buffer | null> {
-  try {
-    // Dynamic import — optional dependency
-    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs' as any);
-    const { createCanvas } = await import('@napi-rs/canvas' as any);
-
-    const doc = await pdfjs.getDocument({ data: new Uint8Array(pdfBytes) }).promise;
-    const page = await doc.getPage(pageIndex + 1);
-    const vp = page.getViewport({ scale: 2.0 });
-
-    const canvas = createCanvas(Math.round(vp.width), Math.round(vp.height));
-    const ctx = canvas.getContext('2d');
-
-    await page.render({
-      canvasContext: ctx as any,
-      viewport: vp,
-    }).promise;
-
-    return canvas.toBuffer('image/png') as Buffer;
-  } catch {
-    return null;
-  }
 }
 
 /**

@@ -3,7 +3,7 @@ import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { FormPayload, FinalizeRequest, AddUsIproTableRequest } from '../types';
 import { parseFormPayload } from '../utils/helpers';
 import { logger } from '../utils/logger';
-import { runPipelinePhase1, runPipelinePhase2 } from '../pipeline/ofPipeline';
+import { runPipelinePhase1, runPipelinePhase2, resumePhase1AfterSelection } from '../pipeline/ofPipeline';
 import * as dropboxService from '../services/dropbox';
 import * as pdfEditor from '../services/pdfEditor';
 import * as pdfAnonymizer from '../services/pdfAnonymizer';
@@ -185,6 +185,16 @@ apiRouter.post('/api/submit', async (req: Request, res: Response) => {
   try {
     const result = await runPipelinePhase1(ofData);
 
+    if (result.status === 'awaiting_selection') {
+      res.status(200).json({
+        status: 'awaiting_selection',
+        sessionId: result.sessionId,
+        of: result.resolvedOF,
+        pending: result.pending,
+      });
+      return;
+    }
+
     res.status(200).json({
       status: 'pending_validation',
       sessionId: result.sessionId,
@@ -201,6 +211,46 @@ apiRouter.post('/api/submit', async (req: Request, res: Response) => {
     res.status(500).json({
       status: 'error',
       message: `Le traitement de l'OF ${ofData.ofNumber} a échoué: ${detail}`,
+    });
+  }
+});
+
+/**
+ * POST /api/submit-selection
+ *
+ * Receives the user's PDF picks for ambiguous parts, resumes Phase 1
+ * (copy + anonymize) and returns the usual pending_validation payload.
+ */
+apiRouter.post('/api/submit-selection', async (req: Request, res: Response) => {
+  const { sessionId, selections } = req.body as {
+    sessionId: string;
+    selections: Array<{ partId: string; chosenPath: string }>;
+  };
+
+  if (!sessionId || !Array.isArray(selections)) {
+    res.status(400).json({ status: 'error', message: 'sessionId et selections sont requis' });
+    return;
+  }
+
+  try {
+    const result = await resumePhase1AfterSelection(sessionId, selections);
+    if (result.status !== 'pending_validation') {
+      res.status(500).json({ status: 'error', message: 'Résultat inattendu après sélection' });
+      return;
+    }
+    res.status(200).json({
+      status: 'pending_validation',
+      sessionId: result.sessionId,
+      of: result.resolvedOF,
+      pdfs: result.pdfs,
+      missingParts: result.missingParts,
+    });
+  } catch (err: any) {
+    const detail = err?.error?.error_summary || err?.error || err.message;
+    logger.error({ sessionId, err: err.message, detail, stack: err.stack }, 'submit-selection failed');
+    res.status(500).json({
+      status: 'error',
+      message: `La reprise a échoué: ${detail}`,
     });
   }
 });

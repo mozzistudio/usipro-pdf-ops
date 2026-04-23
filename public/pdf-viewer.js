@@ -166,7 +166,7 @@
 
     const comparison = document.createElement('div');
     comparison.className = 'pdf-comparison';
-    const colW = Math.max((pgList.clientWidth || 800) / 2 - 30, 240);
+    const colW = Math.max((pgList.clientWidth || 1000) / 2 - 30, 360);
 
     // Original side
     if (entry.pageIndex < origDoc.numPages) {
@@ -880,13 +880,21 @@
 
   async function renderPage(page, availW) {
     const naturalVP = page.getViewport({ scale: 1 });
-    const scale = Math.min(availW / naturalVP.width, 2.0);
-    const vp = page.getViewport({ scale });
+    const displayScale = Math.min(availW / naturalVP.width, 4.0);
+    const renderScale = Math.max(displayScale, 2.5);
+    const vp = page.getViewport({ scale: renderScale });
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(vp.width);
     canvas.height = Math.round(vp.height);
     canvas.dataset.pdfWidth = String(naturalVP.width);
     canvas.dataset.pdfHeight = String(naturalVP.height);
+    // Store display dimensions for CSS sizing
+    const displayW = Math.round(naturalVP.width * displayScale);
+    const displayH = Math.round(naturalVP.height * displayScale);
+    canvas.dataset.displayWidth = String(displayW);
+    canvas.dataset.displayHeight = String(displayH);
+    canvas.style.width = displayW + 'px';
+    canvas.style.height = displayH + 'px';
     await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
     return canvas;
   }
@@ -894,7 +902,8 @@
   function wrapCanvas(canvas) {
     const wrapper = document.createElement('div');
     wrapper.className = 'canvas-wrapper';
-    wrapper.style.width = canvas.width + 'px';
+    const displayW = canvas.dataset.displayWidth || canvas.width;
+    wrapper.style.width = displayW + 'px';
     wrapper.appendChild(canvas);
     return wrapper;
   }
