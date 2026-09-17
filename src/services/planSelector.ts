@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { CLAUDE_MODEL } from './claudeModel';
+import { CLAUDE_MODEL, THINKING, parseJsonResponse } from './claudeModel';
 import { renderPageToPng } from './renderPdfPage';
 import { logger } from '../utils/logger';
 
@@ -84,22 +84,22 @@ export async function selectPlanPdf(candidates: PlanCandidate[]): Promise<PlanSe
 
     const msg = await client.messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: 256,
+      max_tokens: 2048,
+      thinking: THINKING,
+      output_config: { effort: 'medium' },
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content }],
     });
 
-    const raw = (msg.content[0] as { type: string; text: string }).text.trim();
-    const cleaned = raw.replace(/^```json?\n?/, '').replace(/\n?```$/, '');
-    const parsed = JSON.parse(cleaned) as {
+    const parsed = parseJsonResponse<{
       choice: number;
       confidence: 'high' | 'low';
       reason?: string;
-    };
+    }>(msg);
 
     const displayChoice = Number(parsed.choice);
     if (!Number.isFinite(displayChoice) || displayChoice < 1 || displayChoice > renderable.length) {
-      logger.warn({ raw }, 'selectPlanPdf: Claude returned out-of-range choice');
+      logger.warn({ parsed }, 'selectPlanPdf: Claude returned out-of-range choice');
       return {
         selectedIndex: 0,
         confidence: 'low',

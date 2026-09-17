@@ -38,7 +38,7 @@ async function analyzeWithAI(
   prompt: string,
 ): Promise<AICorrectionResult> {
   const Anthropic = (await import('@anthropic-ai/sdk')).default;
-  const { CLAUDE_MODEL } = await import('./claudeModel');
+  const { CLAUDE_MODEL, THINKING, parseJsonResponse } = await import('./claudeModel');
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('NO_API_KEY');
 
@@ -110,14 +110,16 @@ Règles:
 
   const msg = await client.messages.create({
     model: CLAUDE_MODEL,
-    max_tokens: 1024,
+    max_tokens: 8192,
+    thinking: THINKING,
+    // Locating leftover client marks on a dense technical drawing is the most
+    // demanding call in the solution — it gets the highest effort.
+    output_config: { effort: 'high' },
     system: systemPrompt,
     messages: [{ role: 'user', content: userContent }],
   });
 
-  const raw = (msg.content[0] as { type: string; text: string }).text.trim();
-  const json = JSON.parse(raw.replace(/^```json?\n?/, '').replace(/\n?```$/, ''));
-  return json as AICorrectionResult;
+  return parseJsonResponse<AICorrectionResult>(msg);
 }
 
 /**

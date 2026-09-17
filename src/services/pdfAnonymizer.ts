@@ -22,7 +22,7 @@ import { PDFDocument, PDFImage, PDFPage, rgb, StandardFonts } from 'pdf-lib';
 import * as fs from 'fs';
 import * as path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
-import { CLAUDE_MODEL } from './claudeModel';
+import { CLAUDE_MODEL, THINKING, parseJsonResponse } from './claudeModel';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { PNG } = require('pngjs') as { PNG: any };
 
@@ -208,10 +208,23 @@ function fitRect(
 }
 
 // ── Refinement prompt interpretation via Claude ──────────────────
-async function applyRefinementOverrides(
+
+/** Outcome of interpreting one piece of free-text client feedback. */
+export interface RefinementResult {
+  /** Cartouche fields the feedback asked to change. */
+  overrides: Partial<CartoucheData>;
+  /**
+   * Feedback that was understood but that the cartouche editor cannot act on
+   * (layout/visual complaints such as "the drawing is cut off"). Surfaced so it
+   * reaches the operator instead of being silently dropped.
+   */
+  unhandled: string | null;
+}
+
+export async function applyRefinementOverrides(
   prompt: string,
   current: CartoucheData,
-): Promise<Partial<CartoucheData>> {
+): Promise<RefinementResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   // Fallback: simple KEY = VALUE regex if no API key configured
@@ -227,15 +240,20 @@ async function applyRefinementOverrides(
       const m = prompt.match(pat);
       if (m?.[1]) overrides[field] = m[1].trim();
     }
-    return overrides;
+    const matched = Object.keys(overrides).length > 0;
+    return {
+      overrides,
+      unhandled: matched ? null : 'ANTHROPIC_API_KEY absente — feedback non interprété',
+    };
   }
 
   // Use Claude to interpret free-text feedback and produce structured overrides
   try {
     const client = new Anthropic({ apiKey });
+
     const systemPrompt = `You are a PDF cartouche data editor for a technical drawing anonymization system.
 The user provides feedback in any language (French/English) about a technical drawing PDF cartouche.
-Your job: extract any intended field overrides from their feedback and return ONLY a JSON object.
+Your job: turn their feedback into structured cartouche field overrides.
 
 Fields available (all optional, omit if not mentioned or inferrable):
 - "designation": part name / drawing title
@@ -243,33 +261,71 @@ Fields available (all optional, omit if not mentioned or inferrable):
 - "finish": surface finish or treatment (translate to English)
 - "applicableStd": applicable standard (e.g. ISO 2768 mK)
 
+Return ONLY valid JSON, no explanation, no markdown fences, in this exact shape:
+{"overrides": { ...fields... }, "unhandled": null}
+
 Rules:
-- Return ONLY valid JSON, no explanation, no markdown fences
-- Omit fields not mentioned in the feedback
-- If the feedback is purely about layout/visual issues (e.g. "you cut the drawing"), return {}
-- Translate material/finish values to English
-- Example output: {"designation":"SUPPORT OPTIQUE","material":"STAINLESS STEEL 316L"}`;
+- Put every field the feedback asks to change inside "overrides"; omit the rest
+- LANGUAGE — this is not optional, the feedback is usually French but:
+  * every VALUE inside "overrides" must be written in ENGLISH, UPPERCASE
+    ("inox 316L" -> "STAINLESS STEEL 316L", never "Inox 316L")
+  * "unhandled" must be written in FRENCH — it is read by French operators
+- Feedback is often implicit: "ce n'est pas de l'alu c'est de l'inox" means
+  {"overrides":{"material":"STAINLESS STEEL"},"unhandled":null}
+- If part of the feedback is about layout or visuals (drawing cut off, logo still
+  visible, table misplaced, text overlapping), that part cannot be fixed by
+  editing fields: quote it in "unhandled" as a short English summary
+- "unhandled" is null only when the whole feedback was turned into overrides
+- Never invent values that contradict the feedback; when it is too vague to act
+  on, return {"overrides":{},"unhandled":"<why it is unclear>"}
+
+Example: feedback "la matière c'est de l'inox 316L et vous avez coupé le plan en bas"
+-> {"overrides":{"material":"STAINLESS STEEL 316L"},"unhandled":"plan tronqué en bas"}`;
 
     const userMsg = `Current cartouche data:
 ${JSON.stringify(current, null, 2)}
 
 User feedback: "${prompt}"
 
-Return JSON overrides:`;
+Return JSON:`;
 
     const msg = await client.messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: 256,
+      max_tokens: 2048,
+      thinking: THINKING,
+      output_config: { effort: 'low' },
       system: systemPrompt,
       messages: [{ role: 'user', content: userMsg }],
     });
 
-    const raw = (msg.content[0] as { type: string; text: string }).text.trim();
-    const json = JSON.parse(raw.replace(/^```json?\n?/, '').replace(/\n?```$/, ''));
-    return json as Partial<CartoucheData>;
-  } catch (err) {
+    const parsed = parseJsonResponse<RefinementResult>(msg);
+
+    // Keep only known cartouche fields: the model occasionally invents keys
+    // (e.g. "material_previous"), which would otherwise be spread onto the
+    // cartouche as junk — `Partial<CartoucheData>` is erased at runtime.
+    const allowed: (keyof CartoucheData)[] = ['designation', 'material', 'applicableStd', 'finish'];
+    const overrides: Partial<CartoucheData> = {};
+    for (const key of allowed) {
+      const value = (parsed.overrides ?? {})[key];
+      if (typeof value === 'string' && value.trim()) overrides[key] = value.trim();
+    }
+    const dropped = Object.keys(parsed.overrides ?? {}).filter(
+      k => !allowed.includes(k as keyof CartoucheData),
+    );
+    if (dropped.length) {
+      console.warn(`[pdfAnonymizer] refinement returned unknown fields, ignored: ${dropped.join(', ')}`);
+    }
+
+    // The prompt asks for English values, but adherence is not guaranteed —
+    // run them through the same translation table used at extraction time.
+    if (overrides.material) overrides.material = translate(overrides.material);
+    if (overrides.finish) overrides.finish = translate(overrides.finish);
+
+    return { overrides, unhandled: parsed.unhandled ?? null };
+  } catch (err: any) {
     console.error('[pdfAnonymizer] refinement LLM failed:', err);
-    return {};
+    // Do not swallow the feedback: report it so the caller can surface it.
+    return { overrides: {}, unhandled: `interprétation du feedback échouée: ${err.message}` };
   }
 }
 
@@ -283,6 +339,8 @@ const TRANSLATIONS: Record<string, string> = {
   'peint': 'PAINTED',
   'traitement thermique': 'HEAT TREATED',
   'acier inoxydable': 'STAINLESS STEEL',
+  'inoxydable': 'STAINLESS STEEL',
+  'inox': 'STAINLESS STEEL',
   'laiton': 'BRASS',
   'cuivre': 'COPPER',
   'aluminium': 'ALUMINUM',
@@ -570,7 +628,7 @@ export async function anonymizePdf(
   planId: string,
   lotId: string,
   refinementPrompt?: string,
-): Promise<{ pdf: Buffer; format: string }> {
+): Promise<{ pdf: Buffer; format: string; refinement: RefinementResult | null }> {
   // 1. Extract text (for format detection + cartouche data)
   //    pdf2json (pdf.js-based) handles more PDF types than pdf-parse
   let text = '';
@@ -581,10 +639,17 @@ export async function anonymizePdf(
   }
 
   let cartouche = extractCartoucheData(text);
+
   // Apply field overrides interpreted from the refinement prompt via Claude
+  let refinement: RefinementResult | null = null;
   if (refinementPrompt?.trim()) {
-    const overrides = await applyRefinementOverrides(refinementPrompt, cartouche);
-    cartouche = { ...cartouche, ...overrides };
+    refinement = await applyRefinementOverrides(refinementPrompt, cartouche);
+    cartouche = { ...cartouche, ...refinement.overrides };
+    console.log(
+      `[anonymizePdf] planId=${planId} feedback="${refinementPrompt.trim()}" ` +
+      `applied=${JSON.stringify(refinement.overrides)}` +
+      (refinement.unhandled ? ` unhandled="${refinement.unhandled}"` : ''),
+    );
   }
 
   const doc = await PDFDocument.load(pdfBytes);
@@ -640,5 +705,5 @@ export async function anonymizePdf(
   doc.setCreator('USI-PRO');
   doc.setProducer('USI-PRO');
 
-  return { pdf: Buffer.from(await doc.save()), format: fmt.key };
+  return { pdf: Buffer.from(await doc.save()), format: fmt.key, refinement };
 }

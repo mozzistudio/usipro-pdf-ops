@@ -291,6 +291,13 @@ async function finishPhase1(
 
   // ─── Anonymize PDFs in NM folder ─────────────────────────────
   log.info('Anonymizing PDFs in NM folder');
+
+  // Free-text feedback the client typed against each part in the form. It steers
+  // the cartouche fields of the anonymized PDF, so it must reach anonymizePdf.
+  const commentByPart = new Map(
+    ofData.parts.map(p => [p.id.trim(), p.comment?.trim() ?? '']),
+  );
+
   for (const pd of partDocs) {
     if (pd.selectedIndex === null) continue;
     const nmPath = `${paths.nm}/${pd.partId}.pdf`;
@@ -298,11 +305,26 @@ async function finishPhase1(
       const pdfBytes = await dropboxService.downloadFile(nmPath);
       const originalBase64 = pdfBytes.toString('base64');
 
-      const { pdf: anonBytes } = await pdfAnonymizer.anonymizePdf(pdfBytes, pd.partId, resolvedOF);
+      const comment = commentByPart.get(pd.partId) || undefined;
+      const { pdf: anonBytes, refinement } = await pdfAnonymizer.anonymizePdf(
+        pdfBytes,
+        pd.partId,
+        resolvedOF,
+        comment,
+      );
       const anonymizedBase64 = anonBytes.toString('base64');
 
       await dropboxService.uploadFile(nmPath, anonBytes);
-      log.info({ partId: pd.partId }, 'PDF anonymized in NM folder');
+      if (refinement?.unhandled) {
+        log.warn(
+          { partId: pd.partId, comment, unhandled: refinement.unhandled },
+          'Client feedback could not be applied to the cartouche',
+        );
+      }
+      log.info(
+        { partId: pd.partId, feedbackApplied: Object.keys(refinement?.overrides ?? {}) },
+        'PDF anonymized in NM folder',
+      );
 
       pdfs.push({ partId: pd.partId, originalBase64, anonymizedBase64 });
     } catch (err: any) {
