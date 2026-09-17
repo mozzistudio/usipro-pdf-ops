@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import JSZip from 'jszip';
-import { OFData, PipelineResult } from '../types';
+import { OFData, PartFeedback, PipelineResult } from '../types';
 import { buildDropboxPaths, getExtension, isPdf, isStep } from '../utils/helpers';
 import { ofLogger } from '../utils/logger';
 import * as dropboxService from '../services/dropbox';
@@ -20,12 +20,21 @@ import {
 } from '../services/sessionStore';
 import { selectPlanPdf } from '../services/planSelector';
 
+/** One anonymized plan handed to the operator for validation. */
+export interface Phase1Pdf {
+  partId: string;
+  originalBase64: string;
+  anonymizedBase64: string;
+  /** Set only when the client left a comment on this part. */
+  feedback?: PartFeedback;
+}
+
 export type Phase1Result =
   | {
       status: 'pending_validation';
       sessionId: string;
       resolvedOF: string;
-      pdfs: Array<{ partId: string; originalBase64: string; anonymizedBase64: string }>;
+      pdfs: Phase1Pdf[];
       missingParts: string[];
     }
   | {
@@ -240,7 +249,7 @@ async function finishPhase1(
   const partIds = ofData.parts.map(p => p.id.trim());
 
   let copiedFiles = 0;
-  const pdfs: Array<{ partId: string; originalBase64: string; anonymizedBase64: string }> = [];
+  const pdfs: Phase1Pdf[] = [];
 
   // ─── Copy chosen PDF per partId ───────────────────────────────
   for (const pd of partDocs) {
@@ -326,13 +335,38 @@ async function finishPhase1(
         'PDF anonymized in NM folder',
       );
 
-      pdfs.push({ partId: pd.partId, originalBase64, anonymizedBase64 });
+      pdfs.push({
+        partId: pd.partId,
+        originalBase64,
+        anonymizedBase64,
+        ...(comment && {
+          feedback: {
+            comment,
+            applied: Object.keys(refinement?.overrides ?? {}),
+            unhandled: refinement?.unhandled ?? null,
+          },
+        }),
+      });
     } catch (err: any) {
       log.warn({ partId: pd.partId, err: err.message }, 'Failed to anonymize PDF — keeping original');
       try {
         const pdfBytes = await dropboxService.downloadFile(nmPath);
         const b64 = pdfBytes.toString('base64');
-        pdfs.push({ partId: pd.partId, originalBase64: b64, anonymizedBase64: b64 });
+        // Anonymization failed, so no feedback was applied — say so explicitly
+        // rather than leaving the operator to assume the comment was handled.
+        const comment = commentByPart.get(pd.partId) || undefined;
+        pdfs.push({
+          partId: pd.partId,
+          originalBase64: b64,
+          anonymizedBase64: b64,
+          ...(comment && {
+            feedback: {
+              comment,
+              applied: [],
+              unhandled: "l'anonymisation a échoué — commentaire non appliqué",
+            },
+          }),
+        });
       } catch {
         // Skip entirely if download also fails
       }

@@ -38,12 +38,31 @@ export interface PipelineResult {
   mainPath: string;
 }
 
+/**
+ * What became of the free-text comment the client typed against a part.
+ * Surfaced to the operator on the validation screen so feedback that could not
+ * be applied is seen rather than buried in the server logs.
+ */
+export interface PartFeedback {
+  /** The comment as the client typed it. */
+  comment: string;
+  /** Cartouche fields that were actually changed (may be empty). */
+  applied: string[];
+  /** Why part of the feedback could not be applied, or null if fully applied. */
+  unhandled: string | null;
+}
+
 /** Phase 1 response — returned after anonymization, before user validation */
 export interface Phase1Response {
   status: 'pending_validation';
   sessionId: string;
   of: string;
-  pdfs: Array<{ partId: string; originalBase64: string; anonymizedBase64: string }>;
+  pdfs: Array<{
+    partId: string;
+    originalBase64: string;
+    anonymizedBase64: string;
+    feedback?: PartFeedback;
+  }>;
   missingParts: string[];
 }
 

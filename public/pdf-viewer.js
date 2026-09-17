@@ -56,6 +56,7 @@
         partId: p.partId,
         originalBase64: p.originalBase64,
         anonymizedBase64: p.anonymizedBase64,
+        feedback: p.feedback || null,
         ofNum,
         pages: Array.from({ length: numPages }, () => ({ validated: false, correctedBase64: null })),
       };
@@ -145,6 +146,36 @@
         >${s.pages[entry.pageIndex].validated ? '✓ Validée' : ''}</span>
     `;
     card.appendChild(header);
+
+    // Client feedback banner — shown on every page of the part it belongs to,
+    // so the operator cannot validate without having seen it.
+    if (s.feedback) {
+      const fb = document.createElement('div');
+      const unhandled = s.feedback.unhandled;
+      fb.className = 'pdf-feedback-banner' + (unhandled ? ' has-unhandled' : '');
+
+      const applied = (s.feedback.applied || []);
+      const appliedTxt = applied.length
+        ? 'Appliqué au cartouche : ' + applied.join(', ')
+        : 'Aucun champ du cartouche modifié';
+
+      fb.innerHTML =
+        '<div class="pdf-feedback-title">' +
+          (unhandled ? '\u26a0 Commentaire client \u2014 action requise' : '\u2713 Commentaire client pris en compte') +
+        '</div>' +
+        '<div class="pdf-feedback-quote"></div>' +
+        '<div class="pdf-feedback-applied"></div>' +
+        (unhandled ? '<div class="pdf-feedback-unhandled"></div>' : '');
+
+      // textContent, never innerHTML: the comment is client-supplied input.
+      fb.querySelector('.pdf-feedback-quote').textContent = '\u00ab\u00a0' + s.feedback.comment + '\u00a0\u00bb';
+      fb.querySelector('.pdf-feedback-applied').textContent = appliedTxt;
+      if (unhandled) {
+        fb.querySelector('.pdf-feedback-unhandled').textContent = 'Non traité automatiquement : ' + unhandled;
+      }
+
+      card.appendChild(fb);
+    }
 
     // Pages list (single page, side-by-side)
     const pgList = document.createElement('div');
