@@ -9,6 +9,7 @@ import * as pdfEditor from '../services/pdfEditor';
 import * as pdfAnonymizer from '../services/pdfAnonymizer';
 import { registerCorrectPageEndpoint } from '../services/correctPage';
 import { registerStepCompareEndpoints } from './stepCompare';
+import { registerEmailTriggerEndpoint } from './emailTrigger';
 
 export const apiRouter = Router();
 
@@ -17,6 +18,9 @@ registerCorrectPageEndpoint(apiRouter);
 
 // Register STEP before/after comparison endpoints (/step-compare.html)
 registerStepCompareEndpoints(apiRouter);
+
+// Register the email trigger consumed by the Apps Script Gmail bridge
+registerEmailTriggerEndpoint(apiRouter);
 
 /**
  * POST /api/anonymize-zone

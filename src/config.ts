@@ -15,4 +15,9 @@ export const config = {
     clientSecret: process.env.DROPBOX_CLIENT_SECRET || '',
     refreshToken: process.env.DROPBOX_REFRESH_TOKEN || '',
   },
+
+  // Email trigger — shared secret between the Apps Script bridge and /api/email-trigger
+  emailTrigger: {
+    secret: process.env.EMAIL_TRIGGER_SECRET || '',
+  },
 } as const;
