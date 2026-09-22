@@ -8,11 +8,15 @@ import * as dropboxService from '../services/dropbox';
 import * as pdfEditor from '../services/pdfEditor';
 import * as pdfAnonymizer from '../services/pdfAnonymizer';
 import { registerCorrectPageEndpoint } from '../services/correctPage';
+import { registerStepCompareEndpoints } from './stepCompare';
 
 export const apiRouter = Router();
 
 // Register AI correction endpoint
 registerCorrectPageEndpoint(apiRouter);
+
+// Register STEP before/after comparison endpoints (/step-compare.html)
+registerStepCompareEndpoints(apiRouter);
 
 /**
  * POST /api/anonymize-zone

@@ -97,7 +97,7 @@ interface CartoucheData {
 }
 
 // ── Format detection ─────────────────────────────────────────────
-const SIGS: Record<string, string[]> = {
+export const SIGS: Record<string, string[]> = {
   ETUDEMA:    ['ETUDEMA'],
   TURBOMECA:  ['TURBOMECA', 'SAFRAN', 'SAFDIN'],
   DELONCA:    ['DELONCA'],

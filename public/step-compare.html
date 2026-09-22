@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>USI-PRO — Comparaison STEP avant / après</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --dark: #0f1a2e;
+      --accent: #1abc9c;
+      --accent-deep: #148f77;
+      --surface: #ffffff;
+      --surface-alt: #f6f9fb;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --radius: 12px;
+      --error: #e74c3c;
+      --warn: #d97706;
+      --success: #27ae60;
+      --del-bg: #fff1f0;
+      --del-bar: #e74c3c;
+      --add-bg: #eefbf6;
+      --add-bar: #1abc9c;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #eef2f7;
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    code, pre, .mono { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
+
+    /* ── NAVBAR ── */
+    .navbar {
+      background: var(--dark);
+      height: 64px;
+      display: flex;
+      align-items: center;
+      padding: 0 32px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      border-bottom: 2px solid var(--accent);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+    }
+    .navbar-logo img { height: 36px; width: auto; display: block; }
+    .navbar-divider { width: 1px; height: 28px; background: rgba(255,255,255,0.12); margin: 0 20px; flex-shrink: 0; }
+    .navbar-info { display: flex; flex-direction: column; gap: 2px; }
+    .navbar-info .nav-title { font-size: 15px; font-weight: 600; color: #fff; line-height: 1; }
+    .navbar-info .nav-subtitle {
+      font-size: 11px; color: rgba(255,255,255,0.38); font-weight: 400;
+      letter-spacing: 0.8px; text-transform: uppercase; line-height: 1;
+    }
+    .navbar-badge {
+      margin-left: auto; background: rgba(26,188,156,0.1);
+      border: 1px solid rgba(26,188,156,0.28); color: var(--accent);
+      font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+      padding: 5px 12px; border-radius: 20px; text-decoration: none;
+    }
+
+    /* ── LAYOUT ── */
+    .container { max-width: 1280px; margin: 32px auto 64px; padding: 0 24px; }
+
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 24px 28px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+    }
+    .card h2 {
+      font-size: 15px; font-weight: 600; margin-bottom: 4px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card .hint { font-size: 12.5px; color: var(--text-muted); margin-bottom: 18px; line-height: 1.5; }
+
+    /* ── TABS ── */
+    .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+    .tab {
+      background: none; border: none; cursor: pointer; font-family: inherit;
+      font-size: 13.5px; font-weight: 500; color: var(--text-muted);
+      padding: 10px 16px; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent-deep); border-bottom-color: var(--accent); font-weight: 600; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── DROPZONE ── */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 38px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+      background: var(--surface-alt);
+    }
+    .dropzone:hover, .dropzone.over { border-color: var(--accent); background: #f0fbf8; }
+    .dropzone .dz-title { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .dropzone .dz-sub { font-size: 12.5px; color: var(--text-muted); }
+
+    /* ── FORM ── */
+    .row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+    label.fld { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+    input[type=text] {
+      font-family: inherit; font-size: 14px; padding: 10px 12px;
+      border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--text);
+      min-width: 220px;
+    }
+    input[type=text]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(26,188,156,0.12); }
+
+    .btn {
+      font-family: inherit; font-size: 13.5px; font-weight: 600;
+      padding: 10px 18px; border-radius: 8px; border: 1px solid transparent;
+      cursor: pointer; background: var(--accent); color: #fff;
+    }
+    .btn:hover { background: var(--accent-deep); }
+    .btn:disabled { opacity: .5; cursor: default; }
+    .btn.ghost { background: #fff; color: var(--text); border-color: var(--border); }
+    .btn.ghost:hover { background: var(--surface-alt); }
+    .btn.small { font-size: 12px; padding: 6px 12px; }
+
+    /* ── FILE LIST ── */
+    .file-list { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+    .file-item {
+      display: flex; align-items: center; gap: 12px;
+      border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; background: var(--surface-alt);
+    }
+    .file-item .fname { font-size: 13.5px; font-weight: 500; flex: 1; word-break: break-all; }
+
+    /* ── VERDICT ── */
+    .verdict {
+      display: flex; align-items: flex-start; gap: 14px;
+      border-radius: var(--radius); padding: 18px 22px; margin-bottom: 20px;
+      border: 1px solid; font-size: 14px; line-height: 1.55;
+    }
+    .verdict .v-icon { font-size: 22px; line-height: 1; }
+    .verdict .v-title { font-weight: 700; font-size: 15px; margin-bottom: 3px; }
+    .verdict.ok   { background: #eefbf6; border-color: #a9e6d2; color: #10614c; }
+    .verdict.warn { background: #fff8eb; border-color: #f2d49b; color: #7a4d06; }
+    .verdict.bad  { background: #fff1f0; border-color: #f3b6b1; color: #8d221b; }
+
+    /* ── STATS ── */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 4px; }
+    .stat { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--surface-alt); }
+    .stat .s-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .7px; color: var(--text-muted); font-weight: 600; }
+    .stat .s-value { font-size: 17px; font-weight: 700; margin-top: 4px; }
+    .stat .s-value.ok { color: var(--success); }
+    .stat .s-value.warn { color: var(--warn); }
+    .stat .s-value.bad { color: var(--error); }
+
+    /* ── TABLE ── */
+    table.fields { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.fields th {
+      text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .7px;
+      color: var(--text-muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--border);
+    }
+    table.fields td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    table.fields tr:last-child td { border-bottom: none; }
+    table.fields td.val { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 12px; word-break: break-all; }
+    td.val .empty { color: var(--text-muted); font-style: italic; font-family: 'DM Sans', sans-serif; }
+    tr.leak td { background: #fff6f5; }
+
+    .badge {
+      display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .6px;
+      text-transform: uppercase; padding: 3px 8px; border-radius: 20px; white-space: nowrap;
+    }
+    .badge.cleared  { background: #e6f7f1; color: #10614c; }
+    .badge.kept     { background: #eef2f7; color: var(--text-muted); }
+    .badge.leak     { background: #fdeceb; color: #8d221b; }
+
+    /* ── DIFF ── */
+    .diff {
+      border: 1px solid var(--border); border-radius: 8px; overflow: auto;
+      max-height: 460px; background: #fff; font-size: 12px; line-height: 1.6;
+    }
+    .diff .dl { display: flex; white-space: pre; font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
+    .diff .dl .no {
+      flex: 0 0 46px; text-align: right; padding: 0 8px; color: #94a3b8;
+      background: var(--surface-alt); user-select: none; border-right: 1px solid var(--border);
+    }
+    .diff .dl .sign { flex: 0 0 18px; text-align: center; color: var(--text-muted); user-select: none; }
+    .diff .dl .txt { flex: 1; padding-right: 12px; }
+    .diff .dl.del { background: var(--del-bg); }
+    .diff .dl.del .sign { color: var(--del-bar); font-weight: 700; }
+    .diff .dl.add { background: var(--add-bg); }
+    .diff .dl.add .sign { color: var(--add-bar); font-weight: 700; }
+
+    /* ── SIDE BY SIDE ── */
+    .sbs { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .sbs .pane { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .sbs .pane-head {
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .7px;
+      padding: 8px 12px; background: var(--surface-alt); border-bottom: 1px solid var(--border);
+    }
+    .sbs .pane-head.before { color: #8d221b; }
+    .sbs .pane-head.after  { color: #10614c; }
+    .sbs pre { margin: 0; padding: 12px; font-size: 11.5px; line-height: 1.55; overflow: auto; max-height: 420px; white-space: pre; }
+
+    /* ── RESIDUALS ── */
+    .res-list { display: flex; flex-direction: column; gap: 10px; }
+    .res {
+      border: 1px solid var(--border); border-left: 3px solid var(--warn);
+      border-radius: 8px; padding: 12px 14px; background: #fffdf7;
+    }
+    .res.client { border-left-color: var(--error); background: #fff6f5; }
+    .res-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+    .res-match { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 13px; font-weight: 600; word-break: break-all; }
+    .res-meta { font-size: 11.5px; color: var(--text-muted); margin-left: auto; white-space: nowrap; }
+    .res-sample {
+      font-family: 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 11px;
+      color: var(--text-muted); background: #fff; border: 1px solid var(--border);
+      border-radius: 6px; padding: 6px 8px; margin-top: 5px; overflow-x: auto; white-space: pre;
+    }
+    .kind-tag {
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+      padding: 2px 7px; border-radius: 4px; background: #eef2f7; color: var(--text-muted);
+    }
+
+    .removed-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .removed-chip {
+      font-family: 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 11.5px;
+      background: #e6f7f1; color: #10614c; border-radius: 5px; padding: 4px 9px;
+      text-decoration: line-through;
+    }
+
+    .empty-state { font-size: 13px; color: var(--text-muted); padding: 14px; background: var(--surface-alt); border-radius: 8px; }
+
+    /* ── MISC ── */
+    .spinner {
+      width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.35);
+      border-top-color: #fff; border-radius: 50%; display: inline-block;
+      animation: spin .7s linear infinite; vertical-align: -3px; margin-right: 7px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .alert { font-size: 13px; padding: 12px 14px; border-radius: 8px; margin-top: 14px; }
+    .alert.err { background: #fff1f0; border: 1px solid #f3b6b1; color: #8d221b; }
+
+    .note { font-size: 12px; color: var(--text-muted); margin-top: 12px; line-height: 1.55; }
+
+    .section-toggle {
+      background: none; border: none; font-family: inherit; font-size: 12.5px;
+      color: var(--accent-deep); font-weight: 600; cursor: pointer; padding: 0;
+    }
+
+    @media (max-width: 860px) {
+      .navbar { padding: 0 16px; }
+      .navbar-badge { display: none; }
+      .sbs { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-logo"><img src="/logo.png" alt="Usi-Pro"></div>
+    <div class="navbar-divider"></div>
+    <div class="navbar-info">
+      <span class="nav-title">Comparaison STEP — avant / après</span>
+      <span class="nav-subtitle">USI-PRO</span>
+    </div>
+    <a href="/" class="navbar-badge">&#8592; Formulaire</a>
+  </nav>
+
+  <div class="container">
+
+    <!-- ── SOURCE ─────────────────────────────────────────── -->
+    <div class="card">
+      <h2>Fichier à analyser</h2>
+      <p class="hint">
+        Le fichier est passé dans <code>anonymizeStep()</code> côté serveur et le résultat est comparé à l'original.
+        Rien n'est écrit sur Dropbox&nbsp;: l'analyse est en lecture seule.
+      </p>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="upload">Fichier local</button>
+        <button class="tab" data-tab="dropbox">Dropbox</button>
+      </div>
+
+      <div class="tab-panel active" id="panel-upload">
+        <div class="dropzone" id="dropzone">
+          <div class="dz-title">Déposez un fichier .step / .stp</div>
+          <div class="dz-sub">ou cliquez pour le choisir</div>
+        </div>
+        <input type="file" id="fileInput" accept=".step,.stp,.STEP,.STP" hidden>
+      </div>
+
+      <div class="tab-panel" id="panel-dropbox">
+        <div class="row">
+          <div>
+            <label class="fld" for="partId">Numéro de pièce</label>
+            <input type="text" id="partId" placeholder="13315" autocomplete="off">
+          </div>
+          <button class="btn" id="searchBtn">Chercher les STEP</button>
+        </div>
+        <p class="note">Cherche dans <code>/Analyses/RIJ/Plans/&lt;pièce&gt;</code>.</p>
+        <div class="file-list" id="fileList"></div>
+      </div>
+
+      <div id="sourceError"></div>
+    </div>
+
+    <!-- ── RESULT ─────────────────────────────────────────── -->
+    <div id="result"></div>
+
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  var KIND_LABELS = {
+    client:  'client',
+    path:    'chemin',
+    cadfile: 'fichier cao',
+    email:   'e-mail',
+    url:     'url'
+  };
+
+  // ── Helpers ──────────────────────────────────────────────
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function fmtBytes(n) {
+    if (n < 1024) return n + ' o';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' Ko';
+    return (n / 1024 / 1024).toFixed(2) + ' Mo';
+  }
+
+  /** Base64 of an ArrayBuffer, chunked so large files don't blow the call stack. */
+  function toBase64(buffer) {
+    var bytes = new Uint8Array(buffer);
+    var chunk = 0x8000;
+    var parts = [];
+    for (var i = 0; i < bytes.length; i += chunk) {
+      parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + chunk)));
+    }
+    return btoa(parts.join(''));
+  }
+
+  function el(id) { return document.getElementById(id); }
+
+  function showError(msg) {
+    el('sourceError').innerHTML = '<div class="alert err">' + esc(msg) + '</div>';
+  }
+  function clearError() { el('sourceError').innerHTML = ''; }
+
+  // ── Tabs ─────────────────────────────────────────────────
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (tab) {
+    tab.addEventListener('click', function () {
+      Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) { t.classList.remove('active'); });
+      Array.prototype.forEach.call(document.querySelectorAll('.tab-panel'), function (p) { p.classList.remove('active'); });
+      tab.classList.add('active');
+      el('panel-' + tab.dataset.tab).classList.add('active');
+      clearError();
+    });
+  });
+
+  // ── Upload ───────────────────────────────────────────────
+  var dropzone = el('dropzone');
+  var fileInput = el('fileInput');
+
+  dropzone.addEventListener('click', function () { fileInput.click(); });
+  dropzone.addEventListener('dragover', function (e) { e.preventDefault(); dropzone.classList.add('over'); });
+  dropzone.addEventListener('dragleave', function () { dropzone.classList.remove('over'); });
+  dropzone.addEventListener('drop', function (e) {
+    e.preventDefault();
+    dropzone.classList.remove('over');
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', function () {
+    if (fileInput.files.length) handleFile(fileInput.files[0]);
+  });
+
+  function handleFile(file) {
+    clearError();
+    if (!/\.(stp|step)$/i.test(file.name)) {
+      showError('Ce fichier n’est pas un STEP (.step / .stp).');
+      return;
+    }
+    dropzone.querySelector('.dz-title').textContent = file.name;
+    dropzone.querySelector('.dz-sub').textContent = 'Analyse en cours…';
+
+    var reader = new FileReader();
+    reader.onerror = function () {
+      showError('Lecture du fichier impossible.');
+      resetDropzone();
+    };
+    reader.onload = function () {
+      post('/api/step/compare', { fileName: file.name, fileBase64: toBase64(reader.result) })
+        .then(render)
+        .catch(function (err) { showError(err.message); })
+        .then(resetDropzone);
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function resetDropzone() {
+    dropzone.querySelector('.dz-title').textContent = 'Déposez un fichier .step / .stp';
+    dropzone.querySelector('.dz-sub').textContent = 'ou cliquez pour le choisir';
+  }
+
+  // ── Dropbox ──────────────────────────────────────────────
+  el('searchBtn').addEventListener('click', searchDropbox);
+  el('partId').addEventListener('keydown', function (e) { if (e.key === 'Enter') searchDropbox(); });
+
+  function searchDropbox() {
+    var id = el('partId').value.trim();
+    clearError();
+    el('fileList').innerHTML = '';
+    if (!id) { showError('Saisissez un numéro de pièce.'); return; }
+
+    var btn = el('searchBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Recherche…';
+
+    fetch('/api/step/search?partId=' + encodeURIComponent(id))
+      .then(readJson)
+      .then(function (data) {
+        if (!data.files.length) {
+          el('fileList').innerHTML = '<div class="empty-state">Aucun fichier STEP dans ' + esc(data.folder) + '.</div>';
+          return;
+        }
+        el('fileList').innerHTML = data.files.map(function (f) {
+          return '<div class="file-item">' +
+                   '<span class="fname">' + esc(f.name) + '</span>' +
+                   '<button class="btn small" data-path="' + esc(f.path) + '">Comparer</button>' +
+                 '</div>';
+        }).join('');
+        Array.prototype.forEach.call(el('fileList').querySelectorAll('button[data-path]'), function (b) {
+          b.addEventListener('click', function () { compareDropbox(b); });
+        });
+      })
+      .catch(function (err) { showError(err.message); })
+      .then(function () {
+        btn.disabled = false;
+        btn.textContent = 'Chercher les STEP';
+      });
+  }
+
+  function compareDropbox(btn) {
+    clearError();
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Analyse…';
+    post('/api/step/compare-dropbox', { path: btn.dataset.path })
+      .then(render)
+      .catch(function (err) { showError(err.message); })
+      .then(function () {
+        btn.disabled = false;
+        btn.textContent = 'Comparer';
+      });
+  }
+
+  // ── HTTP ─────────────────────────────────────────────────
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(readJson);
+  }
+
+  function readJson(resp) {
+    return resp.json().catch(function () {
+      throw new Error('Réponse illisible du serveur (' + resp.status + ').');
+    }).then(function (data) {
+      if (!resp.ok) throw new Error(data.error || ('Erreur serveur ' + resp.status));
+      return data;
+    });
+  }
+
+  // ── Rendering ────────────────────────────────────────────
+  function render(r) {
+    var leaks = r.fields.filter(function (f) { return f.shouldClear && !isBlank(f); });
+    var clientLeaks = r.residualsAfter.filter(function (g) { return g.kind === 'client'; });
+
+    var html = '';
+    html += renderVerdict(r, leaks, clientLeaks);
+    html += renderStats(r, leaks);
+    html += renderFields(r);
+    html += renderDiff(r);
+    html += renderResiduals(r, clientLeaks);
+
+    el('result').innerHTML = html;
+    wireResult(r);
+    el('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /**
+   * Whether a field came out empty. The server computes this (isEmptyAfter)
+   * because real STEP files annotate arguments with inline comments, which a
+   * naive string check misreads as a value.
+   */
+  function isBlank(field) {
+    return field.isEmptyAfter;
+  }
+
+  /** Same test, for a raw token with no field around it. */
+  function isEmptyToken(token) {
+    var t = String(token || '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, '');
+    return t === '' || t === "''" || t === "('')" || t === '()';
+  }
+
+  function renderVerdict(r, leaks, clientLeaks) {
+    var cls, icon, title, body;
+
+    if (!r.parsed) {
+      cls = 'bad'; icon = '⚠';
+      title = 'FILE_NAME illisible';
+      body = 'Aucune entrée <code>FILE_NAME</code> exploitable n’a été trouvée : l’anonymiseur a laissé le fichier tel quel. C’est le cas typique d’un test « non concluant ».';
+    } else if (clientLeaks.length) {
+      cls = 'bad'; icon = '⚠';
+      title = 'Nom de client encore présent après anonymisation';
+      body = clientLeaks.length + ' nom(s) de client connus subsistent dans le fichier anonymisé. ' +
+             '<code>anonymizeStep()</code> ne nettoie que quatre champs de l’en-tête : tout ce qui se trouve ailleurs (FILE_DESCRIPTION, entités PRODUCT, chemins d’export) passe à travers.';
+    } else if (leaks.length) {
+      cls = 'bad'; icon = '⚠';
+      title = 'Champs censés être effacés encore remplis';
+      body = leaks.map(function (f) { return '<code>' + esc(f.label) + '</code>'; }).join(', ') +
+             ' — la réécriture de <code>FILE_NAME</code> n’a pas abouti.';
+    } else if (r.residualsAfter.length) {
+      cls = 'warn'; icon = '⚠';
+      title = 'En-tête nettoyé, mais des identifiants subsistent ailleurs';
+      body = 'Les champs <code>FILE_NAME</code> sensibles sont vides, mais ' + r.residualsAfter.length +
+             ' identifiant(s) (chemins, noms de fichiers CAO, e-mails…) restent dans le fichier. À juger au cas par cas.';
+    } else {
+      cls = 'ok'; icon = '✓';
+      title = 'Anonymisation propre';
+      body = 'Les quatre champs sensibles de <code>FILE_NAME</code> sont vides et aucun identifiant résiduel n’a été détecté.';
+    }
+
+    if (!r.geometryUntouched) {
+      cls = 'bad'; icon = '⚠';
+      title = 'La section DATA a été modifiée';
+      body = 'La géométrie doit rester intacte octet pour octet. Ce n’est pas le cas ici — le fichier est potentiellement corrompu.';
+    }
+
+    return '<div class="verdict ' + cls + '">' +
+             '<span class="v-icon">' + icon + '</span>' +
+             '<div><div class="v-title">' + title + '</div><div>' + body + '</div></div>' +
+           '</div>';
+  }
+
+  function renderStats(r, leaks) {
+    var delta = r.sizeAfter - r.sizeBefore;
+    var stats = [
+      { label: 'Fichier', value: esc(r.fileName), raw: true },
+      { label: 'Taille', value: fmtBytes(r.sizeBefore) + ' → ' + fmtBytes(r.sizeAfter) +
+          ' (' + (delta >= 0 ? '+' : '') + delta + ' o)' },
+      { label: 'Champs à effacer', value: (4 - leaks.length) + ' / 4 vidés', cls: leaks.length ? 'bad' : 'ok' },
+      { label: 'Géométrie (DATA)', value: r.geometryUntouched ? 'intacte' : 'MODIFIÉE',
+        cls: r.geometryUntouched ? 'ok' : 'bad' },
+      { label: 'Identifiants résiduels', value: String(r.residualsAfter.length),
+        cls: r.residualsAfter.length ? 'warn' : 'ok' }
+    ];
+
+    return '<div class="card"><div class="stats">' +
+      stats.map(function (s) {
+        return '<div class="stat">' +
+                 '<div class="s-label">' + esc(s.label) + '</div>' +
+                 '<div class="s-value ' + (s.cls || '') + '">' + (s.raw ? s.value : esc(s.value)) + '</div>' +
+               '</div>';
+      }).join('') +
+      '</div>' +
+      (r.anonymizedBase64
+        ? '<div style="margin-top:16px"><button class="btn ghost" id="dlBtn">⬇ Télécharger le fichier anonymisé</button></div>'
+        : '<p class="note">Fichier trop volumineux pour être renvoyé en téléchargement (&gt; 12 Mo).</p>') +
+      '</div>';
+  }
+
+  function renderFields(r) {
+    if (!r.parsed) {
+      return '<div class="card"><h2>Champs FILE_NAME</h2>' +
+             '<div class="empty-state">Aucune entrée <code>FILE_NAME</code> exploitable dans ce fichier.</div></div>';
+    }
+
+    var rows = r.fields.map(function (f) {
+      var leak = f.shouldClear && !isBlank(f);
+      var badge = f.shouldClear
+        ? (leak ? '<span class="badge leak">non effacé</span>' : '<span class="badge cleared">effacé</span>')
+        : '<span class="badge kept">conservé</span>';
+      return '<tr class="' + (leak ? 'leak' : '') + '">' +
+               '<td style="white-space:nowrap"><strong>' + esc(f.label) + '</strong><br>' +
+                 '<span style="font-size:11px;color:var(--text-muted)">arg ' + (r.fields.indexOf(f) + 1) + '</span></td>' +
+               '<td class="val">' + renderToken(f.before) + '</td>' +
+               '<td class="val">' + renderToken(f.after) + '</td>' +
+               '<td>' + badge + '</td>' +
+             '</tr>';
+    }).join('');
+
+    return '<div class="card">' +
+             '<h2>Champs FILE_NAME</h2>' +
+             '<p class="hint">Les sept arguments de <code>FILE_NAME</code> (ISO 10303-21), tels quels avant et après.</p>' +
+             '<table class="fields"><thead><tr>' +
+               '<th>Champ</th><th>Avant</th><th>Après</th><th>État</th>' +
+             '</tr></thead><tbody>' + rows + '</tbody></table>' +
+           '</div>';
+  }
+
+  function renderToken(token) {
+    if (isEmptyToken(token)) return '<span class="empty">(vide)</span>';
+    return esc(token);
+  }
+
+  function renderDiff(r) {
+    var lines = r.diff.filter(function (l) { return l.type !== 'ctx'; });
+    var body;
+
+    if (!lines.length) {
+      body = '<div class="empty-state">Aucune différence dans l’en-tête — le fichier ressort identique.</div>';
+    } else {
+      body = '<div class="diff">' + r.diff.map(function (l) {
+        var sign = l.type === 'del' ? '−' : (l.type === 'add' ? '+' : ' ');
+        var no = l.type === 'add' ? l.afterNo : l.beforeNo;
+        return '<div class="dl ' + l.type + '">' +
+                 '<span class="no">' + (no == null ? '' : no) + '</span>' +
+                 '<span class="sign">' + sign + '</span>' +
+                 '<span class="txt">' + esc(l.text) + '</span>' +
+               '</div>';
+      }).join('') + '</div>';
+      if (r.diffTruncated) {
+        body += '<p class="note">Diff tronqué — seules les premières lignes sont affichées.</p>';
+      }
+    }
+
+    return '<div class="card">' +
+             '<h2>Diff de l’en-tête (HEADER)</h2>' +
+             '<p class="hint">Seule la section HEADER est réécrite. La section DATA, qui porte la géométrie, est comparée octet pour octet plus haut.</p>' +
+             body +
+             '<div style="margin-top:14px"><button class="section-toggle" id="sbsToggle">Afficher l’en-tête complet côte à côte</button></div>' +
+             '<div id="sbs" style="display:none;margin-top:14px"><div class="sbs">' +
+               '<div class="pane"><div class="pane-head before">Avant</div><pre>' + esc(r.headerBefore) + '</pre></div>' +
+               '<div class="pane"><div class="pane-head after">Après</div><pre>' + esc(r.headerAfter) + '</pre></div>' +
+             '</div></div>' +
+           '</div>';
+  }
+
+  function renderResiduals(r, clientLeaks) {
+    var body;
+    if (!r.residualsAfter.length) {
+      body = '<div class="empty-state">Aucun identifiant détecté dans le fichier anonymisé.</div>';
+    } else {
+      body = '<div class="res-list">' + r.residualsAfter.map(function (g) {
+        var where = g.section === 'header' ? 'en-tête' : (g.section === 'data' ? 'géométrie' : 'en-tête + géométrie');
+        return '<div class="res ' + esc(g.kind) + '">' +
+                 '<div class="res-head">' +
+                   '<span class="kind-tag">' + esc(KIND_LABELS[g.kind] || g.kind) + '</span>' +
+                   '<span class="res-match">' + esc(g.match) + '</span>' +
+                   '<span class="res-meta">' + g.count + '× · ' + where +
+                     ' · ligne ' + (g.samples[0] ? g.samples[0].lineNo : '?') + '</span>' +
+                 '</div>' +
+                 g.samples.map(function (s) {
+                   return '<div class="res-sample">' + esc(s.excerpt) + '</div>';
+                 }).join('') +
+               '</div>';
+      }).join('') + '</div>';
+      if (r.residualsTruncated) {
+        body += '<p class="note">Liste tronquée — trop de correspondances distinctes pour tout afficher.</p>';
+      }
+    }
+
+    var removedBlock = r.removed.length
+      ? '<p class="note" style="margin-top:18px"><strong>Supprimé par l’anonymiseur :</strong></p>' +
+        '<div class="removed-list">' + r.removed.map(function (m) {
+          return '<span class="removed-chip">' + esc(m) + '</span>';
+        }).join('') + '</div>'
+      : '';
+
+    return '<div class="card">' +
+             '<h2>Identifiants restants dans le fichier anonymisé</h2>' +
+             '<p class="hint">Recherche de noms de clients connus, chemins d’export, noms de fichiers CAO, e-mails et URL, ' +
+               'sur tout le fichier — en-tête <em>et</em> géométrie.' +
+               (clientLeaks.length ? ' Les noms de clients sont surlignés en rouge.' : '') + '</p>' +
+             body + removedBlock +
+           '</div>';
+  }
+
+  function wireResult(r) {
+    var toggle = el('sbsToggle');
+    if (toggle) {
+      toggle.addEventListener('click', function () {
+        var box = el('sbs');
+        var open = box.style.display !== 'none';
+        box.style.display = open ? 'none' : 'block';
+        toggle.textContent = open ? 'Afficher l’en-tête complet côte à côte' : 'Masquer l’en-tête complet';
+      });
+    }
+
+    var dl = el('dlBtn');
+    if (dl && r.anonymizedBase64) {
+      dl.addEventListener('click', function () {
+        var bin = atob(r.anonymizedBase64);
+        var bytes = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        var url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = r.fileName.replace(/(\.(stp|step))$/i, '_anonymise$1');
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+  }
+})();
+</script>
+</body>
+</html>
