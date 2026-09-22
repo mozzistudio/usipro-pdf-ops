@@ -119,6 +119,18 @@ export function registerEmailTriggerEndpoint(router: Router): void {
  * writing it, so a replayed message can be served the original result.
  */
 async function handleEmail(inbound: InboundEmail): Promise<{ status: number; body: unknown }> {
+  // Checked before parsing so a missing key can't be mistaken for an
+  // unreadable mail: the 422 below tells the bridge to file the thread and
+  // never replay it, which would silently drop real requests over a config
+  // problem. 503 keeps the mail pending until the key is set.
+  if (!process.env.ANTHROPIC_API_KEY) {
+    logger.error('ANTHROPIC_API_KEY absente — extraction email impossible');
+    return {
+      status: 503,
+      body: { status: 'error', message: 'Extraction indisponible: ANTHROPIC_API_KEY absente' },
+    };
+  }
+
   let payload;
   try {
     payload = parseFormPayload(await parseEmailToPayload(inbound));

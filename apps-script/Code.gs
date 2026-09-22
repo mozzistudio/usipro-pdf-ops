@@ -138,6 +138,15 @@ function pollInbox() {
       return;
     }
 
+    if (code === 503) {
+      // Le serveur tourne mais lui manque une cle ou un reglage. C'est
+      // temporaire et reparable: on n'incremente pas le compteur d'echecs,
+      // sinon cinq minutes de mauvaise config suffiraient a abandonner une
+      // vraie demande. Le mail reste en attente jusqu'a la remise en etat.
+      Logger.log('Serveur non configure — ' + response.getContentText());
+      return;
+    }
+
     if (code === 401) {
       // Secret faux: réessayer ne servira à rien et logguer chaque minute
       // noierait le journal. On arrête net.

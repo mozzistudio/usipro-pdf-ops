@@ -53,7 +53,18 @@ courrier, archivé compris.
 > la corbeille et le spam sont exclus de la recherche, et le trigger cesserait
 > de se déclencher.
 
-## 2. Générer le secret partagé
+## 2. Variables d'environnement du serveur
+
+Le trigger a besoin de **deux** variables côté serveur :
+
+| Variable | Rôle |
+|---|---|
+| `EMAIL_TRIGGER_SECRET` | Secret partagé avec le script (étape 3) |
+| `ANTHROPIC_API_KEY` | Extraction de l'OF et des pièces depuis le texte du mail |
+
+Sans la seconde, l'endpoint répond `503` et aucun mail n'est traité.
+
+## 3. Générer le secret partagé
 
 ```bash
 openssl rand -hex 32
@@ -66,7 +77,7 @@ openssl rand -hex 32
 Sans ce secret, l'endpoint répond `503` et reste inerte — il n'y a pas de mode
 « ouvert ».
 
-## 3. Installer le script
+## 4. Installer le script
 
 1. [script.google.com](https://script.google.com) → **Nouveau projet**, connecté
    avec le compte qui porte l'alias.
@@ -76,7 +87,7 @@ Sans ce secret, l'endpoint répond `503` et reste inerte — il n'y a pas de mod
    | Propriété | Valeur |
    |---|---|
    | `WEBHOOK_URL` | `https://<serveur>/api/email-trigger` |
-   | `TRIGGER_SECRET` | le secret de l'étape 2 |
+   | `TRIGGER_SECRET` | le secret de l’étape 3 |
    | `TRIGGER_ADDRESS` | `chiffrage@usi-pro.com` |
 
 4. Exécuter **`setup()`** une fois, et accepter les autorisations Gmail
@@ -91,6 +102,11 @@ Chaque fil traité reçoit un libellé, qui sert aussi de mémoire au script :
 | `chiffrage/traite` | Phase 1 lancée, session ouverte côté serveur |
 | `chiffrage/ignore` | Le serveur n'a vu aucune demande de chiffrage (`422`) |
 | `chiffrage/erreur` | 5 échecs serveur consécutifs, ou secret rejeté |
+
+Un `503` — serveur joignable mais mal configuré, par exemple `ANTHROPIC_API_KEY`
+absente — ne compte pas dans ces 5 échecs. Le fil reste sans libellé et sera
+rejoué une fois la configuration réparée, plutôt que d'être abandonné pour une
+cause réparable.
 
 Un fil sans libellé sera rejoué : rien n'est marqué avant la réponse du serveur,
 donc un plantage du script ne perd pas de mail.
