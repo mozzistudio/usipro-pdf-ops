@@ -11,183 +11,332 @@
   <link rel="stylesheet" href="/usipro.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <style>
-    /* ── Trois colonnes : les devis, le plan, la proposition ── */
+    /**
+     * La revue se fait sur fond sombre.
+     *
+     * Un plan se lit sur papier clair, et un écran clair tout autour lui vole
+     * son contraste : à côté d'une feuille blanche, un panneau blanc devient
+     * du bruit. Le fond sombre rend la feuille au plan et laisse les chiffres
+     * ressortir. Les jetons sont redéfinis ici seulement — les autres écrans
+     * gardent le thème clair de `usipro.css`.
+     */
+    :root {
+      --bg: #0A1211;
+      --surface: #101A18;
+      --surface-2: #16211F;
+      --surface-3: #1C2A27;
+      --paper: #FAFAF6;
+
+      --ink: #E9F0ED;
+      --ink-2: #9BADA8;
+      --ink-3: #6E807B;
+
+      --line: rgba(255,255,255,.075);
+      --line-2: rgba(255,255,255,.15);
+
+      /* Sur fond sombre, le teal et les verts du thème clair s'éteignent :
+         il faut monter la luminance pour qu'ils restent des signaux. */
+      --teal: #2FD8B9;
+      --teal-ink: #05312B;
+      --teal-soft: rgba(47,216,185,.13);
+      --green: #43BE6D;
+      --green-soft: rgba(67,190,109,.13);
+      --amber: #E2A93C;
+      --amber-soft: rgba(226,169,60,.13);
+      --red: #E2604F;
+      --red-soft: rgba(226,96,79,.13);
+    }
+
+    body { background: var(--bg); color: var(--ink); overflow: hidden; }
+
+    /* ── Barre d'application ── */
+    .app-bar { background: var(--surface); border-bottom-color: var(--line); gap: 16px; }
+    /* Le logo est dessiné pour fond sombre : ici son socle se fond dans la
+       barre au lieu de faire une pastille claire. */
+    .brand { background: #05100E; }
+    a.brand:hover { background: #020806; }
+    .app-nav { color: var(--ink-3); }
+    .app-nav:hover { color: var(--ink); }
+    .app-nav[aria-current="page"] { color: var(--ink); border-bottom-color: var(--teal); }
+
+    /* Le devis en cours : un menu, là où il y avait une colonne entière. */
+    .picker {
+      font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--ink);
+      background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 8px;
+      padding: 9px 30px 9px 12px; width: auto; max-width: 330px; cursor: pointer;
+      appearance: none;
+      background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
+                        linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+      background-position: calc(100% - 15px) 18px, calc(100% - 11px) 18px;
+      background-size: 4px 4px, 4px 4px;
+      background-repeat: no-repeat;
+    }
+    .picker:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-soft); }
+
+    /* L'avancement du devis ouvert, à droite : combien il en reste. */
+    .load { display: flex; align-items: center; gap: 14px; }
+    .load-n { text-align: right; line-height: 1; }
+    .load-n .n { font-family: var(--mono); font-size: 25px; font-weight: 600; }
+    .load-n .l { font-size: 10.5px; color: var(--ink-3); margin-top: 4px; }
+    .load-bar { display: flex; flex-direction: column; gap: 6px; }
+    .load-bar .track { width: 120px; height: 4px; border-radius: 2px; background: var(--surface-3); }
+    .load-bar .fill { display: block; height: 100%; border-radius: 2px; background: var(--teal); }
+    .load-bar .c { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+
+    /* ── Deux colonnes : le plan, la proposition ── */
     .workbench {
       display: grid;
-      grid-template-columns: 248px minmax(0, 1fr) 400px;
+      grid-template-columns: minmax(0, 1fr) 484px;
       height: calc(100vh - 56px);
     }
 
-    /* Colonne 1 — les devis en cours */
-    .rail {
-      background: var(--surface);
-      border-right: 1px solid var(--line);
-      padding: 18px 16px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 18px;
-    }
-    .rail-head { display: flex; flex-direction: column; gap: 4px; }
-    .rail-ref { font-family: var(--mono); font-size: 13px; font-weight: 600; }
-    .rail-client { font-size: 12px; color: var(--ink-2); }
-    .rail-count { display: flex; align-items: baseline; gap: 8px; }
-    .rail-count .n { font-family: var(--mono); font-size: 26px; font-weight: 600; line-height: 1; }
-    .rail-count .label { font-size: 11.5px; color: var(--ink-3); max-width: 96px; line-height: 1.3; }
-
-    .devis-list { display: flex; flex-direction: column; gap: 2px; }
-    .devis {
-      display: flex; align-items: center; gap: 8px;
-      padding: 9px 10px; border-radius: 6px;
-      cursor: pointer; background: none; border: none; width: 100%;
-      text-align: left; font-family: var(--sans); color: var(--ink);
-    }
-    .devis:hover { background: var(--surface-2); }
-    .devis[aria-current="true"] { background: var(--teal-soft); }
-    .devis .ref { font-family: var(--mono); font-size: 12px; flex-grow: 1; }
-    .devis .n { font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
-    /* Le compte de documents: discret, mais il dit où sont les plans. */
-    .devis .docs-n {
-      font-family: var(--mono); font-size: 10px;
-      background: var(--teal-soft); color: var(--teal-ink);
-      border-radius: 3px; padding: 1px 5px;
-    }
-
-    /* Colonne 2 — le plan */
-    .plan { background: var(--plan); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+    /* Colonne 1 — le plan */
+    .plan { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--line); }
     .plan-bar {
-      display: flex; align-items: center; gap: 12px;
-      padding: 12px 18px;
-      border-bottom: 1px solid rgba(255,255,255,.08);
-      color: rgba(255,255,255,.72);
-      font-family: var(--mono); font-size: 11.5px;
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 18px; border-bottom: 1px solid var(--line);
+      font-family: var(--mono); font-size: 11.5px; color: var(--ink-3);
     }
     .plan-bar .badge {
-      background: rgba(255,255,255,.1); color: rgba(255,255,255,.85);
-      border-radius: 4px; padding: 3px 7px; font-size: 10.5px;
+      background: var(--surface-2); border: 1px solid var(--line);
+      color: var(--ink-2); border-radius: 5px; padding: 3px 8px; font-size: 10.5px;
     }
+    .plan-bar .badge.warn { color: #E8C078; border-color: rgba(226,169,60,.3); }
+    .plan-bar .badge.bad { color: #E8887A; border-color: rgba(226,96,79,.3); }
+    .plan-bar .pos { margin-left: auto; color: var(--ink-2); }
+    .plan-bar .step {
+      background: var(--surface-2); border: 1px solid var(--line-2); color: var(--ink);
+      border-radius: 6px; width: 26px; height: 24px; cursor: pointer; font-size: 12px;
+    }
+    .plan-bar .step:disabled { opacity: .35; cursor: not-allowed; }
+
     .plan-body {
       flex-grow: 1; min-height: 0; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 14px;
-      padding: 22px; text-align: center;
-      color: rgba(255,255,255,.55); font-size: 12.5px; line-height: 1.6;
+      align-items: center; justify-content: center; gap: 12px;
+      padding: 18px; text-align: center;
+      color: var(--ink-3); font-size: 12.5px; line-height: 1.6;
       overflow-y: auto;
     }
     .plan-sheet {
-      background: var(--paper); color: var(--ink);
-      width: min(560px, 100%); aspect-ratio: 1.414;
-      flex-shrink: 0;
-      border-radius: 4px; padding: 22px;
+      background: var(--paper); color: #15201E;
+      width: min(620px, 100%); aspect-ratio: 1.414;
+      flex-shrink: 0; border-radius: 4px; padding: 20px;
       display: flex; flex-direction: column; gap: 10px;
-      box-shadow: 0 18px 40px -18px rgba(0,0,0,.6);
+      box-shadow: 0 24px 50px -24px #000;
       text-align: left;
     }
     /* Un plan réel prend toute la hauteur offerte : le format A4 fixe n'est
        qu'un cadre d'attente, il ne doit pas rétrécir une cote à lire. */
-    .plan-sheet.has-plan {
-      aspect-ratio: auto; width: min(820px, 100%);
-      flex: 1 1 auto; min-height: 200px;
-    }
-
-    .plan-sheet .title { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+    .plan-sheet.has-plan { aspect-ratio: auto; width: min(880px, 100%); flex: 1 1 auto; min-height: 200px; }
+    .plan-sheet .title { font-family: var(--mono); font-size: 11.5px; font-weight: 600; }
     .plan-sheet .frame {
       flex-grow: 1; min-height: 0;
-      border: 1px solid var(--line-2); border-radius: 2px;
+      border: 1px solid #C9CCC4; border-radius: 2px;
       display: flex; align-items: center; justify-content: center;
-      color: var(--ink-3); font-size: 12px; text-align: center; line-height: 1.6;
+      color: #6D746C; font-size: 12px; text-align: center; line-height: 1.6;
       overflow: hidden; background: #fff;
     }
     .plan-sheet .frame > span { padding: 16px; }
-    /* Le plan occupe le cadre sans le déborder, quelle que soit son orientation. */
-    .plan-sheet .frame canvas,
-    .plan-sheet .frame img { max-width: 100%; max-height: 100%; display: block; }
+    .plan-sheet .frame canvas, .plan-sheet .frame img { max-width: 100%; max-height: 100%; display: block; }
+    .plan-sheet .cartouche {
+      border: 1px solid #C9CCC4; border-radius: 2px; padding: 7px 9px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+      font-family: var(--mono); font-size: 10px; color: #4A524C;
+    }
+    .plan-sheet .cartouche .dim { color: #8A918A; }
 
-    /* Les documents reçus avec la demande, sous la feuille. */
-    .docs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; }
+    /* Les documents reçus, sous la feuille. */
+    .docs { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; justify-content: center; }
     .doc-chip {
-      font-family: var(--mono); font-size: 10.5px; letter-spacing: .03em;
-      background: rgba(255,255,255,.08); color: rgba(255,255,255,.8);
-      border: 1px solid rgba(255,255,255,.14); border-radius: 4px;
-      padding: 4px 9px; cursor: pointer; text-decoration: none;
+      font-family: var(--mono); font-size: 10.5px;
+      background: var(--surface); color: var(--ink-3);
+      border: 1px solid var(--line); border-radius: 6px;
+      padding: 5px 9px; cursor: pointer; text-decoration: none;
       display: inline-flex; align-items: center; gap: 6px;
     }
-    .doc-chip:hover { background: rgba(255,255,255,.16); }
-    .doc-chip[aria-current="true"] {
-      background: var(--teal); color: #05312B; border-color: var(--teal);
-    }
-    .doc-chip .n { opacity: .6; }
-    .doc-note { font-size: 11.5px; color: rgba(255,255,255,.5); max-width: 62ch; }
-    .doc-note.uncertain { color: #F1C86B; }
-    .plan-sheet .cartouche {
-      border: 1px solid var(--line-2); border-radius: 2px; padding: 8px 10px;
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
-      font-family: var(--mono); font-size: 10.5px; color: var(--ink-2);
-    }
-    .plan-nav {
-      display: flex; align-items: center; gap: 10px;
-      padding: 12px 18px; border-top: 1px solid rgba(255,255,255,.08);
-    }
-    .plan-nav .btn { height: 34px; padding: 0 12px; font-size: 12px; }
-    .plan-nav .pos { font-family: var(--mono); font-size: 12px; color: rgba(255,255,255,.72); }
+    .doc-chip:hover { border-color: var(--line-2); color: var(--ink); }
+    .doc-chip[aria-current="true"] { background: var(--teal-soft); border-color: var(--teal); color: var(--ink); }
+    .doc-chip:disabled { opacity: .35; cursor: not-allowed; }
+    .doc-note { font-size: 11.5px; color: var(--ink-3); max-width: 62ch; }
+    .doc-note.uncertain { color: #E8C078; }
 
-    /* Colonne 3 — la proposition */
+    /**
+     * La barre d'articles : elle remplace le rail de gauche.
+     *
+     * Sur une seule ligne, qui défile : une demande peut porter cinquante-sept
+     * articles, et les laisser passer à la ligne mangerait la moitié de la
+     * hauteur du plan. L'article en revue est ramené dans la vue à chaque
+     * changement.
+     */
+    .articles {
+      display: flex; align-items: center; gap: 7px; flex-wrap: nowrap;
+      padding: 10px 18px; border-top: 1px solid var(--line); flex-shrink: 0;
+      overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent;
+    }
+    .art {
+      display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
+      padding: 6px 11px; background: var(--surface); border: 1px solid var(--line);
+      border-radius: 7px; cursor: pointer;
+      font-family: var(--sans); font-size: 12px; color: var(--ink-2);
+    }
+    .art:hover { border-color: var(--line-2); color: var(--ink); }
+    .art[aria-current="true"] { background: var(--teal-soft); border-color: var(--teal); color: var(--ink); }
+    .art .st { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .art .ref { font-family: var(--mono); font-size: 11.5px; }
+
+    /* ── Colonne 2 — la proposition ──
+     *
+     * Elle ne défile jamais : elle est un conteneur, et se resserre par
+     * paliers quand la fenêtre rétrécit (voir plus bas). La seule zone de
+     * longueur imprévisible — les constats — est la seule qui s'ajuste.
+     */
     .proposal {
       background: var(--surface); border-left: 1px solid var(--line);
-      overflow-y: auto; display: flex; flex-direction: column;
+      display: flex; flex-direction: column; min-height: 0;
+      container-type: size; container-name: prop;
     }
-    .prop-head { padding: 18px 20px 14px; border-bottom: 1px solid var(--line); }
-    .price-big { font-family: var(--mono); font-size: 30px; font-weight: 600; line-height: 1.1; margin: 8px 0 4px; }
-    .price-none { font-size: 17px; font-weight: 600; color: var(--red); margin: 8px 0 4px; }
-    .price-sub { font-size: 12px; color: var(--ink-3); }
+    .eyebrow { color: var(--ink-3); }
 
-    .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); }
-    .fact { background: var(--surface); padding: 12px 14px; }
-    .fact .k {
-      font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
-      text-transform: uppercase; color: var(--ink-3);
+    .prop-head { padding: 16px 22px 13px; flex-shrink: 0; }
+    .price-row { display: flex; align-items: flex-end; gap: 12px; margin-top: 9px; }
+    .price-big { font-family: var(--mono); font-size: 35px; font-weight: 600; line-height: .95; letter-spacing: -1.2px; }
+    .price-big .u { font-size: 13px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; margin-left: 5px; }
+    .price-none { font-size: 19px; font-weight: 700; color: var(--red); }
+    .price-tag {
+      margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--ink-2);
+      border: 1px solid var(--line-2); border-radius: 6px; padding: 6px 10px; white-space: nowrap;
     }
-    .fact .v { font-size: 13px; font-weight: 600; margin-top: 3px; word-break: break-word; }
+    .price-sub { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); margin-top: 7px; }
 
-    .section {
-      padding: 16px 20px; border-bottom: 1px solid var(--line);
-      display: flex; flex-direction: column; gap: 10px;
+    /* Ce que la machine a lu de la pièce. */
+    .fields { padding: 0 22px 13px; display: flex; flex-wrap: wrap; gap: 9px; flex-shrink: 0; }
+    .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+    .field.des { flex: 1 1 100%; }
+    .field.mat { flex: 1 1 0; }
+    .field.qte { flex: 0 0 68px; }
+    .field .v {
+      font-size: 13px; font-weight: 600; color: var(--ink);
+      background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px;
+      padding: 10px 12px; min-height: 39px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .detail-row { display: flex; align-items: baseline; gap: 10px; font-size: 12.5px; }
-    .detail-row .label { flex-grow: 1; color: var(--ink-2); }
-    .detail-row .amount { font-family: var(--mono); font-weight: 600; }
-    .detail-basis { font-size: 11.5px; color: var(--ink-3); line-height: 1.5; margin: -4px 0 4px; }
+    .field .v.none { color: var(--ink-3); font-weight: 500; }
 
-    .alert { display: flex; gap: 9px; font-size: 12.5px; line-height: 1.5; }
-    .alert .dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
-    .alert-rouge .dot { background: var(--red); }
+    /* Le calcul : quatre postes sur une ligne, le « pourquoi » du seul poste
+       désigné. Quatre paragraphes empilés coûtaient cent pixels de plus et se
+       lisaient moins bien. */
+    .calc { padding: 0 22px 13px; flex-shrink: 0; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 7px; margin-top: 9px; }
+    .card {
+      position: relative; overflow: hidden; cursor: pointer; text-align: left;
+      background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px;
+      padding: 9px 10px 11px; font-family: var(--sans); color: var(--ink);
+    }
+    .card:hover { border-color: var(--line-2); }
+    .card[aria-pressed="true"] { border-color: var(--teal); }
+    .card .k { display: block; font-size: 10.5px; color: var(--ink-2); line-height: 1.25; min-height: 26px; }
+    .card .v { display: block; font-family: var(--mono); font-size: 16px; font-weight: 600; margin-top: 3px; }
+    .card .share { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--teal); opacity: .8; }
+    .calc-why {
+      font-size: 11px; color: var(--ink-3); line-height: 1.45; margin-top: 9px;
+      border-left: 2px solid var(--surface-3); padding-left: 10px;
+    }
+
+    /**
+     * Les constats : une carte neutre chacun, la couleur réduite à la pastille.
+     *
+     * Un fond ambre pleine largeur crie au danger même quand le constat dit
+     * « rien de particulier ». Fond neutre, les constats rassurants peuvent
+     * enfin s'écrire à côté des inquiétants, et c'est la pastille qui trie.
+     */
+    .alerts { padding: 0 22px 13px; flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; }
+    .alert-list {
+      margin-top: 9px; min-height: 0; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 8px;
+      scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent;
+    }
+    .alert {
+      display: flex; gap: 12px; font-size: 13px; line-height: 1.45;
+      background: var(--surface-2); color: var(--ink);
+      border-radius: 10px; padding: 11px 14px;
+    }
+    .alert .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: var(--ink-3); }
     .alert-jaune .dot { background: var(--amber); }
-    .alert-vert .dot { background: var(--green); }
+    .alert-vert  .dot { background: var(--green); }
+    .alert-rouge .dot { background: var(--red); }
+    /* Une liste coupée le dit, au lieu de laisser croire qu'il n'y a que ça. */
+    .alert-more { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); padding-top: 7px; }
 
-    .choice {
-      display: flex; flex-direction: column; gap: 3px;
-      padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px;
-      cursor: pointer; background: var(--surface); text-align: left; width: 100%;
-      font-family: var(--sans);
+    /* Les trois issues autres que « valider ». */
+    .options { padding: 0 22px 12px; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+    .opt {
+      display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+      background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px;
+      padding: 10px 14px; cursor: pointer; font-family: var(--sans); color: var(--ink);
     }
-    .choice:hover { border-color: var(--line-2); background: var(--surface-2); }
-    .choice[aria-expanded="true"] { border-color: var(--teal); background: var(--teal-soft); }
-    .choice .t { font-size: 13px; font-weight: 600; }
-    .choice .d { font-size: 11.5px; color: var(--ink-2); }
-    .choice-body { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 2px; }
+    .opt:hover { border-color: var(--line-2); }
+    .opt[aria-checked="true"] { border-color: var(--teal); background: var(--teal-soft); }
+    .opt .radio { width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--ink-3); flex-shrink: 0; position: relative; }
+    .opt[aria-checked="true"] .radio { border-color: var(--teal); }
+    .opt[aria-checked="true"] .radio::after { content: ''; position: absolute; inset: 3px; border-radius: 50%; background: var(--teal); }
+    .opt .t { display: block; font-size: 13px; font-weight: 600; }
+    .opt .d { display: block; font-size: 11.5px; color: var(--ink-3); margin-top: 2px; line-height: 1.35; }
+    .opt-body { display: flex; gap: 8px; }
+    .opt-body textarea { min-height: 62px; }
 
-    .verdict { display: flex; gap: 10px; padding: 16px 20px; }
-    .verdict .btn { flex: 1; }
+    .verdict { display: flex; gap: 10px; padding: 13px 22px 15px; border-top: 1px solid var(--line); flex-shrink: 0; }
+    .verdict .btn { flex: 1; height: 43px; font-size: 14px; font-weight: 700; border-radius: 9px; border: 0; }
+    .btn-validate { background: var(--green); color: #05230F; }
+    .btn-validate:hover { background: #4FD07B; color: #05230F; }
+    .btn-reject { background: var(--red); color: #2A0A06; }
+    .btn-reject:hover { background: #ED6E5D; }
+    .btn-ghost { background: var(--surface-3); color: var(--ink); border-color: var(--line-2); }
+    .btn-ghost:hover { background: var(--surface-2); }
+
+    input[type="text"], input[type="number"], textarea, select {
+      color: var(--ink); background: var(--surface-2); border-color: var(--line);
+    }
+    input:focus, textarea:focus, select:focus { border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-soft); }
 
     .note { font-size: 12px; color: var(--ink-2); line-height: 1.55; }
-    .note.done { color: var(--teal-ink); font-weight: 600; }
     .note.warn { color: var(--red); font-weight: 600; }
-
     .empty { padding: 40px 24px; text-align: center; color: var(--ink-3); font-size: 13px; line-height: 1.6; }
+    .prop-msg { padding: 12px 22px 0; flex-shrink: 0; }
 
+    /**
+     * Un panneau qui ne défile jamais, quelle que soit la fenêtre.
+     *
+     * Trois paliers, du moins cher au plus cher : la désignation rejoint la
+     * ligne matière/quantité, puis le justificatif des issues disparaît, puis
+     * les issues se rangent sur une ligne. Aucun chiffre ne part — seul le
+     * confort de lecture se resserre.
+     */
+    @container prop (max-height: 880px) {
+      .field.des { flex: 1.5 1 0; }
+    }
+    @container prop (max-height: 750px) {
+      .opt .d { display: none; }
+      .price-big { font-size: 31px; }
+    }
+    @container prop (max-height: 700px) {
+      .options { flex-direction: row; flex-wrap: wrap; }
+      .opt { flex: 1 1 0; justify-content: center; gap: 8px; padding: 9px 8px; }
+      .opt .t { font-size: 12px; white-space: nowrap; }
+      .opt-body { flex: 1 1 100%; }
+      .calc-why { display: none; }
+    }
+
+    /* Sous 1100 px, la revue n'a plus la place de ses deux colonnes : le plan
+       passe au-dessus et la page redevient une page qui défile. */
     @media (max-width: 1100px) {
+      body { overflow: auto; }
       .workbench { grid-template-columns: 1fr; height: auto; }
-      .rail, .proposal { border: none; border-bottom: 1px solid var(--line); }
-      .plan { min-height: 440px; }
+      /* Le plan garde de quoi se lire : sous 1100 px il n'est plus contraint
+         par la hauteur de la fenêtre, donc rien ne l'oblige à s'écraser. */
+      .plan { min-height: 640px; border-right: none; border-bottom: 1px solid var(--line); }
+      .plan-sheet.has-plan { min-height: 440px; }
+      .proposal { border-left: none; container-type: normal; }
+      .load { display: none; }
     }
   </style>
 </head>
@@ -196,19 +345,20 @@
   <header class="app-bar">
     <a class="brand" href="/"><img src="/logo.png" alt="Usi-Pro"><span class="brand-rule"></span><span class="brand-app">Internal</span></a>
     <span class="app-name">Chiffrage</span>
-    <a class="app-nav" href="/chiffrage.html" aria-current="page">Devis</a>
+    <a class="app-nav" href="/analyse.html" id="toAnalyse">Analyse</a>
+    <a class="app-nav" href="/chiffrage.html" aria-current="page">Revue</a>
     <a class="app-nav" href="/parametrage.html">Paramétrage</a>
+    <select class="picker" id="picker" aria-label="Devis en cours"></select>
     <div class="spacer"></div>
+    <div class="load" id="load"></div>
     <a class="app-nav" href="/">Accueil</a>
   </header>
 
   <main class="workbench">
-    <aside class="rail" id="rail"><div class="empty">chargement…</div></aside>
-
     <section class="plan">
       <div class="plan-bar" id="planBar"><span>—</span></div>
       <div class="plan-body" id="planBody"></div>
-      <div class="plan-nav" id="planNav"></div>
+      <div class="articles" id="articles"></div>
     </section>
 
     <aside class="proposal" id="proposal"><div class="empty">chargement…</div></aside>
@@ -224,6 +374,8 @@
     let PAGE = 1;         // sa page affichée
     let PICKED = null;    // document choisi à la main — il prime sur le rattachement
     let DOCS_OPEN = false; // la liste complète des documents est dépliée
+    let POST = 0;         // le poste de calcul désigné, dont on lit le « pourquoi »
+    let CHOICE = null;    // l'issue cochée : 'forcer', 'recalculer' ou null
     const MAX_CHIPS = 8;   // au-delà, la liste se replie
     let RENDER = 0;       // jeton : un rendu dépassé ne doit pas écraser le suivant
 
@@ -237,14 +389,6 @@
     /** Pour comparer un nom de fichier à une référence sans buter sur la ponctuation. */
     function normalize(text) { return String(text || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 
-    /**
-     * Quel document montrer pour cet article, et à quel point on en est sûr.
-     *
-     * Un plan nommé d'après la référence de la pièce, c'est une certitude. Un
-     * document unique sur une demande à un seul article, c'est raisonnable.
-     * Tout le reste est une supposition, et l'écran doit le dire plutôt que de
-     * laisser croire que le plan affiché est celui du prix affiché.
-     */
     /**
      * Une image de signature n'est pas un plan.
      *
@@ -263,6 +407,14 @@
       return (file.byteSize || 0) < 150000;
     }
 
+    /**
+     * Quel document montrer pour cet article, et à quel point on en est sûr.
+     *
+     * Un plan nommé d'après la référence de la pièce, c'est une certitude. Un
+     * document unique sur une demande à un seul article, c'est raisonnable.
+     * Tout le reste est une supposition, et l'écran doit le dire plutôt que de
+     * laisser croire que le plan affiché est celui du prix affiché.
+     */
     function documentFor(line) {
       const viewable = FILES.filter(f => isViewable(f.fileName));
       if (viewable.length === 0) return { file: null, certainty: 'aucun' };
@@ -301,6 +453,15 @@
       rejetee: 'rejeté',
     };
 
+    /** La couleur d'une pastille d'article : son état prime sur son alerte. */
+    function dotColor(line) {
+      if (line.status === 'rejetee') return 'var(--red)';
+      if (line.status && line.status !== 'a_traiter') return 'var(--teal)';
+      if (line.alertLevel === 'rouge') return 'var(--red)';
+      if (line.alertLevel === 'jaune') return 'var(--amber)';
+      return 'var(--green)';
+    }
+
     function el(tag, className, text) {
       const node = document.createElement(tag);
       if (className) node.className = className;
@@ -312,81 +473,97 @@
       return value == null ? '—' : value.toFixed(2).replace('.', ',') + ' €';
     }
 
-    // ── Colonne 1 : les devis ──────────────────────────────────
-    function renderRail() {
-      const rail = document.getElementById('rail');
-      rail.innerHTML = '';
-
-      if (!CURRENT) {
-        rail.appendChild(el('div', 'empty', 'Aucun devis.'));
-        return;
-      }
-
-      const head = el('div', 'rail-head');
-      head.appendChild(el('span', 'rail-ref', CURRENT.ref));
-      head.appendChild(el('span', 'rail-client', CURRENT.client));
-      rail.appendChild(head);
-
-      const pending = LINES.filter(l => l.status === 'a_traiter').length;
-      const count = el('div', 'rail-count');
-      count.appendChild(el('span', 'n', String(pending)));
-      count.appendChild(el('span', 'label', pending > 1 ? 'articles à traiter' : 'article à traiter'));
-      rail.appendChild(count);
-
-      const list = el('div', 'devis-list');
-      list.appendChild(el('div', 'eyebrow', 'Devis en cours'));
+    // ── Barre du haut : le devis, et ce qu'il reste à en faire ──
+    function renderPicker() {
+      const picker = document.getElementById('picker');
+      picker.innerHTML = '';
       for (const work of WORKS) {
-        const btn = el('button', 'devis');
-        btn.type = 'button';
-        btn.setAttribute('aria-current', String(work.id === CURRENT.id));
-        btn.appendChild(el('span', 'ref', work.ref));
-        // Le nombre de documents, à côté du nombre d'articles: sans lui, rien
-        // ne dit que la demande d'à côté porte cinquante-sept plans, et on
-        // ouvre l'outil sur un devis sans pièce jointe en croyant qu'il n'y en
-        // a nulle part.
-        if (work.fileCount > 0) {
-          const docs = el('span', 'docs-n', String(work.fileCount));
-          docs.title = work.fileCount > 1
-            ? work.fileCount + ' documents reçus'
-            : '1 document reçu';
-          btn.appendChild(docs);
-        }
-        btn.appendChild(el('span', 'n', String(work.lineCount || 0)));
-        btn.onclick = () => selectWork(work.id);
-        list.appendChild(btn);
+        const opt = el('option', null,
+          work.ref + ' · ' + work.client +
+          '  (' + (work.lineCount || 0) + ' art.' +
+          (work.fileCount > 0 ? ' · ' + work.fileCount + ' doc.' : '') + ')');
+        opt.value = work.id;
+        opt.selected = !!CURRENT && work.id === CURRENT.id;
+        picker.appendChild(opt);
       }
-      rail.appendChild(list);
+      picker.onchange = () => selectWork(picker.value);
     }
 
-    // ── Colonne 2 : le plan ────────────────────────────────────
+    /**
+     * L'avancement, à droite : ce qui reste à traiter dans le devis ouvert.
+     *
+     * Il ne parle que du devis ouvert — les articles des autres devis ne sont
+     * pas chargés, et un compteur global ne serait qu'une estimation. Le menu
+     * à gauche dit déjà combien d'articles portent les autres demandes.
+     */
+    function renderLoad() {
+      const box = document.getElementById('load');
+      box.innerHTML = '';
+      if (!CURRENT || LINES.length === 0) return;
+
+      const pending = LINES.filter(l => l.status === 'a_traiter').length;
+      const done = LINES.length - pending;
+
+      const n = el('div', 'load-n');
+      n.appendChild(el('div', 'n', String(pending)));
+      n.appendChild(el('div', 'l', pending > 1 ? 'articles à traiter' : 'article à traiter'));
+      box.appendChild(n);
+
+      const bar = el('div', 'load-bar');
+      const track = el('div', 'track');
+      const fill = el('span', 'fill');
+      fill.style.width = Math.round((done / LINES.length) * 100) + '%';
+      track.appendChild(fill);
+      bar.appendChild(track);
+      bar.appendChild(el('div', 'c', done + ' sur ' + LINES.length + ' traités'));
+      box.appendChild(bar);
+    }
+
+    // ── Colonne 1 : le plan ───────────────────────────────────
     function renderPlan() {
       const bar = document.getElementById('planBar');
       const body = document.getElementById('planBody');
-      const nav = document.getElementById('planNav');
-      bar.innerHTML = ''; body.innerHTML = ''; nav.innerHTML = '';
+      bar.innerHTML = ''; body.innerHTML = '';
 
       const line = LINES[INDEX];
       if (!line) {
+        bar.appendChild(el('span', null, CURRENT ? CURRENT.ref : '—'));
         body.appendChild(el('div', null, 'Aucun article à afficher pour ce devis.'));
         return;
       }
 
-      bar.appendChild(el('span', null, CURRENT.ref));
-      bar.appendChild(el('span', 'badge', 'Article ' + (INDEX + 1) + ' / ' + LINES.length));
+      const match = documentFor(line);
+      const target = PICKED || match.file;
+
+      bar.appendChild(el('span', null, target ? target.fileName : CURRENT.ref));
+      if (target && DOC && DOC.fileId === target.id && DOC.pages > 1) {
+        bar.appendChild(el('span', null, '· page ' + PAGE + '/' + DOC.pages));
+      }
       if (line.alertLevel && line.alertLevel !== 'vert') {
-        bar.appendChild(el('span', 'badge', line.alertLevel === 'rouge' ? 'non chiffrable' : 'sous hypothèse'));
+        bar.appendChild(el('span', 'badge ' + (line.alertLevel === 'rouge' ? 'bad' : 'warn'),
+          line.alertLevel === 'rouge' ? 'non chiffrable' : 'sous hypothèse'));
       }
       if (line.status && line.status !== 'a_traiter') {
         bar.appendChild(el('span', 'badge', STATUS_LABEL[line.status]));
       }
 
+      const prev = el('button', 'step', '←');
+      prev.type = 'button';
+      prev.title = 'Article précédent';
+      prev.disabled = INDEX === 0;
+      prev.onclick = () => goTo(INDEX - 1);
+      const next = el('button', 'step', '→');
+      next.type = 'button';
+      next.title = 'Article suivant';
+      next.disabled = INDEX >= LINES.length - 1;
+      next.onclick = () => goTo(INDEX + 1);
+
+      bar.appendChild(el('span', 'pos', 'Article ' + (INDEX + 1) + ' / ' + LINES.length));
+      bar.appendChild(prev);
+      bar.appendChild(next);
+
       const sheet = el('div', 'plan-sheet');
       sheet.appendChild(el('div', 'title', (line.reference || '—') + ' · ' + (line.designation || 'sans désignation')));
-
-      // PICKED est un choix de l'opérateur : il prime sur le rattachement
-      // automatique tant qu'il reste sur cet article.
-      const match = documentFor(line);
-      const target = PICKED || match.file;
 
       const frame = el('div', 'frame');
       if (!target) {
@@ -411,7 +588,7 @@
        ['ÉTAT', STATUS_LABEL[line.status] || '—']].forEach(([k, v]) => {
         const cell = el('div');
         cell.appendChild(el('div', 'dim', k));
-        cell.appendChild(el('div', null, v));
+        cell.appendChild(el('div', null, String(v)));
         cartouche.appendChild(cell);
       });
       sheet.appendChild(cartouche);
@@ -420,20 +597,43 @@
       body.appendChild(renderDocs(line, match, target));
 
       if (line.comment) body.appendChild(el('div', null, line.comment));
+    }
 
-      const prev = el('button', 'btn btn-ghost', '← Précédent');
-      prev.type = 'button';
-      prev.disabled = INDEX === 0;
-      prev.onclick = () => { INDEX--; PICKED = null; DOCS_OPEN = false; renderAll(); };
+    /** La bande d'articles, sous le plan : elle remplace le rail de gauche. */
+    function renderArticles() {
+      const box = document.getElementById('articles');
+      box.innerHTML = '';
+      if (LINES.length === 0) return;
 
-      const next = el('button', 'btn btn-ghost', 'Suivant →');
-      next.type = 'button';
-      next.disabled = INDEX >= LINES.length - 1;
-      next.onclick = () => { INDEX++; PICKED = null; DOCS_OPEN = false; renderAll(); };
+      LINES.forEach((line, i) => {
+        const btn = el('button', 'art');
+        btn.type = 'button';
+        btn.setAttribute('aria-current', String(i === INDEX));
+        btn.title = (line.designation || 'sans désignation') + ' — ' + (STATUS_LABEL[line.status] || '');
+        const dot = el('span', 'st');
+        dot.style.background = dotColor(line);
+        btn.appendChild(dot);
+        btn.appendChild(el('span', 'ref', line.reference || String(i + 1)));
+        btn.onclick = () => goTo(i);
+        box.appendChild(btn);
+      });
 
-      nav.appendChild(prev);
-      nav.appendChild(el('span', 'pos', (INDEX + 1) + ' / ' + LINES.length));
-      nav.appendChild(next);
+      // L'article en revue au milieu de la bande, pas hors écran à gauche.
+      const active = box.children[INDEX];
+      if (active) {
+        box.scrollLeft = Math.max(0, active.offsetLeft - (box.clientWidth - active.offsetWidth) / 2);
+      }
+    }
+
+    /** Changer d'article remet à zéro ce qui appartenait au précédent. */
+    function goTo(i) {
+      if (i < 0 || i >= LINES.length) return;
+      INDEX = i;
+      PICKED = null;
+      DOCS_OPEN = false;
+      POST = 0;
+      CHOICE = null;
+      renderAll();
     }
 
     /** L'adresse d'un fichier archivé, servie par nous. */
@@ -501,7 +701,6 @@
 
         frame.innerHTML = '';
         frame.appendChild(canvas);
-        renderPlan.pageCount = DOC.pages;
         refreshDocs();
       } catch (err) {
         if (token !== RENDER) return;
@@ -520,7 +719,7 @@
       const box = el('div', 'docs-wrap');
       box.style.display = 'flex';
       box.style.flexDirection = 'column';
-      box.style.gap = '10px';
+      box.style.gap = '9px';
       box.style.alignItems = 'center';
 
       if (FILES.length === 0) return box;
@@ -587,8 +786,7 @@
           choisi: ['Document choisi à la main.', false],
         }[certainty];
         if (NOTE) {
-          const note = el('div', 'doc-note' + (NOTE[1] ? ' uncertain' : ''), NOTE[0]);
-          box.appendChild(note);
+          box.appendChild(el('div', 'doc-note' + (NOTE[1] ? ' uncertain' : ''), NOTE[0]));
         }
       }
 
@@ -605,7 +803,7 @@
       old.replaceWith(renderDocs(line, match, PICKED || match.file));
     }
 
-    // ── Colonne 3 : la proposition ─────────────────────────────
+    // ── Colonne 2 : la proposition ────────────────────────────
     function renderProposal() {
       const box = document.getElementById('proposal');
       box.innerHTML = '';
@@ -619,73 +817,104 @@
         return;
       }
 
+      // Le prix, et d'où il vient.
       const head = el('div', 'prop-head');
       head.appendChild(el('div', 'eyebrow', 'Proposition · prix de revient unitaire'));
+      const row = el('div', 'price-row');
       if (line.unitPrice != null) {
-        head.appendChild(el('div', 'price-big', money(line.unitPrice)));
-        head.appendChild(el('div', 'price-sub',
-          line.status === 'forcee'
-            ? 'prix imposé par le technicien'
-            : 'calcul déterministe · ' + money(line.totalPrice) + ' pour la série'));
+        const price = el('div', 'price-big', money(line.unitPrice));
+        price.appendChild(el('span', 'u', '/ pièce'));
+        row.appendChild(price);
+        row.appendChild(el('span', 'price-tag',
+          line.status === 'forcee' ? 'prix imposé' : 'calcul déterministe'));
       } else {
-        head.appendChild(el('div', 'price-none', 'Pas de prix'));
-        head.appendChild(el('div', 'price-sub',
-          line.status === 'manuelle'
-            ? 'ligne sortie du chiffrage, à compléter à la main'
-            : 'article non chiffrable en l’état'));
+        row.appendChild(el('div', 'price-none', 'Pas de prix'));
+        row.appendChild(el('span', 'price-tag',
+          line.status === 'manuelle' ? 'à compléter à la main' : 'non chiffrable'));
       }
+      head.appendChild(row);
+      head.appendChild(el('div', 'price-sub',
+        line.unitPrice != null
+          ? money(line.totalPrice) + ' pour la série de ' + (line.quantity || '—')
+          : line.status === 'manuelle'
+            ? 'ligne sortie du chiffrage'
+            : 'article non chiffrable en l’état'));
       box.appendChild(head);
 
-      const facts = el('div', 'facts');
-      [['Désignation', line.designation || '—'],
-       ['Matière', line.material || 'Non lisible'],
-       ['Qté', line.quantity || '—']].forEach(([k, v]) => {
-        const f = el('div', 'fact');
-        f.appendChild(el('div', 'k', k));
-        f.appendChild(el('div', 'v', v));
-        facts.appendChild(f);
+      // Ce que la machine a lu de la pièce.
+      const fields = el('div', 'fields');
+      [['des', 'Désignation', line.designation, 'non lisible'],
+       ['mat', 'Matière', line.material, 'non lisible'],
+       ['qte', 'Qté', line.quantity, '—']].forEach(([cls, label, value, fallback]) => {
+        const f = el('div', 'field ' + cls);
+        f.appendChild(el('span', 'eyebrow', label));
+        const v = el('div', 'v' + (value ? '' : ' none'), value ? String(value) : fallback);
+        v.title = value ? String(value) : fallback;   // la désignation tronquée reste lisible au survol
+        f.appendChild(v);
+        fields.appendChild(f);
       });
-      box.appendChild(facts);
+      box.appendChild(fields);
 
-      const detail = el('div', 'section');
-      detail.appendChild(el('div', 'eyebrow', 'Détail du calcul'));
+      // Le calcul : un chiffre par poste, le « pourquoi » du poste désigné.
       const items = (line.priceBreakdown && line.priceBreakdown.items) || [];
+      const calc = el('div', 'calc');
+      calc.appendChild(el('div', 'eyebrow', 'Détail du calcul'));
       if (items.length === 0) {
-        detail.appendChild(el('div', 'note', 'Aucun calcul : cette ligne n’a pas été chiffrée.'));
+        calc.appendChild(el('div', 'calc-why', 'Aucun calcul : cette ligne n’a pas été chiffrée.'));
+      } else {
+        if (POST >= items.length) POST = 0;
+        const total = items.reduce((sum, it) => sum + Math.abs(it.amount || 0), 0);
+        const cards = el('div', 'cards');
+        items.forEach((item, i) => {
+          const card = el('button', 'card');
+          card.type = 'button';
+          card.setAttribute('aria-pressed', String(i === POST));
+          card.appendChild(el('span', 'k', item.label));
+          card.appendChild(el('span', 'v', money(item.amount)));
+          // La barre sous la carte dit la part du poste dans le prix.
+          const share = el('span', 'share');
+          share.style.width = total > 0
+            ? Math.round((Math.abs(item.amount || 0) / total) * 100) + '%'
+            : '0%';
+          card.appendChild(share);
+          card.onclick = () => { POST = i; renderProposal(); };
+          cards.appendChild(card);
+        });
+        calc.appendChild(cards);
+        calc.appendChild(el('div', 'calc-why', items[POST].basis || '—'));
       }
-      for (const item of items) {
-        const row = el('div', 'detail-row');
-        row.appendChild(el('span', 'label', item.label));
-        row.appendChild(el('span', 'amount', money(item.amount)));
-        detail.appendChild(row);
-        detail.appendChild(el('div', 'detail-basis', item.basis));
-      }
-      box.appendChild(detail);
+      box.appendChild(calc);
 
-      const alerts = el('div', 'section');
+      // Les constats : une carte neutre chacun, la pastille porte le niveau.
+      const alerts = el('div', 'alerts');
       alerts.appendChild(el('div', 'eyebrow', 'Alertes'));
-      const list = (line.alerts && line.alerts.length) ? line.alerts : [];
-      if (list.length === 0) {
+      const list = el('div', 'alert-list');
+      const texts = (line.alerts && line.alerts.length) ? line.alerts : [];
+      if (texts.length === 0) {
         const ok = el('div', 'alert alert-vert');
         ok.appendChild(el('span', 'dot'));
         ok.appendChild(el('span', null, 'Rien à signaler : la demande se suffit à elle-même.'));
-        alerts.appendChild(ok);
+        list.appendChild(ok);
       }
-      for (const text of list) {
+      for (const text of texts) {
         const a = el('div', 'alert alert-' + (line.alertLevel || 'jaune'));
         a.appendChild(el('span', 'dot'));
         a.appendChild(el('span', null, text));
-        alerts.appendChild(a);
+        list.appendChild(a);
       }
+      alerts.appendChild(list);
+      const more = el('div', 'alert-more');
+      more.hidden = true;
+      alerts.appendChild(more);
       box.appendChild(alerts);
 
       box.appendChild(renderChoices(line));
 
       const verdict = el('div', 'verdict');
-      const reject = el('button', 'btn btn-danger', '✕ Rejeter');
+      const reject = el('button', 'btn btn-reject', '✕ Rejeter');
       reject.type = 'button';
       reject.onclick = () => review(line, 'rejeter');
-      const validate = el('button', 'btn btn-primary', '✓ Valider');
+      const validate = el('button', 'btn btn-validate', '✓ Valider');
       validate.type = 'button';
       validate.onclick = () => review(line, 'valider');
       verdict.appendChild(reject);
@@ -693,71 +922,90 @@
       box.appendChild(verdict);
 
       if (line.reviewNote) {
-        const n = el('div', 'section');
-        n.appendChild(el('div', 'eyebrow', 'Consigne du technicien'));
-        n.appendChild(el('div', 'note', line.reviewNote));
-        box.appendChild(n);
+        const n = el('div', 'prop-msg');
+        n.appendChild(el('div', 'note', 'Consigne du technicien : ' + line.reviewNote));
+        box.insertBefore(n, box.firstChild);
       }
+
+      countHiddenAlerts();
+    }
+
+    /**
+     * Combien de constats la liste cache-t-elle, à cette hauteur de fenêtre ?
+     *
+     * C'est la seule zone du panneau dont la longueur est imprévisible : un
+     * article peut n'avoir aucun constat comme en avoir six. Quand elle coupe,
+     * elle le dit — sinon l'écran laisse croire qu'il n'y avait que ça.
+     */
+    function countHiddenAlerts() {
+      const list = document.querySelector('.alert-list');
+      const more = document.querySelector('.alert-more');
+      if (!list || !more) return;
+      const box = list.getBoundingClientRect();
+      const hidden = [...list.querySelectorAll('.alert')]
+        .filter(a => a.getBoundingClientRect().bottom > box.bottom + 1).length;
+      more.hidden = hidden === 0;
+      more.textContent = hidden === 1 ? '↓ 1 autre constat' : '↓ ' + hidden + ' autres constats';
     }
 
     /** Les trois issues autres que « valider » : imposer, recalculer, sortir. */
     function renderChoices(line) {
-      const box = el('div', 'section');
+      const box = el('div', 'options');
 
-      const force = el('button', 'choice');
-      force.type = 'button';
-      force.setAttribute('aria-expanded', 'false');
-      force.appendChild(el('span', 't', 'Forcer le prix'));
-      force.appendChild(el('span', 'd', 'prix imposé, sans recalcul — le calcul reste au bordereau'));
-      const forceBody = el('div', 'choice-body');
-      forceBody.hidden = true;
-      const priceInput = el('input');
-      priceInput.type = 'number'; priceInput.step = '0.01'; priceInput.min = '0';
-      priceInput.placeholder = 'prix unitaire imposé';
-      priceInput.setAttribute('aria-label', 'Prix unitaire imposé');
-      const forceBtn = el('button', 'btn btn-ghost', 'Imposer ce prix');
-      forceBtn.type = 'button';
-      forceBtn.onclick = () => review(line, 'forcer', { price: Number(priceInput.value) });
-      forceBody.appendChild(priceInput);
-      forceBody.appendChild(forceBtn);
-      force.onclick = () => {
-        const open = forceBody.hidden;
-        forceBody.hidden = !open;
-        force.setAttribute('aria-expanded', String(open));
-      };
-      box.appendChild(force);
-      box.appendChild(forceBody);
+      /** Une issue : un bouton radio, et la saisie qu'elle ouvre. */
+      function option(key, title, detail, onPick) {
+        const btn = el('button', 'opt');
+        btn.type = 'button';
+        btn.setAttribute('aria-checked', String(CHOICE === key));
+        btn.setAttribute('role', 'radio');
+        btn.appendChild(el('span', 'radio'));
+        const text = el('span');
+        text.appendChild(el('span', 't', title));
+        text.appendChild(el('span', 'd', detail));
+        btn.appendChild(text);
+        btn.onclick = onPick || (() => { CHOICE = CHOICE === key ? null : key; renderProposal(); });
+        box.appendChild(btn);
+        return btn;
+      }
 
-      const recalc = el('button', 'choice');
-      recalc.type = 'button';
-      recalc.setAttribute('aria-expanded', 'false');
-      recalc.appendChild(el('span', 't', 'Commentaire de recalcul'));
-      recalc.appendChild(el('span', 'd', 'l’outil recalcule avec votre consigne'));
-      const recalcBody = el('div', 'choice-body');
-      recalcBody.hidden = true;
-      const noteInput = el('textarea');
-      noteInput.rows = 3;
-      noteInput.placeholder = 'ex : reprendre en inox 316L, brut barre Ø60';
-      noteInput.setAttribute('aria-label', 'Consigne de recalcul');
-      const recalcBtn = el('button', 'btn btn-ghost', 'Envoyer la consigne');
-      recalcBtn.type = 'button';
-      recalcBtn.onclick = () => review(line, 'recalculer', { note: noteInput.value });
-      recalcBody.appendChild(noteInput);
-      recalcBody.appendChild(recalcBtn);
-      recalc.onclick = () => {
-        const open = recalcBody.hidden;
-        recalcBody.hidden = !open;
-        recalc.setAttribute('aria-expanded', String(open));
-      };
-      box.appendChild(recalc);
-      box.appendChild(recalcBody);
+      option('forcer', 'Forcer le prix', 'prix imposé, sans recalcul — le calcul reste au bordereau');
+      if (CHOICE === 'forcer') {
+        const body = el('div', 'opt-body');
+        const input = el('input');
+        input.type = 'number'; input.step = '0.01'; input.min = '0';
+        input.placeholder = 'prix unitaire imposé';
+        input.setAttribute('aria-label', 'Prix unitaire imposé');
+        input.style.flex = '1';
+        const go = el('button', 'btn btn-ghost', 'Imposer');
+        go.type = 'button';
+        go.style.height = '39px';
+        go.onclick = () => review(line, 'forcer', { price: Number(input.value) });
+        body.appendChild(input);
+        body.appendChild(go);
+        box.appendChild(body);
+        setTimeout(() => input.focus(), 0);
+      }
 
-      const manual = el('button', 'choice');
-      manual.type = 'button';
-      manual.appendChild(el('span', 't', 'Traitement manuel'));
-      manual.appendChild(el('span', 'd', 'la ligne part sans prix, marquée à compléter'));
-      manual.onclick = () => review(line, 'manuel');
-      box.appendChild(manual);
+      option('recalculer', 'Commentaire de recalcul', 'l’outil recalcule avec votre consigne');
+      if (CHOICE === 'recalculer') {
+        const body = el('div', 'opt-body');
+        const note = el('textarea');
+        note.rows = 2;
+        note.placeholder = 'ex : reprendre en inox 316L, brut barre Ø60';
+        note.setAttribute('aria-label', 'Consigne de recalcul');
+        note.style.flex = '1';
+        const go = el('button', 'btn btn-ghost', 'Envoyer');
+        go.type = 'button';
+        go.style.height = '39px';
+        go.onclick = () => review(line, 'recalculer', { note: note.value });
+        body.appendChild(note);
+        body.appendChild(go);
+        box.appendChild(body);
+        setTimeout(() => note.focus(), 0);
+      }
+
+      option('manuel', 'Traitement manuel', 'la ligne part sans prix, marquée à compléter',
+        () => review(line, 'manuel'));
 
       return box;
     }
@@ -774,21 +1022,31 @@
         if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
 
         LINES[INDEX] = { ...LINES[INDEX], ...data.line };
+        CHOICE = null;
+        POST = 0;
         // La revue s'enchaîne : on passe à l'article suivant, sauf si on vient
         // de demander un recalcul — là on reste pour en voir le résultat.
-        if (action !== 'recalculer' && INDEX < LINES.length - 1) INDEX++;
+        if (action !== 'recalculer' && INDEX < LINES.length - 1) {
+          INDEX++;
+          PICKED = null;
+          DOCS_OPEN = false;
+        }
         renderAll();
       } catch (err) {
         const box = document.getElementById('proposal');
-        const warn = el('div', 'section');
+        const warn = el('div', 'prop-msg');
         warn.appendChild(el('div', 'note warn', 'Décision non enregistrée : ' + err.message));
         box.prepend(warn);
       }
     }
 
     function renderAll() {
-      renderRail();
+      const toAnalyse = document.getElementById('toAnalyse');
+      toAnalyse.href = CURRENT ? '/analyse.html#' + encodeURIComponent(CURRENT.id) : '/analyse.html';
+      renderPicker();
+      renderLoad();
       renderPlan();
+      renderArticles();
       renderProposal();
     }
 
@@ -800,6 +1058,8 @@
       DOC = null;
       PICKED = null;
       PAGE = 1;
+      POST = 0;
+      CHOICE = null;
       RENDER++;   // les plans du devis précédent ne doivent plus s'afficher
       renderAll();
       if (!CURRENT) return;
@@ -818,7 +1078,6 @@
     }
 
     async function load() {
-      const rail = document.getElementById('rail');
       const proposal = document.getElementById('proposal');
       try {
         const resp = await fetch('/api/works?tool=chiffrage&limit=100');
@@ -827,19 +1086,31 @@
 
         WORKS = data.works || [];
         if (WORKS.length === 0) {
-          rail.innerHTML = '';
-          rail.appendChild(el('div', 'empty', 'Aucune demande reçue.'));
           proposal.innerHTML = '';
           proposal.appendChild(el('div', 'empty',
-            'Un mail envoyé à chiffrage@usi-pro.com apparaît ici dans la minute.'));
+            'Aucune demande reçue. Un mail envoyé à chiffrage@usi-pro.com apparaît ici dans la minute.'));
           return;
         }
-        await selectWork(WORKS[0].id);
+        // Une ancre #devis/article — celle que pose l'écran d'analyse — ouvre
+        // directement la ligne cliquée là-bas.
+        const anchor = decodeURIComponent(location.hash.replace('#', '')).split('/');
+        const start = WORKS.find(w => w.id === anchor[0]) || WORKS[0];
+        await selectWork(start.id);
+        const wanted = Number(anchor[1]);
+        if (Number.isInteger(wanted) && wanted >= 0 && wanted < LINES.length) goTo(wanted);
       } catch (err) {
         proposal.innerHTML = '';
         proposal.appendChild(el('div', 'empty', 'Demandes injoignables : ' + err.message));
       }
     }
+
+    // Le plan se redessine à la taille du cadre, et le compte de constats
+    // cachés dépend de la hauteur : les deux se refont au redimensionnement.
+    let RESIZE;
+    window.addEventListener('resize', () => {
+      clearTimeout(RESIZE);
+      RESIZE = setTimeout(() => { renderPlan(); countHiddenAlerts(); }, 150);
+    });
 
     load();
   </script>

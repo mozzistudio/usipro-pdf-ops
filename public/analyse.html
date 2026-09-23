@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Usi-Pro Chiffrage — Analyse</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/usipro.css">
+  <style>
+    /**
+     * L'écran d'analyse : ce que la machine a fait avant que le technicien
+     * n'entre en revue.
+     *
+     * Sa raison d'être n'est pas d'être joli : c'est de permettre de répondre
+     * « qu'est-ce que l'IA a vu ? » sans croire sur parole. À gauche, chaque
+     * pièce jointe et ce que sa lecture a donné ; à droite, les articles qu'elle
+     * en a tirés. Ce qu'elle n'a pas pu lire est dit aussi fort que le reste.
+     *
+     * Même langue sombre que l'écran de revue — les jetons sont redéfinis ici
+     * seulement, les autres écrans gardent le thème clair de `usipro.css`.
+     */
+    :root {
+      --bg: #0A1211;
+      --surface: #101A18;
+      --surface-2: #16211F;
+      --surface-3: #1C2A27;
+
+      --ink: #E9F0ED;
+      --ink-2: #9BADA8;
+      --ink-3: #6E807B;
+
+      --line: rgba(255,255,255,.075);
+      --line-2: rgba(255,255,255,.15);
+
+      --teal: #2FD8B9;
+      --teal-soft: rgba(47,216,185,.13);
+      --green: #43BE6D;
+      --amber: #E2A93C;
+      --amber-soft: rgba(226,169,60,.13);
+      --red: #E2604F;
+      --red-soft: rgba(226,96,79,.13);
+    }
+
+    body { background: var(--bg); color: var(--ink); overflow: hidden; }
+
+    .app-bar { background: var(--surface); border-bottom-color: var(--line); gap: 16px; }
+    .brand { background: #05100E; }
+    a.brand:hover { background: #020806; }
+    .app-nav { color: var(--ink-3); }
+    .app-nav:hover { color: var(--ink); }
+    .app-nav[aria-current="page"] { color: var(--ink); border-bottom-color: var(--teal); }
+
+    .picker {
+      font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--ink);
+      background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 8px;
+      padding: 9px 30px 9px 12px; width: auto; max-width: 330px; cursor: pointer;
+      appearance: none;
+      background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
+                        linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+      background-position: calc(100% - 15px) 18px, calc(100% - 11px) 18px;
+      background-size: 4px 4px, 4px 4px;
+      background-repeat: no-repeat;
+    }
+    .picker:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-soft); }
+
+    .state-chip {
+      font-family: var(--mono); font-size: 11.5px; padding: 7px 12px; border-radius: 7px;
+      background: rgba(67,190,109,.13); color: #7FD69C; border: 1px solid rgba(67,190,109,.22);
+      white-space: nowrap;
+    }
+    .state-chip.none { background: var(--surface-2); color: var(--ink-3); border-color: var(--line); }
+    .state-chip.warn { background: var(--amber-soft); color: #E8C078; border-color: rgba(226,169,60,.28); }
+
+    .to-revue {
+      font-size: 13px; font-weight: 600; color: var(--ink); text-decoration: none;
+      background: var(--surface-2); border: 1px solid var(--line-2);
+      border-radius: 8px; padding: 9px 13px; white-space: nowrap;
+    }
+    .to-revue:hover { border-color: var(--teal); color: var(--teal); }
+
+    /* ── Deux colonnes : les pièces reçues, les lignes qu'on en a tirées ── */
+    .analyse { display: grid; grid-template-columns: 516px minmax(0, 1fr); height: calc(100vh - 56px); }
+
+    .files {
+      border-right: 1px solid var(--line); padding: 18px 20px 20px;
+      display: flex; flex-direction: column; gap: 11px; min-height: 0;
+    }
+    .eyebrow { color: var(--ink-3); }
+    .file-list { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; min-height: 0; flex: 0 1 auto;
+      scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+    .file {
+      background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+      padding: 12px 14px 0; overflow: hidden; flex-shrink: 0;
+    }
+    .file-top { display: flex; align-items: center; gap: 11px; }
+    .ftype {
+      font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .05em;
+      padding: 4px 7px; border-radius: 5px; flex-shrink: 0;
+      background: var(--red-soft); color: #E8887A;
+    }
+    .ftype.step, .ftype.autre { background: var(--surface-3); color: var(--ink-2); }
+    .ftype.tableur { background: rgba(67,190,109,.14); color: #7FD69C; }
+    .ftype.image { background: var(--teal-soft); color: var(--teal); }
+    .fname { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fstate { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--teal); flex-shrink: 0; }
+    .fstate.ko { color: var(--red); }
+    .fstate.unknown { color: var(--ink-3); }
+    .fbar { height: 3px; background: var(--surface-3); margin: 12px -14px 0; }
+    .fbar span { display: block; height: 100%; background: var(--teal); }
+    .fbar span.ko { background: var(--red); }
+/* Sans journal, la barre reste sourde : une barre pleine dirait « lu », une
+   barre partielle dirait « en cours ». Ni l'un ni l'autre n'est su. */
+.fbar span.unknown { background: rgba(255,255,255,.12); }
+
+    /**
+     * Le journal : ce que la machine a compris, ligne à ligne.
+     *
+     * C'est la pièce qui manque partout ailleurs. Il n'est pas reconstruit à
+     * l'affichage — chaque ligne a été écrite pendant l'analyse.
+     */
+    .log {
+      margin-top: auto; background: var(--surface); border: 1px solid var(--line);
+      border-radius: 10px; padding: 12px 14px;
+      font-family: var(--mono); font-size: 11px; line-height: 1.85; color: var(--ink-3);
+      display: flex; flex-direction: column; min-height: 120px; max-height: 42%;
+      overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent;
+    }
+    .log .row { display: flex; gap: 8px; }
+    .log b { color: var(--teal); font-weight: 500; flex-shrink: 0; }
+    .log .msg { min-width: 0; overflow-wrap: anywhere; }
+    .log .row.warn .msg { color: #E8C078; }
+    .log .row.error .msg { color: #E8887A; }
+    .log .stage {
+      color: var(--ink-3); opacity: .6; flex-shrink: 0; width: 82px;
+    }
+    .log .none { color: var(--ink-3); line-height: 1.6; font-family: var(--sans); font-size: 12px; }
+
+    /* ── Les lignes proposées ── */
+    .lines { padding: 20px 24px; min-width: 0; overflow-y: auto;
+      scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+    .lines h2 { font-size: 17px; font-weight: 700; letter-spacing: -.3px; display: inline; }
+    .count {
+      font-family: var(--mono); font-size: 11.5px; color: var(--ink-2);
+      background: var(--surface-2); border: 1px solid var(--line);
+      border-radius: 6px; padding: 5px 9px; margin-left: 10px;
+    }
+    table { width: 100%; border-collapse: collapse; margin-top: 18px; }
+    th {
+      font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--ink-3); text-align: left;
+      padding: 0 10px 10px 0; border-bottom: 1px solid var(--line); white-space: nowrap;
+    }
+    td { padding: 12px 10px 12px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; vertical-align: top; }
+    th.r, td.r { text-align: right; padding-right: 0; }
+    td.m { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    td.ref { font-family: var(--mono); font-size: 13px; color: var(--ink-2); white-space: nowrap; }
+    td.none { color: var(--ink-3); }
+    td.noprice { font-family: var(--mono); color: var(--red); white-space: nowrap; }
+    tr.current td { background: var(--teal-soft); }
+    .dots { display: flex; gap: 5px; justify-content: flex-end; }
+    .dots span { width: 8px; height: 8px; border-radius: 50%; }
+    .summary { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+    .sum {
+      font-family: var(--mono); font-size: 11.5px; padding: 7px 11px; border-radius: 7px;
+      background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-2);
+    }
+    .sum.teal { background: var(--teal-soft); border-color: rgba(47,216,185,.22); color: var(--teal); }
+    .sum.red { background: var(--red-soft); border-color: rgba(226,96,79,.25); color: #E8887A; }
+    .sum.amber { background: var(--amber-soft); border-color: rgba(226,169,60,.25); color: #E8C078; }
+
+    .empty { padding: 40px 24px; text-align: center; color: var(--ink-3); font-size: 13px; line-height: 1.6; }
+
+    @media (max-width: 1100px) {
+      body { overflow: auto; }
+      .analyse { grid-template-columns: 1fr; height: auto; }
+      .files { border-right: none; border-bottom: 1px solid var(--line); }
+      .log { max-height: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="app-bar">
+    <a class="brand" href="/"><img src="/logo.png" alt="Usi-Pro"><span class="brand-rule"></span><span class="brand-app">Internal</span></a>
+    <span class="app-name">Chiffrage</span>
+    <a class="app-nav" href="/analyse.html" aria-current="page">Analyse</a>
+    <a class="app-nav" href="/chiffrage.html">Revue</a>
+    <a class="app-nav" href="/parametrage.html">Paramétrage</a>
+    <select class="picker" id="picker" aria-label="Devis en cours"></select>
+    <span class="state-chip" id="state">—</span>
+    <div class="spacer"></div>
+    <a class="to-revue" id="toRevue" href="/chiffrage.html">Passer en revue →</a>
+  </header>
+
+  <main class="analyse">
+    <section class="files">
+      <div class="eyebrow">Pièces jointes reçues</div>
+      <div class="file-list" id="fileList"></div>
+      <div class="log" id="log"></div>
+    </section>
+
+    <section class="lines" id="lines"><div class="empty">chargement…</div></section>
+  </main>
+
+  <script>
+    let WORKS = [];
+    let CURRENT = null;
+    let LINES = [];
+    let FILES = [];
+    let EVENTS = [];
+
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text != null) node.textContent = text;   // jamais innerHTML : ce texte vient des mails
+      return node;
+    }
+
+    function money(value) {
+      return value == null ? '—' : value.toFixed(2).replace('.', ',') + ' €';
+    }
+
+    function ext(name) { return (String(name).split('.').pop() || '').toLowerCase(); }
+
+    /** La même famille de fichiers que celle que le serveur reconnaît. */
+    function kindOf(name) {
+      const e = ext(name);
+      if (e === 'pdf') return 'pdf';
+      if (['xls', 'xlsx', 'xlsm', 'csv'].includes(e)) return 'tableur';
+      if (['stp', 'step'].includes(e)) return 'step';
+      if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(e)) return 'image';
+      if (['zip', 'rar', '7z'].includes(e)) return 'archive';
+      return 'autre';
+    }
+
+    // ── Barre du haut ─────────────────────────────────────────
+    function renderPicker() {
+      const picker = document.getElementById('picker');
+      picker.innerHTML = '';
+      for (const work of WORKS) {
+        const opt = el('option', null,
+          work.ref + ' · ' + work.client +
+          '  (' + (work.lineCount || 0) + ' art.' +
+          (work.fileCount > 0 ? ' · ' + work.fileCount + ' doc.' : '') + ')');
+        opt.value = work.id;
+        opt.selected = !!CURRENT && work.id === CURRENT.id;
+        picker.appendChild(opt);
+      }
+      picker.onchange = () => selectWork(picker.value);
+    }
+
+    /**
+     * L'état de l'analyse.
+     *
+     * Une demande reçue avant la mise en service du journal n'en a pas : le
+     * dire franchement vaut mieux que d'afficher « rien à signaler » sur une
+     * analyse dont on ne sait rien.
+     */
+    function renderState() {
+      const chip = document.getElementById('state');
+      chip.className = 'state-chip';
+      if (!CURRENT) { chip.textContent = '—'; chip.classList.add('none'); return; }
+      if (EVENTS.length === 0) {
+        chip.textContent = 'analyse non tracée';
+        chip.classList.add('none');
+        chip.title = 'Cette demande est arrivée avant la mise en service du journal.';
+        return;
+      }
+      const bad = EVENTS.filter(e => e.level !== 'info').length;
+      if (bad > 0) {
+        chip.textContent = bad > 1 ? bad + ' réserves à la lecture' : '1 réserve à la lecture';
+        chip.classList.add('warn');
+      } else {
+        chip.textContent = 'Prêt pour la revue';
+      }
+      chip.title = '';
+    }
+
+    // ── Colonne 1 : les pièces jointes, et ce que leur lecture a donné ──
+    function renderFiles() {
+      const box = document.getElementById('fileList');
+      box.innerHTML = '';
+
+      if (FILES.length === 0) {
+        box.appendChild(el('div', 'empty', CURRENT && CURRENT.detailsInAttachments
+          ? 'Cette demande annonce des pièces jointes, mais aucune n’est arrivée jusqu’ici.'
+          : 'Aucune pièce jointe : le chiffrage s’appuie sur le seul texte du mail.'));
+        return;
+      }
+
+      for (const file of FILES) {
+        // L'état vient du journal, pas d'une supposition : un fichier dont la
+        // lecture a laissé une réserve porte cette réserve.
+        const notes = EVENTS.filter(e => e.fileName === file.fileName);
+        const worst = notes.some(n => n.level === 'error') ? 'error'
+          : notes.some(n => n.level === 'warn') ? 'warn'
+          : notes.length > 0 ? 'info' : null;
+
+        const card = el('div', 'file');
+        const top = el('div', 'file-top');
+        const kind = kindOf(file.fileName);
+        top.appendChild(el('span', 'ftype ' + kind, kind === 'tableur' ? 'XLS' : kind.toUpperCase()));
+        const name = el('span', 'fname', file.fileName);
+        name.title = file.fileName;
+        top.appendChild(name);
+
+        const state = el('span', 'fstate' + (worst === 'info' ? '' : worst ? ' ko' : ' unknown'),
+          worst === 'error' ? 'illisible' : worst === 'warn' ? 'réserve' : worst === 'info' ? 'lu' : 'archivé');
+        state.title = notes.length
+          ? notes.map(n => n.message).join(' · ')
+          : 'Aucune trace de lecture pour ce fichier — demande antérieure au journal.';
+        top.appendChild(state);
+        card.appendChild(top);
+
+        const bar = el('div', 'fbar');
+        const fill = el('span',
+          worst === 'error' || worst === 'warn' ? 'ko' : worst ? null : 'unknown');
+        fill.style.width = '100%';
+        bar.appendChild(fill);
+        card.appendChild(bar);
+        box.appendChild(card);
+      }
+    }
+
+    const STAGE_LABEL = { lecture: 'lecture', extraction: 'extraction', chiffrage: 'chiffrage' };
+
+    function renderLog() {
+      const box = document.getElementById('log');
+      box.innerHTML = '';
+
+      if (EVENTS.length === 0) {
+        box.appendChild(el('div', 'none',
+          'Aucun journal pour cette demande : elle a été analysée avant que le journal existe. ' +
+          'Les demandes reçues à partir de maintenant en gardent un, ligne à ligne.'));
+        return;
+      }
+
+      for (const event of EVENTS) {
+        const row = el('div', 'row ' + event.level);
+        row.appendChild(el('span', 'stage', STAGE_LABEL[event.stage] || event.stage));
+        if (event.fileName) row.appendChild(el('b', null, event.fileName));
+        row.appendChild(el('span', 'msg', event.message));
+        box.appendChild(row);
+      }
+    }
+
+    // ── Colonne 2 : les lignes que l'analyse a produites ──
+    function renderLines() {
+      const box = document.getElementById('lines');
+      box.innerHTML = '';
+
+      if (!CURRENT) {
+        box.appendChild(el('div', 'empty', 'Aucune demande.'));
+        return;
+      }
+
+      const head = el('div');
+      head.appendChild(el('h2', null, 'Lignes proposées'));
+      head.appendChild(el('span', 'count',
+        LINES.length + (LINES.length > 1 ? ' articles' : ' article')));
+      box.appendChild(head);
+
+      if (LINES.length === 0) {
+        box.appendChild(el('div', 'empty', CURRENT.detailsInAttachments
+          ? 'Aucune ligne lisible : le contenu de cette demande est dans ses pièces jointes.'
+          : 'Aucune ligne extraite de ce mail.'));
+        return;
+      }
+
+      const table = el('table');
+      const thead = el('thead');
+      const hr = el('tr');
+      [['Réf.', ''], ['Désignation', ''], ['Matière', ''],
+       ['Qté', 'r'], ['Poids brut', 'r'], ['T. unit.', 'r'],
+       ['Prix revient', 'r'], ['Alertes', 'r']].forEach(([label, cls]) => {
+        hr.appendChild(el('th', cls, label));
+      });
+      thead.appendChild(hr);
+      table.appendChild(thead);
+
+      const tbody = el('tbody');
+      for (const line of LINES) {
+        const tr = el('tr');
+        tr.appendChild(el('td', 'ref', line.reference || '—'));
+        tr.appendChild(el('td', line.designation ? null : 'none', line.designation || 'sans désignation'));
+        tr.appendChild(el('td', line.material ? null : 'none', line.material || 'non lisible'));
+        tr.appendChild(el('td', 'r m', line.quantity || '—'));
+
+        // Le poids et le temps ne sont écrits qu'à partir du chiffrage de
+        // septembre 2026 : les lignes plus anciennes les gardent en toutes
+        // lettres au bordereau, et rien ne justifie de les deviner ici.
+        const b = line.priceBreakdown || {};
+        tr.appendChild(el('td', 'r m' + (b.rawMassKg == null ? ' none' : ''),
+          b.rawMassKg == null ? '—' : b.rawMassKg.toFixed(2).replace('.', ',') + ' kg'));
+        tr.appendChild(el('td', 'r m' + (b.unitMinutes == null ? ' none' : ''),
+          b.unitMinutes == null ? '—' : Math.round(b.unitMinutes) + ' min'));
+
+        if (line.unitPrice != null) {
+          tr.appendChild(el('td', 'r m', money(line.unitPrice)));
+        } else {
+          tr.appendChild(el('td', 'r noprice', 'sans prix'));
+        }
+
+        const alerts = el('td', 'r');
+        const dots = el('div', 'dots');
+        const level = line.alertLevel || 'vert';
+        const color = level === 'rouge' ? 'var(--red)' : level === 'jaune' ? 'var(--amber)' : 'var(--green)';
+        const count = Math.max(1, (line.alerts || []).length);
+        for (let i = 0; i < Math.min(count, 4); i++) {
+          const dot = el('span');
+          dot.style.background = color;
+          dots.appendChild(dot);
+        }
+        alerts.appendChild(dots);
+        alerts.title = (line.alerts || []).join(' · ') || 'Rien à signaler.';
+        tr.appendChild(alerts);
+
+        // Cliquer une ligne ouvre la revue à cet article.
+        tr.style.cursor = 'pointer';
+        tr.onclick = () => {
+          location.href = '/chiffrage.html#' + encodeURIComponent(CURRENT.id) +
+            '/' + LINES.indexOf(line);
+        };
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      box.appendChild(table);
+
+      // La synthèse : ce que l'analyse a produit, et ce qu'elle a laissé ouvert.
+      const summary = el('div', 'summary');
+      const priced = LINES.filter(l => l.unitPrice != null).length;
+      summary.appendChild(el('span', 'sum teal',
+        priced + ' ligne' + (priced > 1 ? 's' : '') + ' chiffrée' + (priced > 1 ? 's' : '') +
+        ' sur ' + LINES.length));
+
+      const red = LINES.filter(l => l.alertLevel === 'rouge').length;
+      if (red > 0) {
+        summary.appendChild(el('span', 'sum red',
+          red + ' ligne' + (red > 1 ? 's' : '') + ' non chiffrable' + (red > 1 ? 's' : '')));
+      }
+      const hypotheses = new Set();
+      for (const line of LINES) for (const a of line.alerts || []) hypotheses.add(a);
+      if (hypotheses.size > 0) {
+        summary.appendChild(el('span', 'sum amber',
+          hypotheses.size + ' hypothèse' + (hypotheses.size > 1 ? 's' : '') + ' de calcul'));
+      }
+      const reserves = EVENTS.filter(e => e.level !== 'info').length;
+      if (reserves > 0) {
+        summary.appendChild(el('span', 'sum amber',
+          reserves + ' réserve' + (reserves > 1 ? 's' : '') + ' à la lecture'));
+      }
+      if (CURRENT.links && CURRENT.links.length > 0) {
+        summary.appendChild(el('span', 'sum red',
+          CURRENT.links.length + ' lien' + (CURRENT.links.length > 1 ? 's' : '') + ' à ouvrir à la main'));
+      }
+      if (CURRENT.summary) summary.appendChild(el('span', 'sum', CURRENT.summary));
+      box.appendChild(summary);
+    }
+
+    function renderAll() {
+      renderPicker();
+      renderState();
+      renderFiles();
+      renderLog();
+      renderLines();
+      const link = document.getElementById('toRevue');
+      link.href = CURRENT ? '/chiffrage.html#' + encodeURIComponent(CURRENT.id) : '/chiffrage.html';
+    }
+
+    async function selectWork(id) {
+      CURRENT = WORKS.find(w => w.id === id) || null;
+      LINES = []; FILES = []; EVENTS = [];
+      renderAll();
+      if (!CURRENT) return;
+
+      const url = '/api/works/' + encodeURIComponent(CURRENT.id);
+      const [lines, files, events] = await Promise.all([
+        fetch(url + '/lines').then(r => r.json()).then(d => d.lines || []).catch(() => []),
+        fetch(url + '/files').then(r => r.json()).then(d => d.files || []).catch(() => []),
+        fetch(url + '/analysis').then(r => r.json()).then(d => d.events || []).catch(() => []),
+      ]);
+      LINES = lines; FILES = files; EVENTS = events;
+      renderAll();
+    }
+
+    async function load() {
+      const box = document.getElementById('lines');
+      try {
+        const resp = await fetch('/api/works?tool=chiffrage&limit=100');
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
+
+        WORKS = data.works || [];
+        if (WORKS.length === 0) {
+          box.innerHTML = '';
+          box.appendChild(el('div', 'empty',
+            'Aucune demande reçue. Un mail envoyé à chiffrage@usi-pro.com apparaît ici dans la minute.'));
+          return;
+        }
+
+        // Un devis passé en ancre (#id) ouvre directement le bon dossier.
+        const wanted = decodeURIComponent(location.hash.replace('#', '')).split('/')[0];
+        const start = WORKS.find(w => w.id === wanted) || WORKS[0];
+        await selectWork(start.id);
+      } catch (err) {
+        box.innerHTML = '';
+        box.appendChild(el('div', 'empty', 'Demandes injoignables : ' + err.message));
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>

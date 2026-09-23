@@ -615,7 +615,13 @@ export async function priceRequest(id: string): Promise<ChiffrageLine[]> {
       totalPrice = Math.round(imposed * price.quantity * 100) / 100;
     }
 
-    const breakdown = { items, assumptions, quantity: price.quantity };
+    const breakdown = {
+      items,
+      assumptions,
+      quantity: price.quantity,
+      rawMassKg: price.rawMassKg,
+      unitMinutes: price.unitMinutes,
+    };
 
     // Le niveau d'alerte suit ce qui manque, pas l'humeur du moteur.
     // Rouge: la matière ET l'encombrement manquent — le prix ne repose sur rien.

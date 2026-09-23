@@ -13,6 +13,9 @@ import {
   recordChiffrageRequest,
 } from '../services/worksStore';
 import { attachPart } from '../services/articleStore';
+import { AnalysisNotebook } from '../services/analysisJournal';
+import { CLAUDE_MODEL } from '../services/claudeModel';
+import type { ReadAttachment } from '../services/attachments';
 
 /**
  * Constant-time comparison so a wrong secret leaks nothing through timing.
@@ -177,7 +180,38 @@ export function registerEmailTriggerEndpoint(router: Router): void {
  * attendu**. Un OF est une notion de fabrication, attribuée bien après le
  * chiffrage ; l'exiger ici revenait à rejeter toutes les vraies demandes.
  */
+/**
+ * Ce que la lecture d'une pièce jointe a donné, en une phrase.
+ *
+ * Écrite depuis le résultat de `readAttachment`, donc depuis ce qui est
+ * réellement parti au modèle — pas depuis ce qu'on espérait en tirer. Un plan
+ * scanné dit qu'il n'a pas de couche texte ; une image trop lourde dit qu'elle
+ * n'a pas été transmise. C'est cette phrase-là qui explique un prix faux.
+ */
+function describeRead(file: ReadAttachment): { message: string; level: 'info' | 'warn' } {
+  const origin = file.fromArchive ? `extrait de ${file.fromArchive} · ` : '';
+  const weight = file.size ? `${Math.max(1, Math.round(file.size / 1024))} Ko · ` : '';
+
+  if (file.note) return { message: `${origin}${weight}${file.note}`, level: 'warn' };
+  if (file.image) {
+    return { message: `${origin}${weight}image transmise au modèle (${file.image.mediaType})`, level: 'info' };
+  }
+  if (file.stepBytes) {
+    return { message: `${origin}${weight}STEP reçu — géométrie conservée pour l'empreinte`, level: 'info' };
+  }
+  if (file.text.trim()) {
+    return {
+      message: `${origin}${weight}${file.kind} lu — ${file.text.length} caractères de texte transmis au modèle`,
+      level: 'info',
+    };
+  }
+  return { message: `${origin}${weight}${file.kind} sans contenu exploitable`, level: 'warn' };
+}
+
 async function handleEmail(inbound: InboundEmail): Promise<{ status: number; body: unknown }> {
+  // Le carnet suit toute l'analyse ; il n'est versé au journal qu'une fois la
+  // demande identifiée, puisque son identifiant n'existe pas avant.
+  const notebook = new AnalysisNotebook();
   // Checked before parsing so a missing key can't be mistaken for an
   // unreadable mail: the 422 below tells the bridge to file the thread and
   // never replay it, which would silently drop real requests over a config
@@ -200,7 +234,10 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
       if (att?.contentBase64 || !att?.storagePath) return att;
       try {
         const bytes = await readInboxObject(String(att.storagePath));
-        if (!bytes) return { ...att, skipped: 'fichier absent du dépôt' };
+        if (!bytes) {
+          notebook.note('lecture', 'fichier annoncé par le pont mais absent du dépôt', { file: String(att.name), level: 'error' });
+          return { ...att, skipped: 'fichier absent du dépôt' };
+        }
         staged.push(String(att.storagePath));
         return { ...att, size: bytes.length, contentBase64: bytes.toString('base64') };
       } catch (err: any) {
@@ -230,7 +267,22 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
       extracted.push({ name: member.read.name, bytes: member.bytes });
     }
     if (note) file.note = `${file.note ?? 'archive'} — ${note}`;
+    notebook.note('lecture',
+      `archive ouverte — ${members.length} fichier${members.length > 1 ? 's' : ''} en sont sortis` +
+      (note ? ` · ${note}` : ''),
+      { file: file.name });
     logger.info({ archive: file.name, membres: members.length }, 'Archive ouverte');
+  }
+
+  // Une ligne par pièce jointe, avant l'extraction : ce sont ces fichiers-là,
+  // et eux seuls, que le modèle va voir.
+  for (const file of files) {
+    if (file.kind === 'archive') continue;   // son ouverture est déjà notée
+    const { message, level } = describeRead(file);
+    notebook.note('lecture', message, { file: file.name, level });
+  }
+  if (files.length === 0) {
+    notebook.note('lecture', 'aucune pièce jointe — le chiffrage s\'appuie sur le seul texte du mail', { level: 'warn' });
   }
 
   let request;
@@ -243,6 +295,21 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
     return { status: 422, body: { status: 'rejected', message: err.message } };
   }
 
+  const images = files.filter(f => f.image).length;
+  const texts = files.filter(f => f.text.trim()).length;
+  notebook.note('extraction',
+    `modèle ${CLAUDE_MODEL} — ${request.lines.length} article${request.lines.length > 1 ? 's' : ''} extrait${request.lines.length > 1 ? 's' : ''} ` +
+    `de ${texts} document${texts > 1 ? 's' : ''} en texte et ${images} image${images > 1 ? 's' : ''}`);
+  if (request.summary) notebook.note('extraction', request.summary);
+  if (request.detailsInAttachments) {
+    notebook.note('extraction',
+      'le fond de la demande est dans les pièces jointes ou derrière un lien — la liste extraite peut être incomplète',
+      { level: 'warn' });
+  }
+  for (const link of request.links) {
+    notebook.note('extraction', `lien de partage à ouvrir à la main : ${link}`, { level: 'warn' });
+  }
+
   try {
     const work = await recordChiffrageRequest(request, 'email');
 
@@ -251,8 +318,23 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
     // moteur en panne ne doit pas faire perdre la demande.
     let pricedLines = 0;
     try {
-      pricedLines = (await priceRequest(work.id)).length;
+      const priced = await priceRequest(work.id);
+      pricedLines = priced.length;
+      const withPrice = priced.filter(l => l.unitPrice != null).length;
+      notebook.note('chiffrage',
+        `${withPrice} ligne${withPrice > 1 ? 's' : ''} chiffrée${withPrice > 1 ? 's' : ''} sur ${priced.length}` +
+        (withPrice < priced.length ? ' — les autres manquent de matière ou d\'encombrement' : ''),
+        { level: withPrice < priced.length ? 'warn' : 'info' });
+      // Les hypothèses du moteur restent au bordereau de chaque ligne ; le
+      // journal ne garde que celles qui ont pesé, pour ne pas les répéter
+      // soixante fois sur un devis à soixante articles.
+      const assumed = new Set<string>();
+      for (const line of priced) for (const alert of line.alerts ?? []) assumed.add(alert);
+      for (const assumption of assumed) {
+        notebook.note('chiffrage', `hypothèse du calcul : ${assumption}`, { level: 'warn' });
+      }
     } catch (err: any) {
+      notebook.note('chiffrage', `moteur de coût indisponible : ${err.message}`, { level: 'error' });
       logger.warn({ reference: request.reference, err: err.message }, 'Chiffrage impossible — demande enregistrée sans prix');
     }
 
@@ -321,17 +403,27 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
           designation: file.name,
         });
         attachments.push({ file: file.name, mode: result.mode, summary: result.summary });
+        // « Cette pièce est déjà passée » est le fait le plus utile du lot :
+        // il dit qu'un prix existe déjà pour la même géométrie.
+        notebook.note('extraction', `référentiel — ${result.summary}`, { file: file.name });
         logger.info(
           { reference: request.reference, file: file.name, mode: result.mode, summary: result.summary },
           'STEP rattaché au référentiel',
         );
       } catch (err: any) {
+        notebook.note('extraction', `rattachement au référentiel impossible : ${err.message}`, { file: file.name, level: 'warn' });
         logger.warn(
           { reference: request.reference, file: file.name, err: err.message },
           'Rattachement du STEP impossible — la demande reste enregistrée',
         );
       }
     }
+
+    // Le journal est versé en dernier : il raconte l'analyse entière, et une
+    // demande enregistrée sans lui reste une demande utilisable.
+    await notebook.commit(work.id).catch((err: any) =>
+      logger.warn({ reference: work.ref, err: err.message }, 'Journal d’analyse non versé'),
+    );
 
     logger.info(
       {

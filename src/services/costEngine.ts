@@ -50,6 +50,14 @@ export interface PriceResult {
   items: PriceLineItem[];
   /** Ce que le moteur a dû supposer faute de donnée. Affiché tel quel. */
   assumptions: string[];
+  /**
+   * Masse du brut englobant, en kg. Déjà écrite dans la base du poste matière,
+   * mais en toutes lettres : la sortir ici permet de la mettre en colonne dans
+   * un tableau sans relire une phrase à la regex.
+   */
+  rawMassKg: number;
+  /** Temps d'usinage par pièce, en minutes, dégressivité de série comprise. */
+  unitMinutes: number;
 }
 
 export const DEFAULT_SETTINGS: PricingSettings = {
@@ -290,6 +298,8 @@ export function computeLinePrice(
     currency: settings.currency,
     items,
     assumptions,
+    rawMassKg: round2(rawMassKg),
+    unitMinutes: round2(machiningMinutes * averageFactor),
   };
 }
 

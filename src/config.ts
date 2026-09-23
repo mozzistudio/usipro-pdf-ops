@@ -37,4 +37,7 @@ export const config = {
   works: {
     path: process.env.WORKS_STORE_PATH || path.join(process.cwd(), 'data', 'works.jsonl'),
   },
+  analysis: {
+    path: process.env.ANALYSIS_STORE_PATH || path.join(process.cwd(), 'data', 'analysis.jsonl'),
+  },
 } as const;

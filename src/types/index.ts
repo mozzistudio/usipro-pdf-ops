@@ -107,7 +107,15 @@ export interface ChiffrageLine {
   unitPrice?: number | null;
   totalPrice?: number | null;
   /** Le bordereau: chaque poste et sa base de calcul. */
-  priceBreakdown?: { items: Array<{ label: string; amount: number; basis: string }>; assumptions: string[]; quantity: number } | null;
+  priceBreakdown?: {
+    items: Array<{ label: string; amount: number; basis: string }>;
+    assumptions: string[];
+    quantity: number;
+    /** Masse du brut englobant, en kg. Absente des lignes chiffrées avant septembre 2026. */
+    rawMassKg?: number;
+    /** Temps d'usinage par pièce, en minutes. Absent des lignes chiffrées avant septembre 2026. */
+    unitMinutes?: number;
+  } | null;
   /** Identifiant de la ligne — nécessaire pour la trancher une par une. */
   id?: string;
   /** Où en est la revue technique de cette ligne. */

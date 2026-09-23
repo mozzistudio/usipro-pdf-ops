@@ -21,6 +21,7 @@ import {
   workFileCounts,
 } from '../services/worksStore';
 import { listFeedback } from '../services/feedbackStore';
+import { AnalysisNotebook, listAnalysis } from '../services/analysisJournal';
 
 const TOOLS: WorkTool[] = ['edition', 'chiffrage'];
 
@@ -153,6 +154,24 @@ export function registerWorksEndpoints(router: Router): void {
     }
   });
 
+  /**
+   * Le journal de l'analyse : ce que le moteur a lu, ce que le modèle a
+   * extrait, ce que le calcul a supposé.
+   *
+   * Vide n'est pas une panne : une demande reçue avant la mise en service du
+   * journal n'en a pas, et l'écran doit le dire plutôt que de laisser croire
+   * que l'analyse n'a rien trouvé.
+   */
+  router.get('/api/works/:id/analysis', async (req: Request, res: Response) => {
+    try {
+      const events = await listAnalysis(String(req.params.id));
+      res.json({ status: 'ok', count: events.length, events });
+    } catch (err: any) {
+      logger.error({ err: err.message, id: req.params.id }, 'Lecture du journal impossible');
+      res.status(503).json({ status: 'error', message: err.message });
+    }
+  });
+
   // ── Moteur de coût ─────────────────────────────────────────────
   // Les valeurs livrées sont des hypothèses. L'atelier les corrige ici, et
   // chaque demande peut être rechiffrée avec les nouvelles.
@@ -248,9 +267,33 @@ export function registerWorksEndpoints(router: Router): void {
     }
   });
 
+  /**
+   * Rechiffre une demande avec les paramètres du moment.
+   *
+   * Le recalcul laisse sa trace au journal : un prix qui change six mois plus
+   * tard doit pouvoir dire quand et sur quelles hypothèses il a changé, sinon
+   * l'écart avec le devis envoyé reste inexplicable.
+   */
   router.post('/api/works/:id/price', async (req: Request, res: Response) => {
     try {
-      const lines = await priceRequest(String(req.params.id));
+      const id = String(req.params.id);
+      const lines = await priceRequest(id);
+
+      const notebook = new AnalysisNotebook();
+      const withPrice = lines.filter(l => l.unitPrice != null).length;
+      notebook.note('chiffrage',
+        `rechiffré à la demande — ${withPrice} ligne${withPrice > 1 ? 's' : ''} chiffrée${withPrice > 1 ? 's' : ''} sur ${lines.length}, ` +
+        'avec les paramètres du moteur en vigueur',
+        { level: withPrice < lines.length ? 'warn' : 'info' });
+      const assumed = new Set<string>();
+      for (const line of lines) for (const alert of line.alerts ?? []) assumed.add(alert);
+      for (const assumption of assumed) {
+        notebook.note('chiffrage', `hypothèse du calcul : ${assumption}`, { level: 'warn' });
+      }
+      await notebook.commit(id).catch((err: any) =>
+        logger.warn({ id, err: err.message }, 'Journal du rechiffrage non versé'),
+      );
+
       res.json({ status: 'ok', count: lines.length, lines });
     } catch (err: any) {
       logger.error({ err: err.message, id: req.params.id }, 'Chiffrage impossible');
