@@ -76,19 +76,12 @@ function pollInbox() {
     return;
   }
 
-  // Par défaut on suit l'adresse de destination. TRIGGER_QUERY permet de viser
-  // autre chose — typiquement le libellé d'entrée, quand les demandes arrivent
-  // sur une boîte personnelle et non sur l'alias. Une requête explicite n'est
-  // pas bornée dans le temps: on veut pouvoir donner à traiter un mail ancien.
+  // La requête ne filtre plus sur les libellés. L'état est porté par le
+  // MESSAGE, pas par la conversation: Gmail fusionne un transfert ou une
+  // relance dans le fil d'origine, et un fil marqué traité aurait enterré pour
+  // toujours les messages suivants — y compris la réponse du client.
   var custom = props.getProperty('TRIGGER_QUERY');
-  var query = [
-    custom || 'to:' + address,
-    '-label:' + LABEL_DONE.replace(/\//g, '-'),
-    '-label:' + LABEL_SKIPPED.replace(/\//g, '-'),
-    '-label:' + LABEL_ERROR.replace(/\//g, '-'),
-  ]
-    .concat(custom ? [] : ['newer_than:7d'])
-    .join(' ');
+  var query = [custom || 'to:' + address].concat(custom ? [] : ['newer_than:7d']).join(' ');
 
   var threads = GmailApp.search(query, 0, 20);
   if (threads.length === 0) return;
@@ -98,17 +91,13 @@ function pollInbox() {
   var errored = GmailApp.getUserLabelByName(LABEL_ERROR);
 
   threads.forEach(function (thread) {
-    // Deuxième garde-fou: on relit les libellés portés par le fil au lieu de
-    // se fier à la seule exclusion dans la requête. Un mail déjà traité qui
-    // repasserait ici relancerait un appel Claude et un scan Dropbox complet.
-    var borne = thread.getLabels().some(function (l) {
-      var n = l.getName();
-      return n === LABEL_DONE || n === LABEL_SKIPPED || n === LABEL_ERROR;
-    });
-    if (borne) return;
-
     var messages = thread.getMessages();
     var message = messages[messages.length - 1];
+
+    // Un message déjà traité ne repasse pas: sinon chaque minute relancerait
+    // une extraction Claude sur le même contenu. Les libellés restent posés
+    // sur le fil pour l'oeil humain, mais ce n'est plus eux qui décident.
+    if (props.getProperty(seenKey(message)) ) return;
 
     var response;
     try {
@@ -137,6 +126,7 @@ function pollInbox() {
     var code = response.getResponseCode();
 
     if (code === 200) {
+      markSeen(props, message);
       thread.addLabel(done);
       Logger.log('OK — ' + message.getSubject() + ' → ' + response.getContentText());
       return;
@@ -145,6 +135,7 @@ function pollInbox() {
     if (code === 422) {
       // Le serveur a lu le mail et n'y a pas vu de demande de chiffrage.
       // Ce n'est pas une panne: on classe et on passe.
+      markSeen(props, message);
       thread.addLabel(skipped);
       Logger.log('Ignoré — ' + message.getSubject() + ' → ' + response.getContentText());
       return;
@@ -162,6 +153,7 @@ function pollInbox() {
     if (code === 401) {
       // Secret faux: réessayer ne servira à rien et logguer chaque minute
       // noierait le journal. On arrête net.
+      markSeen(props, message);
       thread.addLabel(errored);
       Logger.log('Secret rejeté par le serveur — vérifier TRIGGER_SECRET.');
       return;
@@ -170,6 +162,16 @@ function pollInbox() {
     Logger.log('Échec ' + code + ' — ' + message.getSubject() + ' → ' + response.getContentText());
     countFailure(thread, message, errored);
   });
+}
+
+/** Clé d'état d'un message. Stable: l'identifiant Gmail ne change pas. */
+function seenKey(message) {
+  return 'seen:' + message.getId();
+}
+
+/** Marque un message comme définitivement traité. */
+function markSeen(props, message) {
+  props.setProperty(seenKey(message), String(Date.now()));
 }
 
 /**
@@ -182,6 +184,7 @@ function countFailure(thread, message, errorLabel) {
   var attempts = Number(props.getProperty(key) || 0) + 1;
 
   if (attempts >= MAX_ATTEMPTS) {
+    markSeen(props, message);
     thread.addLabel(errorLabel);
     props.deleteProperty(key);
     Logger.log('Abandon après ' + attempts + ' tentatives — ' + message.getSubject());

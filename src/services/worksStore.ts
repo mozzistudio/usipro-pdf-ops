@@ -558,6 +558,28 @@ export async function listWorkFiles(
   );
 }
 
+/**
+ * Combien de lignes porte chaque demande.
+ *
+ * Compté sur les lignes elles-mêmes, pas sur les références de pièces: un
+ * client qui décrit « boitier, aluminium, 32 pièces » sans donner de référence
+ * a bel et bien passé une ligne, et l'afficher à zéro donnerait l'impression
+ * d'une demande vide.
+ */
+export async function requestLineCounts(ids: string[]): Promise<Record<string, number>> {
+  const db = supabase();
+  if (!db || ids.length === 0) return {};
+
+  const { data, error } = await db.from('request_lines').select('work_id').in('work_id', ids);
+  if (error) throw new Error(`Comptage des lignes impossible: ${error.message}`);
+
+  const counts: Record<string, number> = {};
+  for (const row of (data ?? []) as Array<{ work_id: string }>) {
+    counts[row.work_id] = (counts[row.work_id] ?? 0) + 1;
+  }
+  return counts;
+}
+
 /** How many files each job has, for the list view. */
 export async function workFileCounts(ids: string[]): Promise<Record<string, number>> {
   const db = supabase();

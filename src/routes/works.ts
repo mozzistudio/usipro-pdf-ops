@@ -5,6 +5,7 @@ import {
   listRequestLines,
   listWorkFiles,
   listWorks,
+  requestLineCounts,
   setWorkProject,
   workFacets,
   workFileCounts,
@@ -49,7 +50,9 @@ export function registerWorksEndpoints(router: Router): void {
         counts.set(ref, entry);
       }
 
-      const fileCounts = await workFileCounts(works.map(w => w.id));
+      const ids = works.map(w => w.id);
+      const fileCounts = await workFileCounts(ids);
+      const lineCounts = await requestLineCounts(ids);
 
       res.json({
         status: 'ok',
@@ -59,6 +62,7 @@ export function registerWorksEndpoints(router: Router): void {
           ...w,
           feedback: counts.get(w.ref) ?? { plus: 0, minus: 0 },
           fileCount: fileCounts[w.id] ?? 0,
+          lineCount: lineCounts[w.id] ?? 0,
         })),
       });
     } catch (err: any) {
