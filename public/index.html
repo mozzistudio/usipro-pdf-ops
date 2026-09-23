@@ -293,7 +293,7 @@
             <span class="tool-sub" id="chiffrageLast">du mail au devis</span>
           </div>
           <div class="spacer"></div>
-          <a class="btn btn-navy" href="mailto:chiffrage@usi-pro.com?subject=Demande%20de%20chiffrage">Envoyer une demande
+          <a class="btn btn-navy" href="/chiffrage.html">Ouvrir les demandes
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </a>
         </div>
@@ -303,7 +303,7 @@
         <div class="tool-foot">
           <span id="chiffrageQueue">—</span>
           <div class="spacer"></div>
-          <a href="/guide.html">Comment ça marche →</a>
+          <a href="/chiffrage.html">Voir les demandes →</a>
         </div>
       </div>
 
@@ -402,8 +402,10 @@
       }
 
       queueEl.textContent = waiting > 0
-        ? waiting + (waiting > 1 ? ' travaux en attente de validation' : ' travail en attente de validation')
-        : 'tout est validé';
+        ? waiting + (waiting > 1
+            ? (tool === 'chiffrage' ? ' demandes à traiter' : ' lots à valider')
+            : (tool === 'chiffrage' ? ' demande à traiter' : ' lot à valider'))
+        : 'rien en attente';
     }
 
     // ── Files ────────────────────────────────────────────────────
@@ -530,6 +532,10 @@
           };
           card.appendChild(btn);
           card.appendChild(list);
+        } else if (work.tool === 'chiffrage') {
+          const a = el('a', 'work-files-btn', 'Ouvrir la demande');
+          a.href = '/chiffrage.html';
+          card.appendChild(a);
         } else if (work.dropboxLink) {
           const a = el('a', 'work-files-btn', 'Ouvrir sur Dropbox');
           a.href = work.dropboxLink;

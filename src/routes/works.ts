@@ -7,6 +7,7 @@ import {
   listWorks,
   requestLineCounts,
   setWorkProject,
+  setWorkStatus,
   workFacets,
   workFileCounts,
 } from '../services/worksStore';
@@ -20,6 +21,7 @@ const TOOLS: WorkTool[] = ['edition', 'chiffrage'];
  * GET  /api/works             — the jobs, newest activity first, with their tags
  * GET  /api/works/:id/files   — the deliverables of one job, as signed URLs
  * GET  /api/works/:id/lines   — les lignes d'une demande de chiffrage
+ * POST /api/works/:id/status  — l'opérateur clôt une demande, ou la rouvre
  * POST /api/works/:id/project — set the project tag (the one no pipeline knows)
  */
 export function registerWorksEndpoints(router: Router): void {
@@ -87,6 +89,26 @@ export function registerWorksEndpoints(router: Router): void {
       res.json({ status: 'ok', count: lines.length, lines });
     } catch (err: any) {
       logger.error({ err: err.message, id: req.params.id }, 'Lecture des lignes impossible');
+      res.status(503).json({ status: 'error', message: err.message });
+    }
+  });
+
+  router.post('/api/works/:id/status', async (req: Request, res: Response) => {
+    const { status } = req.body as { status?: string };
+    if (status !== 'a_valider' && status !== 'livre') {
+      res.status(400).json({ status: 'error', message: "status doit être 'a_valider' ou 'livre'" });
+      return;
+    }
+
+    try {
+      const updated = await setWorkStatus(String(req.params.id), status);
+      if (!updated) {
+        res.status(404).json({ status: 'error', message: 'Travail introuvable' });
+        return;
+      }
+      res.json({ status: 'ok', work: updated });
+    } catch (err: any) {
+      logger.error({ err: err.message, id: req.params.id }, 'Statut non enregistré');
       res.status(503).json({ status: 'error', message: err.message });
     }
   });

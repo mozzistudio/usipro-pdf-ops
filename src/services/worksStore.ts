@@ -283,6 +283,24 @@ export async function recordWorkDelivered(
   return rec;
 }
 
+/**
+ * Change le statut d'un travail.
+ *
+ * C'est le geste de l'opérateur: une demande lue et traitée passe à « livré ».
+ * Rien d'automatique ne fait cette transition pour une demande de chiffrage —
+ * tant qu'aucun moteur de prix n'existe, c'est un humain qui décide qu'elle
+ * est close.
+ */
+export async function setWorkStatus(id: string, status: WorkStatus): Promise<WorkRecord | null> {
+  const existing = await readExisting(id);
+  if (!existing) return null;
+
+  const rec: WorkRecord = { ...existing, status, updatedAt: new Date().toISOString() };
+  await write(rec);
+  logger.info({ id, status }, 'Statut du travail modifié');
+  return rec;
+}
+
 /** Sets the project tag on a job — the one tag no pipeline can infer. */
 export async function setWorkProject(id: string, project: string | null): Promise<WorkRecord | null> {
   const existing = await readExisting(id);

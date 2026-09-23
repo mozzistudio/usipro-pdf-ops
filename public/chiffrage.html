@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>USI-PRO — Chiffrage AI</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --dark: #0f1a2e;
+      --accent: #1abc9c;
+      --accent-deep: #0f766e;
+      --accent-soft: #e6f8f4;
+      --navy-soft: #e8edf6;
+      --surface: #ffffff;
+      --surface-alt: #f8fafc;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --text-dim: #94a3b8;
+      --border: #e2e8f0;
+      --border-strong: #cbd5e1;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: #eef2f7;
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--accent-deep); }
+
+    .navbar {
+      background: var(--dark);
+      height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 0 32px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      border-bottom: 2px solid var(--accent);
+    }
+    .navbar-logo img { height: 28px; display: block; }
+    .navbar-divider { width: 1px; height: 28px; background: rgba(255,255,255,0.14); }
+    .nav-title { font-size: 15px; font-weight: 600; color: #fff; line-height: 1; }
+    .nav-subtitle {
+      font-size: 10px; color: rgba(255,255,255,0.45); font-weight: 500;
+      letter-spacing: 0.8px; text-transform: uppercase; line-height: 1;
+    }
+    .navbar-link {
+      color: rgba(255,255,255,0.7); font-size: 13px; font-weight: 600;
+      text-decoration: none; padding: 8px 12px; border-radius: 8px;
+    }
+    .navbar-link:hover { color: #fff; background: rgba(255,255,255,0.07); }
+    .spacer { flex-grow: 1; }
+
+    .page { max-width: 1180px; margin: 0 auto; padding: 26px 32px 60px; }
+
+    .head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .head h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.3px; }
+    .head .count { font-size: 13px; color: var(--text-muted); }
+
+    .lede {
+      font-size: 13.5px; color: var(--text-muted); line-height: 1.6;
+      max-width: 70ch; margin-bottom: 22px;
+    }
+
+    .request {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--dark);
+      border-radius: 10px;
+      padding: 20px 22px;
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .request.livre { border-left-color: #16a34a; opacity: 0.82; }
+
+    .req-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .req-ref { font-size: 18px; font-weight: 700; }
+    .req-when { font-size: 12px; color: var(--text-dim); }
+
+    .tag { font-size: 11px; font-weight: 600; border-radius: 6px; padding: 4px 8px; }
+    .tag-client { color: #6b21a8; background: #f4e8ff; }
+    .tag-status-a_valider { color: #92400e; background: #fef3c7; }
+    .tag-status-livre { color: #166534; background: #dcfce7; }
+    .tag-pj { color: #92400e; background: #fef3c7; }
+    .tag-source { color: #475569; background: #f1f5f9; }
+
+    .summary { font-size: 13.5px; line-height: 1.6; color: #475569; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left; font-size: 10.5px; font-weight: 700;
+      letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-dim);
+      padding: 0 12px 8px 0; border-bottom: 1px solid var(--border);
+    }
+    td {
+      font-size: 13.5px; padding: 10px 12px 10px 0;
+      border-bottom: 1px solid #f1f5f9; vertical-align: top;
+    }
+    td.dim { color: var(--text-dim); }
+
+    .no-lines {
+      background: var(--surface-alt);
+      border: 1px dashed var(--border-strong);
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .actions {
+      display: flex; align-items: center; gap: 10px;
+      padding-top: 12px; border-top: 1px solid #eef2f7; flex-wrap: wrap;
+    }
+
+    .btn {
+      height: 40px; padding: 0 16px;
+      font-family: inherit; font-size: 13px; font-weight: 700;
+      border: none; border-radius: 8px; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .btn-teal { background: var(--accent); color: var(--dark); }
+    .btn-ghost {
+      background: var(--surface); color: var(--text);
+      border: 1px solid var(--border-strong); font-weight: 600;
+    }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .action-note { font-size: 12.5px; color: var(--text-muted); }
+    .action-note.done { color: var(--accent-deep); font-weight: 600; }
+    .action-note.warn { color: #b45309; font-weight: 600; }
+
+    .empty-state, .error-state {
+      background: var(--surface); border: 1px dashed var(--border-strong);
+      border-radius: 10px; padding: 32px; text-align: center;
+      color: var(--text-muted); font-size: 13.5px; line-height: 1.6;
+    }
+    .error-state { background: #fef6f5; border: 1px solid #fca5a5; color: #991b1b; text-align: left; }
+
+    @media (max-width: 720px) {
+      .page { padding: 20px 16px 40px; }
+      table, thead, tbody, th, td, tr { display: block; }
+      th { display: none; }
+      td { padding: 4px 0; border: none; }
+      td:first-child { font-weight: 600; padding-top: 12px; }
+      tr { border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-logo"><img src="/logo.png" alt="USI-PRO"></div>
+    <div class="navbar-divider"></div>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <span class="nav-title">Chiffrage AI</span>
+      <span class="nav-subtitle">Demandes reçues</span>
+    </div>
+    <div class="spacer"></div>
+    <a class="navbar-link" href="/">← Accueil</a>
+    <a class="navbar-link" href="/guide.html">Guide</a>
+  </nav>
+
+  <main class="page">
+    <div class="head">
+      <h1>Demandes de chiffrage</h1>
+      <span class="count" id="count">—</span>
+    </div>
+    <p class="lede">
+      Ce que l'atelier a reçu sur <strong>chiffrage@usi-pro.com</strong>, lu et rangé.
+      Aucun prix n'est calculé ici : les lignes sont celles du mail, telles qu'elles
+      étaient écrites. Quand une demande est traitée de ton côté, marque-la comme
+      close — c'est toi qui décides, rien ne le fait à ta place.
+    </p>
+    <div id="body"><div class="empty-state">chargement…</div></div>
+  </main>
+
+  <script>
+    const STATUS_LABEL = { a_valider: 'À traiter', livre: 'Traitée' };
+    const SOURCE_LABEL = { email: 'reçue par mail', form: 'saisie à la main' };
+
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text != null) node.textContent = text;  // jamais innerHTML: ces textes viennent des mails
+      return node;
+    }
+
+    function relativeDate(iso) {
+      const then = new Date(iso);
+      if (Number.isNaN(then.getTime())) return '';
+      const mins = Math.round((Date.now() - then.getTime()) / 60000);
+      if (mins < 1) return "à l'instant";
+      if (mins < 60) return 'il y a ' + mins + ' min';
+      const hours = Math.round(mins / 60);
+      if (hours < 24) return 'il y a ' + hours + ' h';
+      return then.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+
+    function renderLines(container, lines) {
+      const table = el('table');
+      const thead = el('thead');
+      const hr = el('tr');
+      ['Référence', 'Désignation', 'Matière', 'Quantité', 'Commentaire'].forEach(h => {
+        hr.appendChild(el('th', null, h));
+      });
+      thead.appendChild(hr);
+      table.appendChild(thead);
+
+      const tbody = el('tbody');
+      for (const line of lines) {
+        const tr = el('tr');
+        [
+          line.reference || '—',
+          line.designation || '—',
+          line.material || '—',
+          line.quantity || '—',
+          line.comment || '—',
+        ].forEach((value, i) => {
+          const td = el('td', value === '—' ? 'dim' : null, value);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      container.appendChild(table);
+    }
+
+    function renderRequest(work) {
+      const card = el('div', 'request' + (work.status === 'livre' ? ' livre' : ''));
+
+      const head = el('div', 'req-head');
+      head.appendChild(el('span', 'req-ref', work.ref));
+      head.appendChild(el('span', 'tag tag-status-' + work.status, STATUS_LABEL[work.status] || work.status));
+      head.appendChild(el('span', 'tag tag-client', 'Client · ' + work.client));
+      if (work.detailsInAttachments) head.appendChild(el('span', 'tag tag-pj', 'Détails en pièce jointe'));
+      head.appendChild(el('span', 'tag tag-source', SOURCE_LABEL[work.source] || work.source));
+      head.appendChild(el('div', 'spacer'));
+      head.appendChild(el('span', 'req-when', relativeDate(work.updatedAt)));
+      card.appendChild(head);
+
+      if (work.summary) card.appendChild(el('div', 'summary', work.summary));
+
+      const linesBox = el('div');
+      linesBox.appendChild(el('div', 'action-note', 'chargement des lignes…'));
+      card.appendChild(linesBox);
+
+      fetch('/api/works/' + encodeURIComponent(work.id) + '/lines')
+        .then(r => r.json())
+        .then(data => {
+          linesBox.innerHTML = '';
+          if ((data.lines || []).length === 0) {
+            linesBox.appendChild(el('div', 'no-lines',
+              work.detailsInAttachments
+                ? "Le corps du mail renvoie aux pièces jointes : rien n'a été inventé ici. Ouvre le mail pour lire l'Excel ou les plans — la lecture automatique des pièces jointes n'existe pas encore."
+                : "Aucune ligne n'a pu être lue dans ce mail."));
+          } else {
+            renderLines(linesBox, data.lines);
+          }
+        })
+        .catch(err => {
+          linesBox.innerHTML = '';
+          linesBox.appendChild(el('div', 'action-note warn', 'Lignes illisibles : ' + err.message));
+        });
+
+      const actions = el('div', 'actions');
+      const note = el('span', 'action-note');
+      const btn = el('button', 'btn ' + (work.status === 'livre' ? 'btn-ghost' : 'btn-teal'),
+        work.status === 'livre' ? 'Rouvrir' : 'Marquer comme traitée');
+      btn.type = 'button';
+      btn.onclick = async () => {
+        const next = work.status === 'livre' ? 'a_valider' : 'livre';
+        btn.disabled = true;
+        note.className = 'action-note';
+        note.textContent = 'Enregistrement…';
+        try {
+          const resp = await fetch('/api/works/' + encodeURIComponent(work.id) + '/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: next }),
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
+          load();
+        } catch (err) {
+          btn.disabled = false;
+          note.className = 'action-note warn';
+          note.textContent = 'Non enregistré : ' + err.message;
+        }
+      };
+      actions.appendChild(btn);
+
+      const mail = el('a', 'btn btn-ghost', 'Ouvrir le mail');
+      mail.href = 'https://mail.google.com/mail/u/0/#search/' + encodeURIComponent(work.ref);
+      mail.target = '_blank';
+      mail.rel = 'noopener noreferrer';
+      actions.appendChild(mail);
+
+      actions.appendChild(note);
+      card.appendChild(actions);
+
+      return card;
+    }
+
+    async function load() {
+      const body = document.getElementById('body');
+      try {
+        const resp = await fetch('/api/works?tool=chiffrage&limit=100');
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
+
+        const works = data.works || [];
+        const pending = works.filter(w => w.status === 'a_valider').length;
+        document.getElementById('count').textContent =
+          works.length + (works.length > 1 ? ' demandes' : ' demande') +
+          (pending ? ' · ' + pending + ' à traiter' : '');
+
+        body.innerHTML = '';
+        if (works.length === 0) {
+          body.appendChild(el('div', 'empty-state',
+            "Aucune demande pour l'instant. Un mail envoyé à chiffrage@usi-pro.com apparaît ici dans la minute."));
+          return;
+        }
+        for (const work of works) body.appendChild(renderRequest(work));
+      } catch (err) {
+        body.innerHTML = '';
+        body.appendChild(el('div', 'error-state', 'Demandes injoignables : ' + err.message));
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>
