@@ -161,7 +161,10 @@ export async function parseChiffrageEmail(
 
   const msg = await client.messages.create({
     model: CLAUDE_MODEL,
-    max_tokens: 4096,
+    // Un tableur de demande peut porter cinquante références, et chacune sort
+    // cinq champs. Le raisonnement adaptatif puise dans le même budget: 4096
+    // laissaient le JSON coupé en plein milieu d'une ligne.
+    max_tokens: 16384,
     thinking: THINKING,
     system: CHIFFRAGE_PROMPT,
     messages: [

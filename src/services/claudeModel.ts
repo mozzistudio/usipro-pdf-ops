@@ -30,6 +30,15 @@ export function parseJsonResponse<T>(msg: Anthropic.Message): T {
   try {
     return JSON.parse(raw) as T;
   } catch {
+    // Une réponse coupée au budget de tokens n'est pas un JSON malformé, et la
+    // confondre avec l'un envoie chercher la panne du mauvais côté: le modèle a
+    // bien répondu, c'est la place qui a manqué.
+    if (msg.stop_reason === 'max_tokens') {
+      throw new Error(
+        `Réponse tronquée: le budget de ${msg.usage?.output_tokens ?? '?'} tokens de sortie ` +
+          `a été atteint avant la fin du JSON. Augmentez max_tokens pour ce type de demande.`,
+      );
+    }
     throw new Error(`Claude returned invalid JSON: ${raw.slice(0, 200)}`);
   }
 }
