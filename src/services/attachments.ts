@@ -244,10 +244,17 @@ function sheetToText(bytes: Buffer, name: string): string {
  * son erreur. Un plan muet fait chiffrer une pièce sur son nom de fichier,
  * donc on essaie le second avant d'abandonner.
  *
- * pdf-parse a besoin de `@napi-rs/canvas`, qui n'est chez lui qu'une
- * dépendance optionnelle: sans elle il échoue sur « DOMMatrix is not defined ».
- * Elle est donc déclarée explicitement — faute de quoi le second lecteur
- * marchait sur une machine de développement et nulle part ailleurs.
+ * ATTENTION — en production, ce second lecteur ne s'exécute pas. pdf-parse a
+ * besoin de `@napi-rs/canvas`; la dépendance est déclarée, mais pdf-parse la
+ * charge dans un try/catch dynamique que le traceur de Vercel ne voit pas, et
+ * la fonction déployée ne l'embarque donc pas: « DOMMatrix is not defined ».
+ * Le rendre opérant demanderait un `includeFiles` dans vercel.json, non fait.
+ *
+ * Ce n'est pas bloquant aujourd'hui: le seul cas connu où pdf2json échoue est
+ * celui des PDF produits par pdf-lib — nos propres fixtures de test. Les plans
+ * réels, sortis de CAO ou d'Office, passent par pdf2json, qui sert déjà à
+ * l'anonymiseur depuis le début. Si un vrai plan revient muet un jour, c'est
+ * ici qu'il faut regarder.
  *
  * Quand les deux échouent, ce n'est pas forcément une panne: un plan scanné
  * n'a pas de couche texte. L'appelant le dit à l'opérateur au lieu de laisser
