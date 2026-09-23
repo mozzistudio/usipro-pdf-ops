@@ -3,6 +3,25 @@ import JSZip from 'jszip';
 import { logger } from '../utils/logger';
 
 /**
+ * Ce require n'a l'air de rien et fait tout: il est littéral, donc le traceur
+ * de dépendances de la plateforme le voit et embarque le paquet dans la
+ * fonction déployée.
+ *
+ * pdf-parse, lui, charge `@napi-rs/canvas` par un require dynamique dans un
+ * try/catch: invisible au traceur. La dépendance était déclarée, installée au
+ * build, et absente du bundle — d'où « DOMMatrix is not defined » en
+ * production alors que tout marchait sur une machine de développement.
+ *
+ * Emballé par sécurité: si le binaire natif venait à manquer, on perd le
+ * second lecteur PDF, pas le serveur.
+ */
+try {
+  require('@napi-rs/canvas');
+} catch (err: any) {
+  logger.warn({ err: err?.message }, 'canvas indisponible — second lecteur PDF dégradé');
+}
+
+/**
  * Lecture des pièces jointes d'une demande de chiffrage.
  *
  * Les vraies demandes reçues sur chiffrage@usi-pro.com mettent l'essentiel
@@ -244,17 +263,11 @@ function sheetToText(bytes: Buffer, name: string): string {
  * son erreur. Un plan muet fait chiffrer une pièce sur son nom de fichier,
  * donc on essaie le second avant d'abandonner.
  *
- * ATTENTION — en production, ce second lecteur ne s'exécute pas. pdf-parse a
- * besoin de `@napi-rs/canvas`; la dépendance est déclarée, mais pdf-parse la
- * charge dans un try/catch dynamique que le traceur de Vercel ne voit pas, et
- * la fonction déployée ne l'embarque donc pas: « DOMMatrix is not defined ».
- * Le rendre opérant demanderait un `includeFiles` dans vercel.json, non fait.
- *
- * Ce n'est pas bloquant aujourd'hui: le seul cas connu où pdf2json échoue est
- * celui des PDF produits par pdf-lib — nos propres fixtures de test. Les plans
- * réels, sortis de CAO ou d'Office, passent par pdf2json, qui sert déjà à
- * l'anonymiseur depuis le début. Si un vrai plan revient muet un jour, c'est
- * ici qu'il faut regarder.
+ * pdf-parse s'appuie sur `@napi-rs/canvas`, qu'il charge par un require
+ * dynamique que le traceur de la plateforme ne voit pas. Le require littéral
+ * en tête de ce fichier est ce qui le fait embarquer: sans lui le second
+ * lecteur échouait en production sur « DOMMatrix is not defined », et
+ * seulement là.
  *
  * Quand les deux échouent, ce n'est pas forcément une panne: un plan scanné
  * n'a pas de couche texte. L'appelant le dit à l'opérateur au lieu de laisser
