@@ -5,97 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>USI-PRO — Édition AI</title>
   <link rel="icon" type="image/png" href="/favicon.png">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/usipro.css">
   <link rel="stylesheet" href="/correction-mode.css">
   <style>
+    /**
+     * Les anciens jetons de cette page pointent maintenant sur ceux de la
+     * maquette (usipro.css). Un seul endroit à tenir, et l'écran d'édition
+     * parle la même langue que la revue technique et l'accueil.
+     */
     :root {
-      --dark: #0f1a2e;
-      --accent: #1abc9c;
-      --accent-deep: #148f77;
-      --accent-glow: #1affd5;
-      --surface: #ffffff;
-      --surface-alt: #f6f9fb;
-      --text: #1e293b;
-      --text-muted: #64748b;
-      --border: #e2e8f0;
-      --radius: 12px;
-      --error: #e74c3c;
-      --success: #27ae60;
+      --dark: var(--plan);
+      --accent: var(--teal);
+      --accent-deep: var(--teal-ink);
+      --accent-glow: var(--teal);
+      --surface-alt: var(--surface-2);
+      --text: var(--ink);
+      --text-muted: var(--ink-2);
+      --border: var(--line);
+      --radius: 10px;
+      --error: var(--red);
+      --success: var(--green);
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: 'DM Sans', sans-serif;
-      background: #eef2f7;
-      color: var(--text);
-      min-height: 100vh;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    /* ── NAVBAR ── */
-    .navbar {
-      background: var(--dark);
-      height: 64px;
-      display: flex;
-      align-items: center;
-      padding: 0 32px;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      border-bottom: 2px solid var(--accent);
-      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
-    }
-
-    .navbar-logo img {
-      height: 36px;
-      width: auto;
-      display: block;
-    }
-
-    .navbar-divider {
-      width: 1px;
-      height: 28px;
-      background: rgba(255,255,255,0.12);
-      margin: 0 20px;
-      flex-shrink: 0;
-    }
-
-    .navbar-info {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .navbar-info .nav-title {
-      font-size: 15px;
-      font-weight: 600;
-      color: #fff;
-      letter-spacing: 0.1px;
-      line-height: 1;
-    }
-
-    .navbar-info .nav-subtitle {
-      font-size: 11px;
-      color: rgba(255,255,255,0.38);
-      font-weight: 400;
-      letter-spacing: 0.8px;
-      text-transform: uppercase;
-      line-height: 1;
-    }
-
-    .navbar-badge {
-      margin-left: auto;
-      background: rgba(26,188,156,0.1);
-      border: 1px solid rgba(26,188,156,0.28);
-      color: var(--accent);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 1.2px;
-      text-transform: uppercase;
-      padding: 5px 12px;
-      border-radius: 20px;
-    }
 
     /* ── CONTAINER ── */
     .container {
@@ -160,7 +95,7 @@
 
     /* ── INPUTS ── */
     input, textarea {
-      font-family: 'DM Sans', sans-serif;
+      font-family: var(--sans);
       font-size: 14px;
       padding: 10px 14px;
       border: 1.5px solid var(--border);
@@ -302,7 +237,7 @@
       padding: 14px 24px;
       cursor: pointer;
       color: var(--accent-deep);
-      font-family: 'DM Sans', sans-serif;
+      font-family: var(--sans);
       font-weight: 600;
       font-size: 14px;
       width: 100%;
@@ -322,12 +257,12 @@
     }
 
     .btn-submit {
-      background: var(--dark);
-      color: #fff;
+      background: var(--teal);
+      color: #05312B;
       border: none;
       padding: 15px 64px;
       border-radius: 10px;
-      font-family: 'DM Sans', sans-serif;
+      font-family: var(--sans);
       font-size: 15px;
       font-weight: 600;
       cursor: pointer;
@@ -621,7 +556,7 @@
       border: none;
       padding: 9px 20px;
       border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
+      font-family: var(--sans);
       font-size: 13.5px;
       font-weight: 600;
       cursor: pointer;
@@ -635,7 +570,7 @@
       border: 1.5px solid var(--error);
       padding: 8px 18px;
       border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
+      font-family: var(--sans);
       font-size: 13.5px;
       font-weight: 600;
       cursor: pointer;
@@ -649,7 +584,7 @@
       border: 1.5px solid var(--accent);
       padding: 8px 18px;
       border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
+      font-family: var(--sans);
       font-size: 13.5px;
       font-weight: 600;
       cursor: pointer;
@@ -659,12 +594,12 @@
 
     .btn-apply-zones,
     .btn-apply-table {
-      background: var(--dark);
-      color: #fff;
+      background: var(--teal);
+      color: #05312B;
       border: none;
       padding: 9px 20px;
       border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
+      font-family: var(--sans);
       font-size: 13.5px;
       font-weight: 600;
       cursor: pointer;
@@ -679,7 +614,7 @@
       border: 1.5px solid var(--border);
       padding: 8px 16px;
       border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
+      font-family: var(--sans);
       font-size: 13px;
       font-weight: 500;
       cursor: pointer;
@@ -943,7 +878,7 @@
       gap: 8px;
       padding: 10px 18px;
       border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
+      font-family: var(--sans);
       font-size: 13.5px;
       font-weight: 600;
       cursor: pointer;
@@ -1085,7 +1020,7 @@
       gap: 8px;
       padding: 9px 18px;
       border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
+      font-family: var(--sans);
       font-size: 13.5px;
       font-weight: 600;
       cursor: pointer;
@@ -1131,8 +1066,6 @@
     }
 
     @media (max-width: 800px) {
-      .navbar { padding: 0 16px; }
-      .navbar-badge { display: none; }
       .container { padding: 0 12px; margin: 20px auto; }
       .card { padding: 20px 16px; }
       .of-section { flex-direction: column; align-items: stretch; }
@@ -1164,7 +1097,7 @@
       box-shadow: 0 20px 60px rgba(0,0,0,0.25);
     }
     .plan-select-title {
-      font-family: 'DM Sans', sans-serif;
+      font-family: var(--sans);
       font-size: 20px;
       font-weight: 600;
       color: var(--dark);
@@ -1245,7 +1178,7 @@
       border: none;
       padding: 11px 24px;
       border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
+      font-family: var(--sans);
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
@@ -1258,21 +1191,15 @@
 <body>
 
   <!-- NAVBAR -->
-  <nav class="navbar">
-    <div class="navbar-logo">
-      <img src="/logo.png" alt="Usi-Pro">
-    </div>
-    <div class="navbar-divider"></div>
-    <div class="navbar-info">
-      <span class="nav-title">Édition AI</span>
-      <span class="nav-subtitle">Opérations PDF</span>
-    </div>
-    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-      <a href="/" class="navbar-badge" style="margin-left:0;text-decoration:none">&#8592; Accueil</a>
-      <a href="/step-compare.html" class="navbar-badge" style="margin-left:0;text-decoration:none">&#9881; Comparaison STEP</a>
-      <a href="/guide.html" class="navbar-badge" style="margin-left:0;text-decoration:none">&#10067; Guide</a>
-    </div>
-  </nav>
+  <header class="app-bar">
+    <img src="/logo.png" alt="Usi-Pro" style="height:20px;display:block">
+    <span class="app-name">Édition AI</span>
+    <div class="spacer"></div>
+    <a class="app-nav" href="/">Accueil</a>
+    <a class="app-nav" href="/chiffrage.html">Chiffrage</a>
+    <a class="app-nav" href="/step-compare.html">Comparaison STEP</a>
+    <a class="app-nav" href="/guide.html">Guide</a>
+  </header>
 
   <!-- FORM -->
   <div class="container" id="formContainer">

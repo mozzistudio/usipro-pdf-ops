@@ -5,228 +5,176 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>USI-PRO Internal</title>
   <link rel="icon" type="image/png" href="/favicon.png">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/usipro.css">
   <style>
-    :root {
-      --dark: #0f1a2e;
-      --accent: #1abc9c;
-      --accent-deep: #0f766e;
-      --accent-soft: #e6f8f4;
-      --navy-soft: #e8edf6;
-      --surface: #ffffff;
-      --surface-alt: #f8fafc;
-      --text: #1e293b;
-      --text-muted: #64748b;
-      --text-dim: #94a3b8;
-      --border: #e2e8f0;
-      --border-strong: #cbd5e1;
-      --radius: 12px;
-    }
+    /**
+     * L'accueil dans la langue de la maquette.
+     *
+     * Deux outils, puis tout ce qui a déjà été fait. Les références, les
+     * quantités et les dates passent en chasse fixe : ce sont des identifiants,
+     * on les compare à l'œil. Les états gardent leur couleur — un lot à valider
+     * doit se voir sans être lu.
+     */
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    .page { max-width: 1240px; margin: 0 auto; padding: 26px 24px 64px; }
 
-    body {
-      font-family: 'DM Sans', system-ui, sans-serif;
-      background: #eef2f7;
-      color: var(--text);
-      min-height: 100vh;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    a { color: var(--accent-deep); }
-
-    /* ── NAVBAR ── */
-    .navbar {
-      background: var(--dark);
-      height: 64px;
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      padding: 0 32px;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      border-bottom: 2px solid var(--accent);
-      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
-    }
-
-    .navbar-logo img { height: 28px; display: block; }
-    .navbar-divider { width: 1px; height: 28px; background: rgba(255,255,255,0.14); }
-    .nav-title { font-size: 15px; font-weight: 600; color: #fff; line-height: 1; }
-    .nav-subtitle {
-      font-size: 10px; color: rgba(255,255,255,0.45); font-weight: 500;
-      letter-spacing: 0.8px; text-transform: uppercase; line-height: 1;
-    }
-    .navbar-link {
-      color: rgba(255,255,255,0.7);
-      font-size: 13px;
-      font-weight: 600;
-      text-decoration: none;
-      padding: 8px 12px;
-      border-radius: 8px;
-    }
-    .navbar-link:hover { color: #fff; background: rgba(255,255,255,0.07); }
-
-    /* ── LAYOUT ── */
-    .page { max-width: 1280px; margin: 0 auto; padding: 28px 32px 60px; }
-
-    /* ── TOOL CARDS ── */
-    .tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+    /* ── Les deux outils ── */
+    .tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 
     .tool-card {
       background: var(--surface);
-      border: 1px solid var(--border);
-      border-top: 3px solid var(--accent);
-      border-radius: var(--radius);
-      padding: 22px 24px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      padding: 20px 22px;
       display: flex;
       flex-direction: column;
       gap: 14px;
-      box-shadow: 0 1px 3px rgba(15,26,46,0.05), 0 8px 24px rgba(15,26,46,0.05);
     }
 
-    .tool-card.chiffrage { border-top-color: var(--dark); }
-
-    .tool-head { display: flex; align-items: center; gap: 13px; }
+    .tool-head { display: flex; align-items: center; gap: 12px; }
 
     .tool-icon {
-      width: 42px; height: 42px; flex-shrink: 0;
-      border-radius: 10px;
-      background: var(--accent-soft);
-      color: var(--accent-deep);
+      width: 40px; height: 40px; flex-shrink: 0;
+      border-radius: 8px;
+      background: var(--teal-soft);
+      color: var(--teal-ink);
       display: flex; align-items: center; justify-content: center;
     }
-    .tool-card.chiffrage .tool-icon { background: var(--navy-soft); color: var(--dark); }
+    .tool-card.chiffrage .tool-icon { background: var(--surface-3); color: var(--ink); }
 
-    .tool-name { font-size: 18px; font-weight: 700; }
-    .tool-sub { font-size: 12px; color: var(--text-muted); }
-
-    .btn {
-      display: inline-flex; align-items: center; gap: 8px;
-      height: 44px; padding: 0 18px;
-      border: none; border-radius: 8px;
-      font-family: inherit; font-size: 13.5px; font-weight: 700;
-      text-decoration: none; cursor: pointer;
-    }
-    .btn-teal { background: var(--accent); color: var(--dark); }
-    .btn-navy { background: var(--dark); color: #fff; }
-    .btn-ghost {
-      background: var(--surface); color: var(--text);
-      border: 1px solid var(--border-strong);
-      font-weight: 600;
+    .tool-name { font-size: 17px; font-weight: 700; letter-spacing: -0.2px; }
+    .tool-sub {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--ink-3);
     }
 
     .tool-preview {
-      background: var(--surface-alt);
-      border: 1px solid var(--border);
+      background: var(--surface-2);
+      border: 1px solid var(--line);
       border-radius: 8px;
       padding: 14px 16px;
       min-height: 108px;
       display: flex;
       flex-direction: column;
-      gap: 9px;
+      gap: 8px;
       justify-content: center;
     }
 
-    .preview-line { display: flex; align-items: baseline; gap: 9px; font-size: 13px; }
+    .preview-line { display: flex; align-items: baseline; gap: 10px; font-size: 13px; }
     .preview-line .label {
-      font-size: 10.5px; font-weight: 700; letter-spacing: 0.8px;
-      text-transform: uppercase; color: var(--text-dim);
-      min-width: 74px;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+      min-width: 78px;
+      flex-shrink: 0;
     }
-    .preview-empty { font-size: 13px; color: var(--text-muted); line-height: 1.55; }
+    .preview-line > span:last-child { font-family: var(--mono); font-size: 12px; }
+    .preview-empty { font-size: 12.5px; color: var(--ink-2); line-height: 1.6; }
 
     .tool-foot {
       display: flex; align-items: center; gap: 10px;
-      padding-top: 12px; border-top: 1px solid #eef2f7;
-      font-size: 12.5px; color: #475569;
+      padding-top: 12px; border-top: 1px solid var(--line);
+      font-size: 12.5px; color: var(--ink-2);
     }
+    .tool-foot a { font-weight: 600; text-decoration: none; }
+    .tool-foot a:hover { text-decoration: underline; }
 
-    .spacer { flex-grow: 1; }
-
-    /* ── FILES ── */
-    .files { margin-top: 26px; display: flex; flex-direction: column; gap: 14px; }
+    /* ── Tout ce qui a été fait ── */
+    .files { margin-top: 30px; display: flex; flex-direction: column; gap: 14px; }
 
     .files-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .files-head h2 { font-size: 18px; font-weight: 700; }
-    .files-count { font-size: 12px; color: var(--text-muted); }
+    .files-head h2 { font-size: 17px; font-weight: 700; letter-spacing: -0.2px; }
+    .files-count { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
 
     .chip-btn {
-      height: 34px; padding: 0 13px;
-      font-family: inherit; font-size: 12.5px; font-weight: 600;
-      color: #475569; background: var(--surface);
-      border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+      height: 32px; padding: 0 12px;
+      font-family: var(--sans); font-size: 12.5px; font-weight: 600;
+      color: var(--ink-2); background: var(--surface);
+      border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
     }
+    .chip-btn:hover { background: var(--surface-2); }
     .chip-btn[aria-pressed="true"] {
-      color: var(--dark); border-color: var(--border-strong); font-weight: 700;
-      background: #f1f5f9;
+      color: var(--teal-ink); border-color: var(--teal); background: var(--teal-soft);
     }
 
-    .files-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 16px;
-    }
+    .files-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 
     .work-card {
       background: var(--surface);
-      border: 1px solid var(--border);
+      border: 1px solid var(--line);
       border-radius: 10px;
-      padding: 16px 18px;
+      padding: 15px 17px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 9px;
     }
 
     .work-top { display: flex; align-items: center; gap: 8px; }
-    .work-ref { font-size: 14px; font-weight: 600; }
-    .work-sub { font-size: 12px; color: var(--text-dim); }
-    .work-summary { font-size: 12.5px; color: #475569; line-height: 1.5; }
-    .tag-attachments { color: #92400e; background: #fef3c7; }
-    .work-when { font-size: 11.5px; color: var(--text-dim); }
+    .work-ref { font-family: var(--mono); font-size: 14px; font-weight: 600; letter-spacing: -0.2px; }
+    .work-sub { font-size: 12px; color: var(--ink-3); }
+    .work-summary { font-size: 12.5px; color: var(--ink-2); line-height: 1.55; }
+    .work-when { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
 
-    .tags { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 8px; border-top: 1px solid #f1f5f9; }
+    .tags { display: flex; flex-wrap: wrap; gap: 5px; padding-top: 9px; border-top: 1px solid var(--line); }
 
+    /* Les étiquettes reprennent la forme des chips de la maquette. */
     .tag {
-      font-size: 11px; font-weight: 600;
-      border-radius: 6px; padding: 4px 8px;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border-radius: 4px;
+      padding: 3px 7px;
+      background: var(--surface-3);
+      color: var(--ink-2);
+      white-space: nowrap;
     }
-    .tag-tool-edition { color: var(--accent-deep); background: var(--accent-soft); }
-    .tag-tool-chiffrage { color: var(--dark); background: var(--navy-soft); }
-    .tag-client { color: #6b21a8; background: #f4e8ff; }
-    .tag-project { color: #1d4ed8; background: #e8eefc; }
-    .tag-fb-plus { color: var(--accent-deep); background: var(--accent-soft); }
-    .tag-fb-minus { color: #b45309; background: #fef3c7; }
-    .tag-status-a_valider { color: #92400e; background: #fef3c7; }
-    .tag-status-livre { color: #166534; background: #dcfce7; }
+    .tag-tool-edition { color: var(--teal-ink); background: var(--teal-soft); }
+    .tag-tool-chiffrage { color: var(--ink); background: var(--surface-3); }
+    .tag-fb-plus { color: var(--green); background: var(--green-soft); }
+    .tag-fb-minus { color: var(--amber); background: var(--amber-soft); }
+    .tag-attachments { color: var(--amber); background: var(--amber-soft); }
+    .tag-status-a_valider { color: var(--amber); background: var(--amber-soft); }
+    .tag-status-livre { color: var(--green); background: var(--green-soft); }
 
     .work-files-btn {
       align-self: flex-start;
-      font-family: inherit; font-size: 12.5px; font-weight: 600;
-      color: var(--accent-deep); background: none; border: none;
+      font-family: var(--sans); font-size: 12.5px; font-weight: 600;
+      color: var(--teal-ink); background: none; border: none;
       padding: 0; cursor: pointer; text-decoration: underline;
     }
 
-    .work-files-list { display: flex; flex-direction: column; gap: 5px; }
+    .work-files-list { display: flex; flex-direction: column; gap: 4px; }
     .work-files-list a { font-size: 12.5px; }
 
     .empty-state {
       background: var(--surface);
-      border: 1px dashed var(--border-strong);
+      border: 1px dashed var(--line-2);
       border-radius: 10px;
-      padding: 32px;
+      padding: 30px;
       text-align: center;
-      color: var(--text-muted);
-      font-size: 13.5px;
-      line-height: 1.6;
+      color: var(--ink-2);
+      font-size: 13px;
+      line-height: 1.65;
     }
 
     .error-state {
-      background: #fef6f5;
-      border: 1px solid #fca5a5;
+      background: var(--red-soft);
+      border: 1px solid var(--red);
       border-radius: 10px;
-      padding: 16px 18px;
-      color: #991b1b;
+      padding: 15px 17px;
+      color: var(--red);
       font-size: 13px;
     }
 
@@ -236,24 +184,22 @@
     }
 
     @media (max-width: 720px) {
-      .page { padding: 20px 16px 40px; }
+      .page { padding: 18px 16px 40px; }
       .files-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
 
-  <nav class="navbar">
-    <div class="navbar-logo"><img src="/logo.png" alt="USI-PRO"></div>
-    <div class="navbar-divider"></div>
-    <div style="display:flex;flex-direction:column;gap:3px">
-      <span class="nav-title">Internal</span>
-      <span class="nav-subtitle">Atelier IA</span>
-    </div>
+  <header class="app-bar">
+    <img src="/logo.png" alt="USI-PRO" style="height:20px;display:block">
+    <span class="app-name">Internal</span>
     <div class="spacer"></div>
-    <a class="navbar-link" href="/step-compare.html">Comparaison STEP</a>
-    <a class="navbar-link" href="/guide.html">Guide</a>
-  </nav>
+    <a class="app-nav" href="/edition.html">Édition</a>
+    <a class="app-nav" href="/chiffrage.html">Chiffrage</a>
+    <a class="app-nav" href="/step-compare.html">Comparaison STEP</a>
+    <a class="app-nav" href="/guide.html">Guide</a>
+  </header>
 
   <main class="page">
 
@@ -269,7 +215,7 @@
             <span class="tool-sub" id="editionLast">chargement…</span>
           </div>
           <div class="spacer"></div>
-          <a class="btn btn-teal" href="/edition.html">Nouveau lot
+          <a class="btn btn-primary" href="/edition.html">Nouveau lot
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </a>
         </div>
@@ -293,7 +239,7 @@
             <span class="tool-sub" id="chiffrageLast">du mail au devis</span>
           </div>
           <div class="spacer"></div>
-          <a class="btn btn-navy" href="/chiffrage.html">Ouvrir les demandes
+          <a class="btn btn-ghost" href="/chiffrage.html">Ouvrir les demandes
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </a>
         </div>
@@ -374,11 +320,19 @@
 
       lastEl.textContent = 'dernier : ' + last.ref + ' · ' + relativeDate(last.updatedAt);
 
-      const rows = [
-        ['Travail', last.ref],
-        ['Plans', String(last.planCount) + (last.planCount > 1 ? ' plans anonymisés' : ' plan anonymisé')],
-        ['Statut', STATUS_LABEL[last.status] || last.status],
-      ];
+      // Un lot d'édition se compte en plans anonymisés, une demande de
+      // chiffrage en articles à chiffrer. Afficher « 0 plan » sur un devis
+      // ne dit rien de vrai sur ce qui attend l'opérateur.
+      const rows = [['Travail', last.ref]];
+      if (tool === 'chiffrage') {
+        const lines = last.lineCount || 0;
+        rows.push(['Articles', lines > 0
+          ? String(lines) + (lines > 1 ? ' articles demandés' : ' article demandé')
+          : 'contenu à lire']);
+      } else {
+        rows.push(['Plans', String(last.planCount) + (last.planCount > 1 ? ' plans anonymisés' : ' plan anonymisé')]);
+      }
+      rows.push(['Statut', STATUS_LABEL[last.status] || last.status]);
       if (last.missingParts && last.missingParts.length) {
         rows.push(['Manquant', last.missingParts.join(', ')]);
       }
