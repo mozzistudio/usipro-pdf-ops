@@ -46,6 +46,12 @@
     .devis[aria-current="true"] { background: var(--teal-soft); }
     .devis .ref { font-family: var(--mono); font-size: 12px; flex-grow: 1; }
     .devis .n { font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+    /* Le compte de documents: discret, mais il dit où sont les plans. */
+    .devis .docs-n {
+      font-family: var(--mono); font-size: 10px;
+      background: var(--teal-soft); color: var(--teal-ink);
+      border-radius: 3px; padding: 1px 5px;
+    }
 
     /* Colonne 2 — le plan */
     .plan { background: var(--plan); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -334,6 +340,17 @@
         btn.type = 'button';
         btn.setAttribute('aria-current', String(work.id === CURRENT.id));
         btn.appendChild(el('span', 'ref', work.ref));
+        // Le nombre de documents, à côté du nombre d'articles: sans lui, rien
+        // ne dit que la demande d'à côté porte cinquante-sept plans, et on
+        // ouvre l'outil sur un devis sans pièce jointe en croyant qu'il n'y en
+        // a nulle part.
+        if (work.fileCount > 0) {
+          const docs = el('span', 'docs-n', String(work.fileCount));
+          docs.title = work.fileCount > 1
+            ? work.fileCount + ' documents reçus'
+            : '1 document reçu';
+          btn.appendChild(docs);
+        }
         btn.appendChild(el('span', 'n', String(work.lineCount || 0)));
         btn.onclick = () => selectWork(work.id);
         list.appendChild(btn);
