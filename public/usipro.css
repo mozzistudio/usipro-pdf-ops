@@ -65,8 +65,39 @@ a { color: var(--teal-ink); }
   z-index: 50;
 }
 
-.app-name { font-size: 14px; font-weight: 700; letter-spacing: -0.2px; }
-.app-name em { font-style: normal; color: var(--teal-ink); }
+/* ── Le logo ──
+ * `logo.png` est dessiné POUR FOND SOMBRE : « Usi » et le pictogramme du foret
+ * y sont en blanc, seuls « Pro » et la pastille sont en teal. C'est juste là où
+ * il sert côté serveur — le bandeau d'en-tête des devis et le cartouche des
+ * plans sont navy. Ça ne l'était pas ici : la barre d'application est blanche,
+ * la moitié gauche du logo y disparaissait et il ne restait que « Pro »
+ * flottant dans une pastille vide.
+ *
+ * D'où le socle. On ne repeint pas le logo — on lui rend son fond. Un seul
+ * fichier logo dans tout le dépôt, aucune déclinaison à tenir synchronisée, et
+ * la marque se lit en haut de l'écran exactement comme elle se lit en haut des
+ * devis que cet écran produit.
+ *
+ * `Internal` fait partie du socle, pas de la page : c'est le nom de l'outil,
+ * pas celui de l'écran. Le nom de l'écran, lui, vient après, en `.app-name`.
+ */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  padding: 0 11px 0 10px;
+  border-radius: 7px;
+  background: var(--ink);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+a.brand:hover { background: #0B1210; }
+.brand img { height: 17px; display: block; }
+.brand-rule { width: 1px; height: 14px; background: rgba(255,255,255,.24); }
+.brand-app { font-size: 12.5px; font-weight: 700; letter-spacing: -0.1px; color: #fff; white-space: nowrap; }
+
+.app-name { font-size: 14px; font-weight: 700; letter-spacing: -0.2px; white-space: nowrap; }
 
 .app-nav {
   font-size: 13px;
