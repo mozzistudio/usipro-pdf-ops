@@ -248,7 +248,10 @@
     function looksDecorative(file) {
       if (!/\.(png|jpe?g|gif)$/i.test(file.fileName)) return false;
       if (/^image\d{3}\.(png|gif|jpe?g)$/i.test(file.fileName)) return true;
-      return (file.byteSize || 0) < 30000;
+      // Un plan photographié au téléphone pèse des centaines de kilo-octets ;
+      // un bandeau de signature, quelques dizaines. Le nom ne dit rien —
+      // sur DE5419, le logo de l'entreprise s'appelait IMG-20220307-WA0014.
+      return (file.byteSize || 0) < 150000;
     }
 
     function documentFor(line) {
@@ -264,15 +267,20 @@
       // Un PDF est presque toujours un vrai plan ; sinon la plus grosse image
       // non décorative, une photo de plan pesant bien plus qu'un logo.
       const serious = viewable.filter(f => !looksDecorative(f));
-      const pool = serious.length ? serious : viewable;
-      const pdfs = pool.filter(f => isPdf(f.fileName));
-      const ranked = (pdfs.length ? pdfs : pool)
+
+      // Quand il ne reste rien de sérieux, ne rien ouvrir. Afficher le logo de
+      // l'expéditeur à la place d'un plan ferait croire qu'on a reçu quelque
+      // chose. Les vignettes restent cliquables pour qui veut vérifier.
+      if (serious.length === 0) return { file: null, certainty: 'decoratif' };
+
+      if (serious.length === 1 && LINES.length === 1) {
+        return { file: serious[0], certainty: 'unique' };
+      }
+
+      const pdfs = serious.filter(f => isPdf(f.fileName));
+      const ranked = (pdfs.length ? pdfs : serious)
         .slice()
         .sort((a, b) => (b.byteSize || 0) - (a.byteSize || 0));
-
-      if (viewable.length === 1 && LINES.length === 1) {
-        return { file: viewable[0], certainty: 'unique' };
-      }
       return { file: ranked[0], certainty: 'suppose' };
     }
 
@@ -363,7 +371,9 @@
       const frame = el('div', 'frame');
       if (!target) {
         frame.appendChild(el('span', null,
-          FILES.length > 0
+          match.certainty === 'decoratif'
+            ? 'Aucun plan reçu : les images jointes sont des éléments de signature du mail, pas des documents techniques. Elles restent consultables ci-dessous.'
+            : FILES.length > 0
             ? 'Aucun plan lisible parmi les pièces jointes — seuls des fichiers à télécharger ont été reçus.'
             : CURRENT.detailsInAttachments
               ? 'Cette demande annonce des pièces jointes, mais aucune n’est arrivée jusqu’ici. Elle est antérieure au pont qui les transmet.'
