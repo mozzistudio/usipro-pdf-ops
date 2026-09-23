@@ -26,9 +26,15 @@ export function formatDateFR(date: Date = new Date()): string {
   return `${dd}/${mm}/${yyyy}`;
 }
 
+/**
+ * The only donneur d'ordres the Dropbox tree serves today. Named here so the
+ * index of work and the folder layout cannot drift apart.
+ */
+export const CLIENT_CODE = 'RIJ';
+
 /** Build Dropbox folder paths for an OF */
 export function buildDropboxPaths(ofNumber: string) {
-  const base = '/Analyses/RIJ/Achats Externes';
+  const base = `/Analyses/${CLIENT_CODE}/Achats Externes`;
   const main = `${base}/OF${ofNumber}`;
   return {
     main,

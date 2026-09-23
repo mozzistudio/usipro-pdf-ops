@@ -61,6 +61,8 @@ export interface Phase1Response {
     partId: string;
     originalBase64: string;
     anonymizedBase64: string;
+    /** Detected cartouche format — scopes the operator retours on this plan. */
+    format?: string;
     feedback?: PartFeedback;
   }>;
   missingParts: string[];

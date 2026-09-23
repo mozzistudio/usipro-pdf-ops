@@ -23,6 +23,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
 import { CLAUDE_MODEL, THINKING, parseJsonResponse } from './claudeModel';
+import { buildGuidance, FeedbackScope } from './feedbackStore';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { PNG } = require('pngjs') as { PNG: any };
 
@@ -224,6 +225,11 @@ export interface RefinementResult {
 export async function applyRefinementOverrides(
   prompt: string,
   current: CartoucheData,
+  /**
+   * Consignes distilled from past operator retours on this kind of plan.
+   * Empty when nothing was ever said about it.
+   */
+  guidance = '',
 ): Promise<RefinementResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
@@ -280,7 +286,7 @@ Rules:
   on, return {"overrides":{},"unhandled":"<why it is unclear>"}
 
 Example: feedback "la matière c'est de l'inox 316L et vous avez coupé le plan en bas"
--> {"overrides":{"material":"STAINLESS STEEL 316L"},"unhandled":"plan tronqué en bas"}`;
+-> {"overrides":{"material":"STAINLESS STEEL 316L"},"unhandled":"plan tronqué en bas"}${guidance}`;
 
     const userMsg = `Current cartouche data:
 ${JSON.stringify(current, null, 2)}
@@ -628,6 +634,11 @@ export async function anonymizePdf(
   planId: string,
   lotId: string,
   refinementPrompt?: string,
+  /**
+   * Which plan family this is, so past retours on the same client or drawing
+   * format — and only those — are replayed into the cartouche editor.
+   */
+  scope: FeedbackScope = {},
 ): Promise<{ pdf: Buffer; format: string; refinement: RefinementResult | null }> {
   // 1. Extract text (for format detection + cartouche data)
   //    pdf2json (pdf.js-based) handles more PDF types than pdf-parse
@@ -640,18 +651,6 @@ export async function anonymizePdf(
 
   let cartouche = extractCartoucheData(text);
 
-  // Apply field overrides interpreted from the refinement prompt via Claude
-  let refinement: RefinementResult | null = null;
-  if (refinementPrompt?.trim()) {
-    refinement = await applyRefinementOverrides(refinementPrompt, cartouche);
-    cartouche = { ...cartouche, ...refinement.overrides };
-    console.log(
-      `[anonymizePdf] planId=${planId} feedback="${refinementPrompt.trim()}" ` +
-      `applied=${JSON.stringify(refinement.overrides)}` +
-      (refinement.unhandled ? ` unhandled="${refinement.unhandled}"` : ''),
-    );
-  }
-
   const doc = await PDFDocument.load(pdfBytes);
   const fonts = {
     reg:  await doc.embedFont(StandardFonts.Helvetica),
@@ -660,7 +659,30 @@ export async function anonymizePdf(
 
   const firstPage = doc.getPage(0);
   const { width: w0, height: h0 } = firstPage.getSize();
+  // Detected before the feedback is interpreted: the format key is what scopes
+  // the past retours, so a lesson learnt on one client's sheets never leaks
+  // onto another's.
   const fmt = detect(text, w0, h0);
+
+  // Apply field overrides interpreted from the refinement prompt via Claude
+  let refinement: RefinementResult | null = null;
+  if (refinementPrompt?.trim()) {
+    const guidance = await buildGuidance('anonymize', {
+      partId: planId,
+      ofNumber: lotId,
+      ...scope,
+      format: fmt.key,
+    });
+    refinement = await applyRefinementOverrides(refinementPrompt, cartouche, guidance);
+    cartouche = { ...cartouche, ...refinement.overrides };
+    console.log(
+      `[anonymizePdf] planId=${planId} feedback="${refinementPrompt.trim()}" ` +
+      `applied=${JSON.stringify(refinement.overrides)}` +
+      (guidance ? ' withGuidance=yes' : '') +
+      (refinement.unhandled ? ` unhandled="${refinement.unhandled}"` : ''),
+    );
+  }
+
   console.log(`[anonymizePdf] planId=${planId} format=${fmt.key} size=${Math.round(w0)}x${Math.round(h0)} | desig="${cartouche.designation}" mat="${cartouche.material}"`);
 
   // 2. Embed logo (once per PDF document)

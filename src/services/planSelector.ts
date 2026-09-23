@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { CLAUDE_MODEL, THINKING, parseJsonResponse } from './claudeModel';
 import { renderPageToPng } from './renderPdfPage';
 import { logger } from '../utils/logger';
+import { buildGuidance, FeedbackScope } from './feedbackStore';
 
 export interface PlanCandidate {
   name: string;
@@ -32,7 +33,11 @@ Pas de markdown, pas d'explication hors JSON.`;
  *  - If Claude API key is missing or the call fails → confidence 'low', index 0.
  *  - If Claude's JSON can't be parsed → confidence 'low', index 0.
  */
-export async function selectPlanPdf(candidates: PlanCandidate[]): Promise<PlanSelection> {
+export async function selectPlanPdf(
+  candidates: PlanCandidate[],
+  /** Which part this is, so past retours on plan picking are replayed. */
+  scope: FeedbackScope = {},
+): Promise<PlanSelection> {
   if (candidates.length === 0) {
     throw new Error('selectPlanPdf called with no candidates');
   }
@@ -82,12 +87,14 @@ export async function selectPlanPdf(candidates: PlanCandidate[]): Promise<PlanSe
       text: `Choisis l'image qui représente le plan technique. Réponds en JSON {"choice": <1..${renderable.length}>, "confidence": "high"|"low", "reason": "..."}.`,
     });
 
+    const guidance = await buildGuidance('plan-select', scope);
+
     const msg = await client.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 2048,
       thinking: THINKING,
       output_config: { effort: 'medium' },
-      system: SYSTEM_PROMPT,
+      system: SYSTEM_PROMPT + guidance,
       messages: [{ role: 'user', content }],
     });
 

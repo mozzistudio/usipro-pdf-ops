@@ -36,6 +36,8 @@ export interface PartDocs {
 export interface PendingSelectionState {
   kind: 'pending_selection';
   ofNumber: string;
+  /** Form or mail — carried so the resumed run is indexed with its real origin. */
+  source: 'form' | 'email';
   resolvedOF: string;
   parts: Part[];
   paths: OFDropboxPaths;

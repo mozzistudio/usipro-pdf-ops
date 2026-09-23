@@ -3,35 +3,37 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>USI-PRO — Formulaire Opérations PDF</title>
+  <title>USI-PRO Internal</title>
   <link rel="icon" type="image/png" href="/favicon.png">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/correction-mode.css">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
       --dark: #0f1a2e;
       --accent: #1abc9c;
-      --accent-deep: #148f77;
-      --accent-glow: #1affd5;
+      --accent-deep: #0f766e;
+      --accent-soft: #e6f8f4;
+      --navy-soft: #e8edf6;
       --surface: #ffffff;
-      --surface-alt: #f6f9fb;
+      --surface-alt: #f8fafc;
       --text: #1e293b;
       --text-muted: #64748b;
+      --text-dim: #94a3b8;
       --border: #e2e8f0;
+      --border-strong: #cbd5e1;
       --radius: 12px;
-      --error: #e74c3c;
-      --success: #27ae60;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: 'DM Sans', sans-serif;
+      font-family: 'DM Sans', system-ui, sans-serif;
       background: #eef2f7;
       color: var(--text);
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
     }
+
+    a { color: var(--accent-deep); }
 
     /* ── NAVBAR ── */
     .navbar {
@@ -39,6 +41,7 @@
       height: 64px;
       display: flex;
       align-items: center;
+      gap: 20px;
       padding: 0 32px;
       position: sticky;
       top: 0;
@@ -47,1888 +50,510 @@
       box-shadow: 0 2px 12px rgba(0,0,0,0.18);
     }
 
-    .navbar-logo img {
-      height: 36px;
-      width: auto;
-      display: block;
+    .navbar-logo img { height: 28px; display: block; }
+    .navbar-divider { width: 1px; height: 28px; background: rgba(255,255,255,0.14); }
+    .nav-title { font-size: 15px; font-weight: 600; color: #fff; line-height: 1; }
+    .nav-subtitle {
+      font-size: 10px; color: rgba(255,255,255,0.45); font-weight: 500;
+      letter-spacing: 0.8px; text-transform: uppercase; line-height: 1;
     }
-
-    .navbar-divider {
-      width: 1px;
-      height: 28px;
-      background: rgba(255,255,255,0.12);
-      margin: 0 20px;
-      flex-shrink: 0;
+    .navbar-link {
+      color: rgba(255,255,255,0.7);
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      padding: 8px 12px;
+      border-radius: 8px;
     }
+    .navbar-link:hover { color: #fff; background: rgba(255,255,255,0.07); }
 
-    .navbar-info {
+    /* ── LAYOUT ── */
+    .page { max-width: 1280px; margin: 0 auto; padding: 28px 32px 60px; }
+
+    /* ── TOOL CARDS ── */
+    .tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+
+    .tool-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 22px 24px;
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: 14px;
+      box-shadow: 0 1px 3px rgba(15,26,46,0.05), 0 8px 24px rgba(15,26,46,0.05);
     }
 
-    .navbar-info .nav-title {
-      font-size: 15px;
-      font-weight: 600;
-      color: #fff;
-      letter-spacing: 0.1px;
-      line-height: 1;
-    }
+    .tool-card.chiffrage { border-top-color: var(--dark); }
 
-    .navbar-info .nav-subtitle {
-      font-size: 11px;
-      color: rgba(255,255,255,0.38);
-      font-weight: 400;
-      letter-spacing: 0.8px;
-      text-transform: uppercase;
-      line-height: 1;
-    }
+    .tool-head { display: flex; align-items: center; gap: 13px; }
 
-    .navbar-badge {
-      margin-left: auto;
-      background: rgba(26,188,156,0.1);
-      border: 1px solid rgba(26,188,156,0.28);
-      color: var(--accent);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 1.2px;
-      text-transform: uppercase;
-      padding: 5px 12px;
-      border-radius: 20px;
-    }
-
-    /* ── CONTAINER ── */
-    .container {
-      max-width: 1100px;
-      margin: 36px auto;
-      padding: 0 24px;
-      animation: fadeUp 0.6s ease-out;
-    }
-
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(16px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    /* ── CARDS ── */
-    .card {
-      background: var(--surface);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      padding: 28px 32px;
-      margin-bottom: 20px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
-    }
-
-    .section-label {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 2.5px;
+    .tool-icon {
+      width: 42px; height: 42px; flex-shrink: 0;
+      border-radius: 10px;
+      background: var(--accent-soft);
       color: var(--accent-deep);
-      margin-bottom: 20px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .tool-card.chiffrage .tool-icon { background: var(--navy-soft); color: var(--dark); }
+
+    .tool-name { font-size: 18px; font-weight: 700; }
+    .tool-sub { font-size: 12px; color: var(--text-muted); }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      height: 44px; padding: 0 18px;
+      border: none; border-radius: 8px;
+      font-family: inherit; font-size: 13.5px; font-weight: 700;
+      text-decoration: none; cursor: pointer;
+    }
+    .btn-teal { background: var(--accent); color: var(--dark); }
+    .btn-navy { background: var(--dark); color: #fff; }
+    .btn-ghost {
+      background: var(--surface); color: var(--text);
+      border: 1px solid var(--border-strong);
+      font-weight: 600;
     }
 
-    .section-label::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: linear-gradient(90deg, var(--border), transparent);
-    }
-
-    /* ── OF FIELD ── */
-    .of-section {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-    }
-
-    .of-section label {
-      font-weight: 700;
-      font-size: 15px;
-      color: var(--dark);
-      white-space: nowrap;
-    }
-
-    .of-section input {
-      flex: 1;
-      max-width: 320px;
-    }
-
-    /* ── INPUTS ── */
-    input, textarea {
-      font-family: 'DM Sans', sans-serif;
-      font-size: 14px;
-      padding: 10px 14px;
-      border: 1.5px solid var(--border);
+    .tool-preview {
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
       border-radius: 8px;
-      width: 100%;
-      transition: border-color 0.2s, box-shadow 0.2s;
-      outline: none;
-      color: var(--text);
-      background: var(--surface);
-    }
-
-    input:focus, textarea:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(26,188,156,0.12);
-    }
-
-    input::placeholder, textarea::placeholder {
-      color: #b0bec5;
-    }
-
-    textarea {
-      resize: vertical;
-      min-height: 38px;
-      max-height: 100px;
-    }
-
-    /* ── TABLE ── */
-    .parts-table {
-      width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
-    }
-
-    .parts-table thead th {
-      background: var(--dark);
-      color: rgba(255,255,255,0.9);
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-      padding: 13px 12px;
-      text-align: left;
-      white-space: nowrap;
-    }
-
-    .parts-table thead th:first-child {
-      width: 44px;
-      text-align: center;
-      padding-left: 16px;
-    }
-
-    .parts-table thead th:last-child {
-      width: 48px;
-      text-align: center;
-    }
-
-    .parts-table tbody tr {
-      border-bottom: 1px solid var(--border);
-      transition: background 0.15s;
-    }
-
-    .parts-table tbody tr:hover {
-      background: var(--surface-alt);
-    }
-
-    .parts-table tbody tr:last-child td {
-      border-bottom: none;
-    }
-
-    .parts-table td {
-      padding: 8px 8px;
-      vertical-align: middle;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .parts-table td:first-child {
-      text-align: center;
-      font-weight: 700;
-      color: var(--accent-deep);
-      font-size: 13px;
-      background: var(--surface-alt);
-    }
-
-    .parts-table td input,
-    .parts-table td textarea {
-      border-color: transparent;
-      background: transparent;
-      border-radius: 6px;
-      padding: 8px 10px;
-      font-size: 13px;
-      vertical-align: middle;
-    }
-
-    .parts-table td input:focus,
-    .parts-table td textarea:focus {
-      border-color: var(--accent);
-      background: var(--surface);
-      box-shadow: 0 0 0 2px rgba(26,188,156,0.1);
-    }
-
-    .parts-table td input:hover,
-    .parts-table td textarea:hover {
-      background: rgba(0,0,0,0.02);
-    }
-
-    /* ── BUTTONS ── */
-    .btn-remove {
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: var(--text-muted);
-      font-size: 18px;
-      padding: 6px 8px;
-      border-radius: 6px;
-      transition: all 0.15s;
-      line-height: 1;
+      padding: 14px 16px;
+      min-height: 108px;
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      gap: 9px;
       justify-content: center;
-      margin: 0 auto;
     }
 
-    .btn-remove:hover {
-      background: rgba(231,76,60,0.08);
-      color: var(--error);
+    .preview-line { display: flex; align-items: baseline; gap: 9px; font-size: 13px; }
+    .preview-line .label {
+      font-size: 10.5px; font-weight: 700; letter-spacing: 0.8px;
+      text-transform: uppercase; color: var(--text-dim);
+      min-width: 74px;
+    }
+    .preview-empty { font-size: 13px; color: var(--text-muted); line-height: 1.55; }
+
+    .tool-foot {
+      display: flex; align-items: center; gap: 10px;
+      padding-top: 12px; border-top: 1px solid #eef2f7;
+      font-size: 12.5px; color: #475569;
     }
 
-    .add-row-wrapper {
-      padding: 16px 0 4px;
+    .spacer { flex-grow: 1; }
+
+    /* ── FILES ── */
+    .files { margin-top: 26px; display: flex; flex-direction: column; gap: 14px; }
+
+    .files-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .files-head h2 { font-size: 18px; font-weight: 700; }
+    .files-count { font-size: 12px; color: var(--text-muted); }
+
+    .chip-btn {
+      height: 34px; padding: 0 13px;
+      font-family: inherit; font-size: 12.5px; font-weight: 600;
+      color: #475569; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+    }
+    .chip-btn[aria-pressed="true"] {
+      color: var(--dark); border-color: var(--border-strong); font-weight: 700;
+      background: #f1f5f9;
     }
 
-    .btn-add {
-      background: none;
-      border: 2px dashed var(--border);
-      border-radius: 10px;
-      padding: 14px 24px;
-      cursor: pointer;
-      color: var(--accent-deep);
-      font-family: 'DM Sans', sans-serif;
-      font-weight: 600;
-      font-size: 14px;
-      width: 100%;
-      transition: all 0.2s;
-    }
-
-    .btn-add:hover {
-      border-color: var(--accent);
-      background: rgba(26,188,156,0.04);
-      color: var(--accent);
-    }
-
-    /* ── SUBMIT ── */
-    .submit-wrapper {
-      margin-top: 28px;
-      text-align: center;
-    }
-
-    .btn-submit {
-      background: var(--dark);
-      color: #fff;
-      border: none;
-      padding: 15px 64px;
-      border-radius: 10px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-      letter-spacing: 0.5px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .btn-submit::before {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 3px;
-      background: linear-gradient(90deg, var(--accent), var(--accent-glow));
-      transform: scaleX(0);
-      transition: transform 0.3s;
-    }
-
-    .btn-submit:hover {
-      background: #162240;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(15,26,46,0.2);
-    }
-
-    .btn-submit:hover::before {
-      transform: scaleX(1);
-    }
-
-    .btn-submit:active {
-      transform: translateY(0) scale(0.98);
-    }
-
-    .btn-submit:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    /* ── STATUS ── */
-    .status-message {
-      margin-top: 20px;
-      padding: 16px 20px;
-      border-radius: var(--radius);
-      font-size: 14px;
-      font-weight: 500;
-      display: none;
-      line-height: 1.6;
-    }
-
-    .status-message.error {
-      display: block;
-      background: rgba(231,76,60,0.06);
-      color: var(--error);
-      border: 1px solid rgba(231,76,60,0.2);
-    }
-
-    .status-message.loading {
-      display: block;
-      background: rgba(26,188,156,0.06);
-      color: var(--dark);
-      border: 1px solid rgba(26,188,156,0.2);
-    }
-
-    .spinner {
-      display: inline-block;
-      width: 14px;
-      height: 14px;
-      border: 2px solid rgba(26,188,156,0.3);
-      border-top-color: var(--dark);
-      border-radius: 50%;
-      animation: spin 0.6s linear infinite;
-      vertical-align: middle;
-      margin-right: 8px;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    /* ── PDF VALIDATION SECTION ── */
-    #pdfSection {
-      display: none;
-      max-width: 1600px;
-      margin: 0 auto 32px;
-      padding: 32px 24px 0;
-    }
-
-    #pdfSection .section-label {
-      margin-bottom: 16px;
-    }
-
-    #pdfStepIndicator {
-      display: none;
-      font-size: 12px;
-      font-weight: 700;
-      background: rgba(26,188,156,0.15);
-      color: var(--accent-deep);
-      padding: 3px 10px;
-      border-radius: 12px;
-    }
-
-    .pdf-viewer-card {
-      background: var(--surface);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      margin-bottom: 16px;
-      overflow: hidden;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
-    }
-
-    .pdf-viewer-card.pdf-card-validated {
-      border-color: rgba(39,174,96,0.35);
-    }
-
-    .pdf-card-header {
-      background: var(--dark);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 11px 16px;
-      color: rgba(255,255,255,0.85);
-      font-size: 13px;
-    }
-
-    .pdf-card-name {
-      font-weight: 600;
-      font-family: 'Courier New', monospace;
-    }
-
-    /* Client feedback banner on the validation card */
-    .pdf-feedback-banner {
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--border);
-      background: rgba(39, 174, 96, 0.07);
-      border-left: 3px solid var(--success);
-      font-size: 13px;
-      line-height: 1.5;
-    }
-
-    .pdf-feedback-banner.has-unhandled {
-      background: rgba(231, 76, 60, 0.07);
-      border-left-color: var(--error);
-    }
-
-    .pdf-feedback-title {
-      font-weight: 700;
-      color: var(--success);
-      margin-bottom: 5px;
-    }
-
-    .pdf-feedback-banner.has-unhandled .pdf-feedback-title {
-      color: var(--error);
-    }
-
-    .pdf-feedback-quote {
-      color: var(--text);
-      font-style: italic;
-      margin-bottom: 4px;
-      overflow-wrap: anywhere;
-    }
-
-    .pdf-feedback-applied {
-      color: var(--text-muted);
-      font-size: 12px;
-    }
-
-    .pdf-feedback-unhandled {
-      margin-top: 5px;
-      color: var(--error);
-      font-weight: 600;
-      overflow-wrap: anywhere;
-    }
-
-    .pdf-card-info {
-      font-size: 11px;
-      color: rgba(255,255,255,0.45);
-      margin-left: auto;
-    }
-
-    .pdf-validation-badge {
-      font-size: 11px;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 4px;
-    }
-
-    .pdf-validation-badge.validated {
-      background: rgba(39,174,96,0.2);
-      color: #27ae60;
-    }
-
-    .pdf-pages-list {
-      padding: 16px;
-      max-height: 75vh;
-      overflow-y: auto;
-    }
-
-    .pdf-page-entry { margin-bottom: 12px; }
-
-    .pdf-page-label {
-      font-size: 10.5px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1.2px;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-    }
-
-    .pdf-comparison {
-      display: flex;
+    .files-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 16px;
     }
 
-    .pdf-comparison-col {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .comparison-label {
-      font-size: 10.5px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 1.2px;
-      margin-bottom: 6px;
-      padding: 3px 8px;
-      border-radius: 4px;
-      display: inline-block;
-    }
-
-    .comparison-label.original {
-      background: rgba(52,73,94,0.08);
-      color: #34495e;
-    }
-
-    .comparison-label.anonymized {
-      background: rgba(26,188,156,0.1);
-      color: var(--accent-deep);
-    }
-
-    .canvas-wrapper {
-      max-width: 100%;
-      overflow: hidden;
-    }
-
-    .canvas-wrapper canvas {
-      display: block;
-      max-width: 100%;
-      border-radius: 4px;
-      border: 1px solid var(--border);
-    }
-
-    .pdf-loading {
-      padding: 24px;
-      text-align: center;
-      color: var(--text-muted);
-      font-size: 14px;
-    }
-
-    .spinner-small {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      border: 2px solid rgba(26,188,156,0.3);
-      border-top-color: var(--dark);
-      border-radius: 50%;
-      animation: spin 0.6s linear infinite;
-      vertical-align: middle;
-      margin-right: 6px;
-    }
-
-    /* ── VALIDATION BARS ── */
-    .pdf-validation-bar,
-    .pdf-reject-bar,
-    .pdf-table-bar,
-    .pdf-confirm-bar {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 12px 16px;
-      border-top: 1px solid var(--border);
-      background: var(--surface-alt);
-      flex-wrap: wrap;
-    }
-
-    .btn-validate {
-      background: var(--success);
-      color: #fff;
-      border: none;
-      padding: 9px 20px;
-      border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 13.5px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .btn-validate:hover { background: #219a52; transform: translateY(-1px); }
-
-    .btn-reject {
-      background: transparent;
-      color: var(--error);
-      border: 1.5px solid var(--error);
-      padding: 8px 18px;
-      border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 13.5px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .btn-reject:hover { background: rgba(231,76,60,0.06); transform: translateY(-1px); }
-
-    .btn-add-table {
-      background: transparent;
-      color: var(--accent-deep);
-      border: 1.5px solid var(--accent);
-      padding: 8px 18px;
-      border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 13.5px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .btn-add-table:hover { background: rgba(26,188,156,0.06); transform: translateY(-1px); }
-
-    .btn-apply-zones,
-    .btn-apply-table {
-      background: var(--dark);
-      color: #fff;
-      border: none;
-      padding: 9px 20px;
-      border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 13.5px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .btn-apply-zones:hover,
-    .btn-apply-table:hover { background: #162240; transform: translateY(-1px); }
-
-    .btn-cancel-action {
-      background: transparent;
-      color: var(--text-muted);
-      border: 1.5px solid var(--border);
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .btn-cancel-action:hover { border-color: var(--text-muted); color: var(--text); }
-
-    .reject-hint,
-    .table-hint {
-      font-size: 12.5px;
-      color: var(--text-muted);
-      width: 100%;
-      margin-bottom: 4px;
-    }
-
-    .validated-label {
-      font-size: 13.5px;
-      font-weight: 600;
-      color: var(--success);
-    }
-
-    /* ── TABLE DATA FORM (add table mode) ── */
-    .table-data-form {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      width: 100%;
-      margin-bottom: 8px;
-    }
-
-    .table-data-form label {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-muted);
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-
-    .table-data-form input {
-      padding: 6px 10px;
-      font-size: 12.5px;
-      border-radius: 6px;
-    }
-
-    /* ── USI-PRO TABLE OVERLAY (draggable/resizable) ── */
-    .usipro-table-overlay {
-      position: absolute;
-      border: 2px dashed var(--accent);
-      background: rgba(26,188,156,0.08);
-      cursor: move;
-      z-index: 20;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      user-select: none;
-    }
-
-    .overlay-label {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--accent-deep);
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      pointer-events: none;
-    }
-
-    .resize-handle {
-      position: absolute;
-      width: 10px;
-      height: 10px;
-      background: var(--accent);
-      border: 1px solid #fff;
-      border-radius: 2px;
-      z-index: 21;
-    }
-    .resize-nw { top: -5px; left: -5px; cursor: nw-resize; }
-    .resize-ne { top: -5px; right: -5px; cursor: ne-resize; }
-    .resize-sw { bottom: -5px; left: -5px; cursor: sw-resize; }
-    .resize-se { bottom: -5px; right: -5px; cursor: se-resize; }
-
-    /* ── OUTPUT LAYOUT ── */
-    #outputLayout {
-      display: none;
-      max-width: 1320px;
-      margin: 0 auto 48px;
-      padding: 0 24px;
-      gap: 24px;
-      align-items: flex-start;
-    }
-
-    #outputLayout.visible {
-      display: flex;
-    }
-
-    .output-left {
-      flex: 3;
-      min-width: 0;
-    }
-
-    .output-right {
-      flex: 0 0 380px;
-      position: sticky;
-      top: 80px;
-    }
-
-    /* ── PDF SLIDER ── */
-    .pdf-slider-card {
+    .work-card {
       background: var(--surface);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      overflow: hidden;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
-    }
-
-    .slider-header {
-      background: var(--dark);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 11px 16px;
-    }
-
-    .btn-slider-nav {
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.12);
-      color: rgba(255,255,255,0.85);
-      border-radius: 6px;
-      width: 30px;
-      height: 30px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 15px;
-      transition: all 0.15s;
-      flex-shrink: 0;
-      line-height: 1;
-      padding: 0;
-    }
-
-    .btn-slider-nav:hover:not(:disabled) {
-      background: rgba(255,255,255,0.16);
-      border-color: rgba(255,255,255,0.25);
-    }
-
-    .btn-slider-nav:disabled {
-      opacity: 0.25;
-      cursor: not-allowed;
-    }
-
-    .slider-title-area {
-      flex: 1;
-      min-width: 0;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .slider-filename {
-      font-size: 13px;
-      font-weight: 600;
-      color: #fff;
-      font-family: 'Courier New', monospace;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .slider-counter {
-      font-size: 11px;
-      font-weight: 700;
-      background: rgba(26,188,156,0.2);
-      color: var(--accent);
-      padding: 2px 9px;
-      border-radius: 20px;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-
-    .slider-pages {
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      max-height: 75vh;
-      overflow-y: auto;
-    }
-
-    .slider-page-wrap {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .slider-page-label {
-      font-size: 10.5px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1.2px;
-      color: var(--text-muted);
-    }
-
-    .slider-pages canvas {
-      display: block;
-      max-width: 100%;
-      border-radius: 4px;
-      border: 1px solid var(--border);
-    }
-
-    .slider-loading {
-      padding: 40px 20px;
-      text-align: center;
-      color: var(--text-muted);
-      font-size: 14px;
-    }
-
-    /* ── RECAP CARD (right column) ── */
-    .recap-card {
-      background: var(--surface);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      padding: 24px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
-    }
-
-    .result-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--success);
-      margin-bottom: 20px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid rgba(39,174,96,0.15);
-    }
-
-    .result-check {
-      width: 26px;
-      height: 26px;
-      border-radius: 50%;
-      background: rgba(39,174,96,0.15);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 13px;
-      flex-shrink: 0;
-    }
-
-    .result-actions {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-    }
-
-    .btn-action {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 18px;
-      border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 13.5px;
-      font-weight: 600;
-      cursor: pointer;
-      text-decoration: none;
-      border: none;
-      transition: all 0.18s;
-      line-height: 1;
-    }
-
-    .btn-dropbox { background: var(--accent); color: #fff; }
-    .btn-dropbox:hover {
-      background: var(--accent-deep);
-      box-shadow: 0 3px 12px rgba(26,188,156,0.35);
-      transform: translateY(-1px);
-    }
-
-    .btn-download { background: var(--dark); color: #fff; }
-    .btn-download:hover {
-      background: #162240;
-      box-shadow: 0 3px 12px rgba(15,26,46,0.25);
-      transform: translateY(-1px);
-    }
-
-    .result-inner-card {
-      background: #f8fafb;
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 16px 20px;
-      margin-bottom: 12px;
-    }
-
-    .result-inner-label {
-      font-size: 10.5px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 1.8px;
-      color: var(--text-muted);
-      margin-bottom: 12px;
-    }
-
-    /* folder tree */
-    .tree-root {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13.5px;
-      font-weight: 700;
-      color: var(--dark);
-      margin-bottom: 6px;
-    }
-
-    .tree-folder-icon { color: #e67e22; font-size: 15px; }
-
-    .tree-children {
-      margin-left: 8px;
-      border-left: 2px solid #e2e8f0;
-      padding-left: 14px;
-    }
-
-    .tree-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      padding: 4px 0;
-      color: var(--text);
-      flex-wrap: wrap;
-    }
-
-    .file-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    .file-dot.pdf  { background: #e74c3c; }
-    .file-dot.docx { background: #2980b9; }
-    .file-dot.zip  { background: #8e44ad; }
-    .file-dot.dir  { background: #e67e22; }
-
-    .tree-row .file-name { flex: 1; font-weight: 500; min-width: 0; }
-
-    .file-badge {
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.4px;
-      padding: 2px 7px;
-      border-radius: 4px;
-      text-transform: uppercase;
-      flex-shrink: 0;
-    }
-    .file-badge.pdf  { background: rgba(231,76,60,0.1);  color: #c0392b; }
-    .file-badge.docx { background: rgba(41,128,185,0.1); color: #1a6fa5; }
-    .file-badge.zip  { background: rgba(142,68,173,0.1); color: #7d3c98; }
-    .file-badge.dir  { background: rgba(230,126,34,0.1); color: #d35400; }
-
-    .tree-note { font-size: 11.5px; color: var(--text-muted); }
-
-    /* NM ZIP status badge */
-    .nm-status-badge {
-      font-size: 10.5px;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 4px;
-      flex-shrink: 0;
-      transition: all 0.3s;
-    }
-    .nm-status-badge.pending { background: rgba(230,126,34,0.12); color: #c87f00; }
-    .nm-status-badge.done    { background: rgba(39,174,96,0.12);  color: #1e8449; }
-
-    /* parts chips */
-    .parts-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-
-    .part-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 5px 10px;
-      border-radius: 6px;
-      font-size: 12.5px;
-      font-weight: 600;
-    }
-    .part-chip.found {
-      background: rgba(39,174,96,0.1);
-      color: #1e8449;
-      border: 1px solid rgba(39,174,96,0.22);
-    }
-    .part-chip.missing {
-      background: rgba(230,126,34,0.1);
-      color: #a04000;
-      border: 1px solid rgba(230,126,34,0.25);
-    }
-    .part-chip .chip-icon { font-size: 11px; }
-
-    /* ── BACK BUTTON ── */
-    .btn-back {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 9px 18px;
-      border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 13.5px;
-      font-weight: 600;
-      cursor: pointer;
-      border: 1.5px solid var(--border);
-      background: var(--surface);
-      color: var(--text-muted);
-      transition: all 0.18s;
-      line-height: 1;
-      margin-bottom: 16px;
-    }
-
-    .btn-back:hover {
-      border-color: var(--accent);
-      color: var(--accent-deep);
-      background: rgba(26,188,156,0.04);
-    }
-
-    /* ── FOOTER ── */
-    .footer {
-      text-align: center;
-      padding: 28px 20px;
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    .footer a {
-      color: var(--accent-deep);
-      text-decoration: none;
-      font-weight: 500;
-      border-bottom: 1px solid rgba(20,143,119,0.3);
-      transition: border-color 0.2s;
-    }
-
-    .footer a:hover {
-      border-color: var(--accent-deep);
-    }
-
-    /* ── RESPONSIVE ── */
-    @media (max-width: 960px) {
-      #outputLayout { flex-direction: column; }
-      .output-right { position: static; flex: none; width: 100%; }
-      .pdf-comparison { flex-direction: column; }
-    }
-
-    @media (max-width: 800px) {
-      .navbar { padding: 0 16px; }
-      .navbar-badge { display: none; }
-      .container { padding: 0 12px; margin: 20px auto; }
-      .card { padding: 20px 16px; }
-      .of-section { flex-direction: column; align-items: stretch; }
-      .of-section input { max-width: 100%; }
-      .table-section { overflow-x: auto; }
-      .parts-table { min-width: 700px; }
-      #outputLayout { padding: 0 12px; }
-      #pdfSection { padding: 32px 12px 0; }
-      .table-data-form { grid-template-columns: 1fr; }
-    }
-
-    /* ── Plan selection modal ────────────────────────────────── */
-    .plan-select-overlay {
-      position: fixed; inset: 0;
-      background: rgba(15, 26, 46, 0.72);
-      display: none;
-      align-items: flex-start;
-      justify-content: center;
-      z-index: 200;
-      padding: 48px 16px;
-      overflow-y: auto;
-    }
-    .plan-select-overlay.visible { display: flex; }
-    .plan-select-dialog {
-      background: #fff;
-      border-radius: 14px;
-      width: min(960px, 100%);
-      padding: 28px 32px 24px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
-    }
-    .plan-select-title {
-      font-family: 'DM Sans', sans-serif;
-      font-size: 20px;
-      font-weight: 600;
-      color: var(--dark);
-      margin: 0 0 4px;
-    }
-    .plan-select-subtitle {
-      font-size: 13px;
-      color: #4a5568;
-      margin: 0 0 20px;
-    }
-    .plan-select-group { margin-bottom: 24px; }
-    .plan-select-group-label {
-      font-weight: 600;
-      font-size: 13px;
-      color: var(--dark);
-      margin-bottom: 10px;
-      display: flex;
-      align-items: baseline;
-      gap: 8px;
-    }
-    .plan-select-group-label .pid {
-      background: var(--accent);
-      color: #fff;
-      border-radius: 6px;
-      padding: 2px 8px;
-      font-size: 11px;
-      letter-spacing: 0.5px;
-    }
-    .plan-select-options {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 12px;
-    }
-    .plan-select-card {
-      border: 2px solid var(--border);
-      border-radius: 10px;
-      padding: 8px;
-      cursor: pointer;
-      transition: all 0.15s;
-      background: #fff;
+      padding: 16px 18px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
-    }
-    .plan-select-card:hover { border-color: var(--accent-deep); }
-    .plan-select-card.selected {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(26, 188, 156, 0.15);
-    }
-    .plan-select-thumb {
-      width: 100%;
-      aspect-ratio: 1 / 1.4;
-      background: #f7fafc;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      color: #94a3b8;
-      font-size: 12px;
-    }
-    .plan-select-thumb img { width: 100%; height: 100%; object-fit: contain; }
-    .plan-select-name {
-      font-size: 12px;
-      color: var(--dark);
-      word-break: break-all;
-      line-height: 1.3;
-    }
-    .plan-select-actions {
-      display: flex;
-      justify-content: flex-end;
       gap: 10px;
-      margin-top: 8px;
     }
-    .plan-select-btn {
-      background: var(--dark);
-      color: #fff;
-      border: none;
-      padding: 11px 24px;
-      border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s;
+
+    .work-top { display: flex; align-items: center; gap: 8px; }
+    .work-ref { font-size: 14px; font-weight: 600; }
+    .work-sub { font-size: 12px; color: var(--text-dim); }
+    .work-when { font-size: 11.5px; color: var(--text-dim); }
+
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 8px; border-top: 1px solid #f1f5f9; }
+
+    .tag {
+      font-size: 11px; font-weight: 600;
+      border-radius: 6px; padding: 4px 8px;
     }
-    .plan-select-btn:hover:not(:disabled) { background: #162240; }
-    .plan-select-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .tag-tool-edition { color: var(--accent-deep); background: var(--accent-soft); }
+    .tag-tool-chiffrage { color: var(--dark); background: var(--navy-soft); }
+    .tag-client { color: #6b21a8; background: #f4e8ff; }
+    .tag-project { color: #1d4ed8; background: #e8eefc; }
+    .tag-fb-plus { color: var(--accent-deep); background: var(--accent-soft); }
+    .tag-fb-minus { color: #b45309; background: #fef3c7; }
+    .tag-status-a_valider { color: #92400e; background: #fef3c7; }
+    .tag-status-livre { color: #166534; background: #dcfce7; }
+
+    .work-files-btn {
+      align-self: flex-start;
+      font-family: inherit; font-size: 12.5px; font-weight: 600;
+      color: var(--accent-deep); background: none; border: none;
+      padding: 0; cursor: pointer; text-decoration: underline;
+    }
+
+    .work-files-list { display: flex; flex-direction: column; gap: 5px; }
+    .work-files-list a { font-size: 12.5px; }
+
+    .empty-state {
+      background: var(--surface);
+      border: 1px dashed var(--border-strong);
+      border-radius: 10px;
+      padding: 32px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13.5px;
+      line-height: 1.6;
+    }
+
+    .error-state {
+      background: #fef6f5;
+      border: 1px solid #fca5a5;
+      border-radius: 10px;
+      padding: 16px 18px;
+      color: #991b1b;
+      font-size: 13px;
+    }
+
+    @media (max-width: 1080px) {
+      .tools { grid-template-columns: 1fr; }
+      .files-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 720px) {
+      .page { padding: 20px 16px 40px; }
+      .files-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
 
-  <!-- NAVBAR -->
   <nav class="navbar">
-    <div class="navbar-logo">
-      <img src="/logo.png" alt="Usi-Pro">
-    </div>
+    <div class="navbar-logo"><img src="/logo.png" alt="USI-PRO"></div>
     <div class="navbar-divider"></div>
-    <div class="navbar-info">
-      <span class="nav-title">Opérations PDF</span>
-      <span class="nav-subtitle">USI-PRO</span>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <span class="nav-title">Internal</span>
+      <span class="nav-subtitle">Atelier IA</span>
     </div>
-    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-      <a href="/step-compare.html" class="navbar-badge" style="margin-left:0;text-decoration:none">&#9881; Comparaison STEP</a>
-      <a href="/guide.html" class="navbar-badge" style="margin-left:0;text-decoration:none">&#10067; Guide</a>
-    </div>
+    <div class="spacer"></div>
+    <a class="navbar-link" href="/step-compare.html">Comparaison STEP</a>
+    <a class="navbar-link" href="/guide.html">Guide</a>
   </nav>
 
-  <!-- FORM -->
-  <div class="container" id="formContainer">
-    <form id="ofForm" autocomplete="off">
+  <main class="page">
 
-      <!-- OF Number -->
-      <div class="card">
-        <div class="section-label">Ordre de fabrication</div>
-        <div class="of-section">
-          <label for="of">Numéro OF</label>
-          <input type="text" id="of" name="OF" required placeholder="Ex: 123a4b">
-        </div>
-      </div>
+    <section class="tools">
 
-      <!-- Parts table -->
-      <div class="card table-section">
-        <div class="section-label">Détails des pièces</div>
-        <table class="parts-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>ID</th>
-              <th>Matériel</th>
-              <th>Quantité</th>
-              <th>Traitement</th>
-              <th>Commentaire</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="partsBody"></tbody>
-        </table>
-
-        <div class="add-row-wrapper">
-          <button type="button" class="btn-add" id="btnAdd">+ Ajouter une pièce</button>
-        </div>
-      </div>
-
-      <!-- Submit -->
-      <div class="submit-wrapper">
-        <button type="submit" class="btn-submit" id="btnSubmit">Envoyer</button>
-      </div>
-
-      <div class="status-message" id="statusMsg"></div>
-    </form>
-  </div>
-
-  <!-- PDF VALIDATION SECTION (shown after phase 1) -->
-  <div id="pdfSection" style="display:none">
-    <div class="section-label">
-      Validation des plans
-      <span id="pdfStepIndicator"></span>
-    </div>
-    <div id="pdfCardsContainer"></div>
-  </div>
-
-  <!-- Back button (outside flex layout) -->
-  <div id="backBtnWrapper" style="display:none; max-width:1320px; margin:20px auto 0; padding:0 24px">
-    <button type="button" class="btn-back" id="btnBack">
-      &#8592; Retour au formulaire
-    </button>
-  </div>
-
-  <!-- OUTPUT (shown on success) -->
-  <div id="outputLayout">
-
-    <!-- LEFT: PDF Slider -->
-    <div class="output-left">
-      <div class="pdf-slider-card" id="pdfSliderCard" style="display:none">
-        <div class="slider-header">
-          <button id="btnSliderPrev" class="btn-slider-nav" disabled>&#8592;</button>
-          <div class="slider-title-area">
-            <span id="sliderFilename" class="slider-filename"></span>
-            <span id="sliderCounter" class="slider-counter"></span>
+      <div class="tool-card">
+        <div class="tool-head">
+          <div class="tool-icon">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.5 6.5l2.5 2.5M15 15l2.5 2.5M17.5 6.5L15 9M9 15l-2.5 2.5"/></svg>
           </div>
-          <button id="btnSliderNext" class="btn-slider-nav" disabled>&#8594;</button>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span class="tool-name">Édition AI</span>
+            <span class="tool-sub" id="editionLast">chargement…</span>
+          </div>
+          <div class="spacer"></div>
+          <a class="btn btn-teal" href="/edition.html">Nouveau lot
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
         </div>
-        <div id="sliderPages" class="slider-pages"></div>
+        <div class="tool-preview" id="editionPreview">
+          <span class="preview-empty">chargement…</span>
+        </div>
+        <div class="tool-foot">
+          <span id="editionQueue">—</span>
+          <div class="spacer"></div>
+          <a href="/edition.html">Ouvrir l'outil →</a>
+        </div>
       </div>
-    </div>
 
-    <!-- RIGHT: Recap -->
-    <div class="output-right">
-      <div class="recap-card" id="recapCard"></div>
-    </div>
+      <div class="tool-card chiffrage">
+        <div class="tool-head">
+          <div class="tool-icon">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8.5 7.5h7M8.5 12h1.5M13 12h2.5M8.5 16h1.5M13 16h2.5"/></svg>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span class="tool-name">Chiffrage AI</span>
+            <span class="tool-sub" id="chiffrageLast">du mail au devis</span>
+          </div>
+          <div class="spacer"></div>
+          <a class="btn btn-navy" href="mailto:chiffrage@usi-pro.com?subject=Demande%20de%20chiffrage">Envoyer une demande
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+        </div>
+        <div class="tool-preview" id="chiffragePreview">
+          <span class="preview-empty">chargement…</span>
+        </div>
+        <div class="tool-foot">
+          <span id="chiffrageQueue">—</span>
+          <div class="spacer"></div>
+          <a href="/guide.html">Comment ça marche →</a>
+        </div>
+      </div>
 
-  </div>
+    </section>
 
-  <div class="footer">
-    <a href="/privacy-policy.html">Politique de Confidentialité</a>
-  </div>
+    <section class="files">
+      <div class="files-head">
+        <h2>Fichiers</h2>
+        <span class="files-count" id="filesCount">—</span>
+        <div class="spacer"></div>
+        <div id="filterChips" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      </div>
+      <div id="filesBody">
+        <div class="empty-state">chargement…</div>
+      </div>
+    </section>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="/pdf-viewer.js"></script>
+  </main>
+
   <script>
-    // ── PDF SLIDER ─────────────────────────────────────────────────
-    let _sliderPdfs = [];   // [{ name, base64 }]
-    let _sliderIdx  = 0;
+    // ── State ────────────────────────────────────────────────────
+    let allWorks = [];
+    let activeFilter = null; // { type: 'client' | 'project' | 'tool', value: string }
 
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const TOOL_LABEL = { edition: 'Édition AI', chiffrage: 'Chiffrage AI' };
+    const STATUS_LABEL = { a_valider: 'À valider', livre: 'Livré' };
 
-    async function showPdfSlider(zipBase64, ofNum) {
-      const card = document.getElementById('pdfSliderCard');
-      try {
-        // Extract NM ZIP from full ZIP
-        const fullZipBytes = Uint8Array.from(atob(zipBase64), c => c.charCodeAt(0));
-        const fullZip = await JSZip.loadAsync(fullZipBytes);
-        const nmEntry = fullZip.file(`NM${ofNum}.zip`);
-        if (!nmEntry) return;
-
-        const nmBytes = await nmEntry.async('uint8array');
-        const nmZip = await JSZip.loadAsync(nmBytes);
-
-        _sliderPdfs = [];
-        for (const [name, file] of Object.entries(nmZip.files)) {
-          if (!file.dir && name.toLowerCase().endsWith('.pdf')) {
-            const b64 = await file.async('base64');
-            _sliderPdfs.push({ name, base64: b64 });
-          }
-        }
-        _sliderPdfs.sort((a, b) => a.name.localeCompare(b.name));
-
-        if (_sliderPdfs.length === 0) return;
-
-        _sliderIdx = 0;
-        card.style.display = '';
-        await renderSliderAt(0);
-      } catch (e) {
-        console.error('[slider]', e);
-      }
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text != null) node.textContent = text;  // never innerHTML: rows carry typed data
+      return node;
     }
 
-    async function renderSliderAt(idx) {
-      _sliderIdx = idx;
-      const { name, base64 } = _sliderPdfs[idx];
-
-      document.getElementById('sliderFilename').textContent = name;
-      document.getElementById('sliderCounter').textContent =
-        `${idx + 1} / ${_sliderPdfs.length}`;
-      document.getElementById('btnSliderPrev').disabled = idx === 0;
-      document.getElementById('btnSliderNext').disabled = idx === _sliderPdfs.length - 1;
-
-      const container = document.getElementById('sliderPages');
-      container.innerHTML =
-        '<div class="slider-loading"><span class="spinner-small"></span>Chargement...</div>';
-
-      const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-      const pdfDoc = await pdfjsLib.getDocument({ data: bytes }).promise;
-
-      container.innerHTML = '';
-      for (let p = 1; p <= pdfDoc.numPages; p++) {
-        const page = await pdfDoc.getPage(p);
-        const baseVP = page.getViewport({ scale: 1 });
-        const scale = Math.min((container.clientWidth - 40) / baseVP.width, 2.2);
-        const vp = page.getViewport({ scale });
-
-        const canvas = document.createElement('canvas');
-        canvas.width  = vp.width;
-        canvas.height = vp.height;
-        await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
-
-        const wrap = document.createElement('div');
-        wrap.className = 'slider-page-wrap';
-        if (pdfDoc.numPages > 1) {
-          const lbl = document.createElement('div');
-          lbl.className = 'slider-page-label';
-          lbl.textContent = `Page ${p} / ${pdfDoc.numPages}`;
-          wrap.appendChild(lbl);
-        }
-        wrap.appendChild(canvas);
-        container.appendChild(wrap);
-      }
+    function relativeDate(iso) {
+      const then = new Date(iso);
+      if (Number.isNaN(then.getTime())) return '';
+      const mins = Math.round((Date.now() - then.getTime()) / 60000);
+      if (mins < 1) return "à l'instant";
+      if (mins < 60) return 'il y a ' + mins + ' min';
+      const hours = Math.round(mins / 60);
+      if (hours < 24) return 'il y a ' + hours + ' h';
+      return then.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
     }
 
-    document.getElementById('btnSliderPrev').addEventListener('click', () => {
-      if (_sliderIdx > 0) renderSliderAt(_sliderIdx - 1);
-    });
-    document.getElementById('btnSliderNext').addEventListener('click', () => {
-      if (_sliderIdx < _sliderPdfs.length - 1) renderSliderAt(_sliderIdx + 1);
-    });
-    // ────────────────────────────────────────────────────────────────
+    // ── Tool cards ───────────────────────────────────────────────
 
-    const partsBody = document.getElementById('partsBody');
-    const btnAdd = document.getElementById('btnAdd');
-    const form = document.getElementById('ofForm');
-    const btnSubmit = document.getElementById('btnSubmit');
-    const statusMsg = document.getElementById('statusMsg');
+    function renderToolCard(tool, works) {
+      const mine = works.filter(w => w.tool === tool);
+      const last = mine[0] || null;
+      const waiting = mine.filter(w => w.status === 'a_valider').length;
 
-    let rowCounter = 0;
-    let _sessionId = null;
-    let _submittedData = null;
+      const lastEl = document.getElementById(tool === 'edition' ? 'editionLast' : 'chiffrageLast');
+      const previewEl = document.getElementById(tool === 'edition' ? 'editionPreview' : 'chiffragePreview');
+      const queueEl = document.getElementById(tool === 'edition' ? 'editionQueue' : 'chiffrageQueue');
 
-    function addRow() {
-      rowCounter++;
-      const tr = document.createElement('tr');
-      tr.dataset.row = rowCounter;
-      tr.innerHTML = `
-        <td>${rowCounter}</td>
-        <td><input type="text" inputmode="numeric" data-numeric name="id_${rowCounter}" placeholder="Réf. pièce"></td>
-        <td><input type="text" name="material_${rowCounter}" placeholder="Ex: Acier inox 316L"></td>
-        <td><input type="text" inputmode="numeric" data-numeric name="quantity_${rowCounter}" placeholder="Qté"></td>
-        <td><input type="text" name="processing_${rowCounter}" placeholder="Ex: Tournage"></td>
-        <td><textarea name="comment_${rowCounter}" placeholder="Commentaire" rows="1"></textarea></td>
-        <td><button type="button" class="btn-remove" title="Supprimer">&times;</button></td>
-      `;
-      partsBody.appendChild(tr);
-      renumberRows();
-    }
+      previewEl.innerHTML = '';
 
-    function renumberRows() {
-      const rows = partsBody.querySelectorAll('tr');
-      rows.forEach((row, i) => {
-        row.querySelector('td:first-child').textContent = i + 1;
-      });
-    }
-
-    partsBody.addEventListener('click', (e) => {
-      if (e.target.classList.contains('btn-remove')) {
-        const row = e.target.closest('tr');
-        if (partsBody.children.length > 1) {
-          row.remove();
-          renumberRows();
-        }
-      }
-    });
-
-    btnAdd.addEventListener('click', addRow);
-
-    // Numeric-only filter for table ID/Quantity inputs
-    function stripNonDigits(e) {
-      e.target.value = e.target.value.replace(/\D/g, '');
-    }
-    partsBody.addEventListener('input', (e) => {
-      if (e.target.dataset.numeric !== undefined) stripNonDigits(e);
-    });
-
-    function collectFormData() {
-      const ofValue = document.getElementById('of').value.trim();
-      const rows = partsBody.querySelectorAll('tr');
-      const parts = [];
-
-      rows.forEach((row) => {
-        const inputs = row.querySelectorAll('input, textarea');
-        const id = inputs[0]?.value.trim() || '';
-        const material = inputs[1]?.value.trim() || '';
-        const quantity = inputs[2]?.value.trim() || '';
-        const processing = inputs[3]?.value.trim() || '';
-        const comment = inputs[4]?.value.trim() || '';
-
-        if (id) {
-          parts.push({ id, material, quantity, processing, comment });
-        }
-      });
-
-      return { of: ofValue, parts };
-    }
-
-    function showError(message) {
-      statusMsg.className = 'status-message error';
-      statusMsg.innerHTML = message;
-    }
-
-    function showLoading(message) {
-      statusMsg.className = 'status-message loading';
-      statusMsg.innerHTML = message;
-    }
-
-    function hideStatus() {
-      statusMsg.className = 'status-message';
-      statusMsg.innerHTML = '';
-    }
-
-    function showOutputLayout(recapHtml) {
-      document.getElementById('recapCard').innerHTML = recapHtml;
-      document.getElementById('formContainer').style.display = 'none';
-      document.getElementById('pdfSection').style.display = 'none';
-      document.getElementById('backBtnWrapper').style.display = '';
-      document.getElementById('outputLayout').classList.add('visible');
-      document.getElementById('backBtnWrapper').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-
-    document.getElementById('btnBack').addEventListener('click', () => {
-      document.getElementById('outputLayout').classList.remove('visible');
-      document.getElementById('backBtnWrapper').style.display = 'none';
-      document.getElementById('pdfSliderCard').style.display = 'none';
-      document.getElementById('pdfSection').style.display = 'none';
-      document.getElementById('formContainer').style.display = '';
-      if (typeof window.resetPdfViewer === 'function') window.resetPdfViewer();
-      hideStatus();
-      _sessionId = null;
-      _submittedData = null;
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-
-    // ── onAllPdfsValidated callback — called by pdf-viewer.js ──
-    window.onAllPdfsValidated = async function (store) {
-      if (!_sessionId) return;
-
-      // Collect validated PDFs
-      const validatedPdfs = [];
-      for (const [name, entry] of Object.entries(store)) {
-        if (entry.validated && entry.finalBase64) {
-          validatedPdfs.push({
-            partId: entry.partId,
-            pdfBase64: entry.finalBase64,
-          });
-        }
-      }
-
-      // Hide validation section, show loading
-      document.getElementById('pdfSection').style.display = 'none';
-      document.getElementById('formContainer').style.display = '';
-      showLoading('<span class="spinner"></span>Finalisation et upload Dropbox en cours...');
-
-      try {
-        const res = await fetch('/api/finalize', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: _sessionId, validatedPdfs }),
-        });
-
-        const result = await res.json();
-
-        if (res.ok && result.status === 'success') {
-          hideStatus();
-          displayFinalRecap(result);
-        } else {
-          showError(result.message || 'La finalisation a échoué.');
-        }
-      } catch (err) {
-        showError('Erreur de connexion au serveur lors de la finalisation.');
-      } finally {
-        btnSubmit.disabled = false;
-      }
-    };
-
-    // ── Display final recap with folder tree ──
-    function displayFinalRecap(result) {
-      const ofNum = result.of;
-      const submittedIds = _submittedData ? _submittedData.parts.map(p => p.id) : [];
-      const missingIds = result.missingParts || [];
-      const foundIds = submittedIds.filter(id => !missingIds.includes(id));
-
-      // ── Folder tree ──
-      const nmChildrenHtml = foundIds.length > 0
-        ? `<div class="tree-children">
-            ${foundIds.map(id => `<div class="tree-row">
-              <span class="file-dot pdf"></span>
-              <span class="file-name">${id}.pdf</span>
-              <span class="file-badge pdf">PDF</span>
-            </div>`).join('')}
-          </div>`
-        : '';
-
-      const dpChildrenHtml = `<div class="tree-children">
-          <div class="tree-row">
-            <span class="file-dot pdf"></span>
-            <span class="file-name">${ofNum}.pdf</span>
-            <span class="file-badge pdf">PDF</span>
-            <span class="tree-note">Demande de devis</span>
-          </div>
-          <div class="tree-row">
-            <span class="file-dot docx"></span>
-            <span class="file-name">${ofNum}.docx</span>
-            <span class="file-badge docx">DOCX</span>
-            <span class="tree-note">Demande de devis</span>
-          </div>
-        </div>`;
-
-      const treeHtml = `
-        <div>
-          <div class="tree-row">
-            <span class="file-dot zip"></span>
-            <span class="file-name">NM${ofNum}.zip</span>
-            <span class="file-badge zip">ZIP</span>
-            <span class="nm-status-badge done">&#10003; Anonymisé &amp; Validé</span>
-          </div>
-          ${nmChildrenHtml}
-        </div>
-        <div>
-          <div class="tree-row">
-            <span class="file-dot dir"></span>
-            <span class="file-name">DP${ofNum}/</span>
-            <span class="file-badge dir">DIR</span>
-            <span class="tree-note">Plans &amp; Fichiers STEP</span>
-          </div>
-          ${dpChildrenHtml}
-        </div>`;
-
-      // ── Parts chips ──
-      const chipsHtml = [
-        ...foundIds.map(id => `<span class="part-chip found"><span class="chip-icon">&#10003;</span>${id}</span>`),
-        ...missingIds.map(id => `<span class="part-chip missing"><span class="chip-icon">&#10007;</span>${id}</span>`),
-      ].join('');
-
-      // ── Action buttons ──
-      const dropboxBtn = result.dropboxLink
-        ? `<a href="${result.dropboxLink}" target="_blank" class="btn-action btn-dropbox">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-            Ouvrir dans Dropbox
-          </a>`
-        : '';
-
-      const zipBtn = result.zipBase64
-        ? `<button type="button" class="btn-action btn-download" id="btnDownloadZip">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Télécharger le ZIP
-          </button>`
-        : '';
-
-      const recapHtml = `
-        <div class="result-header">
-          <span class="result-check">&#10003;</span>
-          Dossier <strong>OF${ofNum}</strong> traité avec succès.
-        </div>
-
-        <div class="result-actions">
-          ${dropboxBtn}
-          ${zipBtn}
-        </div>
-
-        <div class="result-inner-card">
-          <div class="result-inner-label">Structure du dossier</div>
-          <div class="tree-root">
-            <span class="tree-folder-icon">&#9654;</span>
-            <span>OF${ofNum}/</span>
-          </div>
-          <div class="tree-children">${treeHtml}</div>
-        </div>
-
-        ${chipsHtml ? `<div class="result-inner-card">
-          <div class="result-inner-label">Pièces traitées</div>
-          <div class="parts-chips">${chipsHtml}</div>
-        </div>` : ''}
-      `;
-
-      showOutputLayout(recapHtml);
-
-      if (result.zipBase64) {
-        showPdfSlider(result.zipBase64, ofNum);
-      }
-
-      // Attach download handler
-      if (result.zipBase64) {
-        const btnDl = document.getElementById('btnDownloadZip');
-        if (btnDl) {
-          btnDl.addEventListener('click', () => {
-            const bytes = Uint8Array.from(atob(result.zipBase64), c => c.charCodeAt(0));
-            const blob = new Blob([bytes], { type: 'application/zip' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'OF' + ofNum + '.zip';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          });
-        }
-      }
-    }
-
-    // ── FORM SUBMIT → Phase 1 ──
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const data = collectFormData();
-
-      if (!data.of) {
-        showError('Veuillez entrer un numéro OF.');
+      if (!last) {
+        lastEl.textContent = tool === 'edition' ? 'aucun lot pour le moment' : 'du mail au devis';
+        previewEl.appendChild(el('span', 'preview-empty',
+          tool === 'edition'
+            ? "Rien encore. Le premier lot lancé depuis Édition AI s'affichera ici, avec ses plans et son lien Dropbox."
+            : "Les demandes arrivent par mail sur chiffrage@usi-pro.com. La phase 1 se lance seule ; la validation reste sur l'écran des plans."));
+        queueEl.textContent = tool === 'edition' ? 'aucun lot en attente' : 'aucune demande traitée';
         return;
       }
 
-      if (data.parts.length === 0) {
-        showError('Veuillez ajouter au moins une pièce avec un ID.');
-        return;
+      lastEl.textContent = 'dernier : ' + last.ref + ' · ' + relativeDate(last.updatedAt);
+
+      const rows = [
+        ['Travail', last.ref],
+        ['Plans', String(last.planCount) + (last.planCount > 1 ? ' plans anonymisés' : ' plan anonymisé')],
+        ['Statut', STATUS_LABEL[last.status] || last.status],
+      ];
+      if (last.missingParts && last.missingParts.length) {
+        rows.push(['Manquant', last.missingParts.join(', ')]);
       }
 
-      _submittedData = data;
-      btnSubmit.disabled = true;
-      document.getElementById('outputLayout').classList.remove('visible');
-      showLoading('<span class="spinner"></span>Traitement en cours... Recherche et anonymisation des plans.');
-
-      try {
-        const res = await fetch('/api/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        });
-
-        const result = await res.json();
-
-        if (res.ok && result.status === 'awaiting_selection') {
-          hideStatus();
-          window.showPlanSelectModal(result.sessionId, result.pending, (ok, resumed) => {
-            if (ok && resumed.status === 'pending_validation') {
-              _sessionId = resumed.sessionId;
-              document.getElementById('formContainer').style.display = 'none';
-              if (resumed.pdfs && resumed.pdfs.length > 0) {
-                window.showPdfViewerFromPhase1(resumed.pdfs, resumed.of);
-              } else {
-                showError('Aucun plan PDF trouvé pour les pièces soumises.');
-                document.getElementById('formContainer').style.display = '';
-                btnSubmit.disabled = false;
-              }
-            } else {
-              showError(resumed.message || 'La reprise a échoué.');
-              btnSubmit.disabled = false;
-            }
-          });
-        } else if (res.ok && result.status === 'pending_validation') {
-          hideStatus();
-          _sessionId = result.sessionId;
-
-          // Hide form, show validation section
-          document.getElementById('formContainer').style.display = 'none';
-
-          // Show PDF validation UI
-          if (result.pdfs && result.pdfs.length > 0) {
-            window.showPdfViewerFromPhase1(result.pdfs, result.of);
-          } else {
-            showError('Aucun plan PDF trouvé pour les pièces soumises.');
-            document.getElementById('formContainer').style.display = '';
-            btnSubmit.disabled = false;
-          }
-        } else {
-          showError(result.message || 'Une erreur est survenue.');
-          btnSubmit.disabled = false;
-        }
-      } catch (err) {
-        showError('Erreur de connexion au serveur. Veuillez réessayer.');
-        btnSubmit.disabled = false;
-      }
-    });
-
-    addRow();
-  </script>
-
-  <!-- PDF plan selection modal (shown when Claude can't decide which PDF is the plan) -->
-  <div id="planSelectOverlay" class="plan-select-overlay" role="dialog" aria-modal="true" aria-labelledby="planSelectTitle">
-    <div class="plan-select-dialog">
-      <h2 id="planSelectTitle" class="plan-select-title">Plusieurs PDFs trouvés</h2>
-      <p class="plan-select-subtitle">Claude n'a pas pu identifier le plan technique avec certitude. Choisissez-le manuellement ci-dessous.</p>
-      <div id="planSelectGroups"></div>
-      <div class="plan-select-actions">
-        <button type="button" id="planSelectConfirm" class="plan-select-btn" disabled>Valider la sélection</button>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    (function () {
-      const overlay = document.getElementById('planSelectOverlay');
-      const groupsEl = document.getElementById('planSelectGroups');
-      const confirmBtn = document.getElementById('planSelectConfirm');
-      let _pendingSessionId = null;
-      let _selections = {}; // { partId: chosenPath }
-      let _expectedPartIds = [];
-
-      function refreshConfirmState() {
-        const done = _expectedPartIds.every(id => _selections[id]);
-        confirmBtn.disabled = !done;
+      for (const [label, value] of rows) {
+        const line = el('div', 'preview-line');
+        line.appendChild(el('span', 'label', label));
+        line.appendChild(el('span', null, value));
+        previewEl.appendChild(line);
       }
 
-      function renderGroups(pending) {
-        groupsEl.innerHTML = '';
-        _selections = {};
-        _expectedPartIds = pending.map(p => p.partId);
-
-        for (const group of pending) {
-          const groupDiv = document.createElement('div');
-          groupDiv.className = 'plan-select-group';
-
-          const label = document.createElement('div');
-          label.className = 'plan-select-group-label';
-          label.innerHTML = `<span class="pid">${group.partId}</span><span>Sélectionnez le plan technique</span>`;
-          groupDiv.appendChild(label);
-
-          const options = document.createElement('div');
-          options.className = 'plan-select-options';
-
-          for (const cand of group.candidates) {
-            const card = document.createElement('div');
-            card.className = 'plan-select-card';
-            card.dataset.partId = group.partId;
-            card.dataset.path = cand.pathDisplay;
-
-            const thumb = document.createElement('div');
-            thumb.className = 'plan-select-thumb';
-            if (cand.thumbnailBase64) {
-              const img = document.createElement('img');
-              img.src = 'data:image/png;base64,' + cand.thumbnailBase64;
-              img.alt = cand.name;
-              thumb.appendChild(img);
-            } else {
-              thumb.textContent = 'Aperçu indisponible';
-            }
-
-            const name = document.createElement('div');
-            name.className = 'plan-select-name';
-            name.textContent = cand.name;
-
-            card.appendChild(thumb);
-            card.appendChild(name);
-            card.addEventListener('click', () => {
-              const pid = card.dataset.partId;
-              _selections[pid] = card.dataset.path;
-              options.querySelectorAll('.plan-select-card').forEach(c => c.classList.remove('selected'));
-              card.classList.add('selected');
-              refreshConfirmState();
-            });
-
-            options.appendChild(card);
-          }
-
-          groupDiv.appendChild(options);
-          groupsEl.appendChild(groupDiv);
-        }
-
-        refreshConfirmState();
+      if (last.dropboxLink) {
+        const line = el('div', 'preview-line');
+        line.appendChild(el('span', 'label', 'Dropbox'));
+        const a = el('a', null, 'ouvrir le dossier');
+        a.href = last.dropboxLink;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        line.appendChild(a);
+        previewEl.appendChild(line);
       }
 
-      window.showPlanSelectModal = function (sessionId, pending, onResolved) {
-        _pendingSessionId = sessionId;
-        renderGroups(pending);
-        overlay.classList.add('visible');
+      queueEl.textContent = waiting > 0
+        ? waiting + (waiting > 1 ? ' travaux en attente de validation' : ' travail en attente de validation')
+        : 'tout est validé';
+    }
 
-        const handler = async () => {
-          confirmBtn.removeEventListener('click', handler);
-          confirmBtn.disabled = true;
-          confirmBtn.textContent = 'Traitement...';
-          const selections = Object.entries(_selections).map(([partId, chosenPath]) => ({ partId, chosenPath }));
-          try {
-            const res = await fetch('/api/submit-selection', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sessionId: _pendingSessionId, selections }),
-            });
-            const result = await res.json();
-            overlay.classList.remove('visible');
-            confirmBtn.textContent = 'Valider la sélection';
-            onResolved(res.ok, result);
-          } catch (err) {
-            confirmBtn.textContent = 'Valider la sélection';
-            confirmBtn.disabled = false;
-            onResolved(false, { message: 'Erreur réseau lors de la reprise.' });
-          }
+    // ── Files ────────────────────────────────────────────────────
+
+    function renderFilters(facets) {
+      const box = document.getElementById('filterChips');
+      box.innerHTML = '';
+
+      const chips = [{ type: null, value: null, label: 'Tous' }];
+      for (const [client, n] of Object.entries(facets.clients || {})) {
+        chips.push({ type: 'client', value: client, label: 'Client · ' + client + ' (' + n + ')' });
+      }
+      for (const [project, n] of Object.entries(facets.projects || {})) {
+        chips.push({ type: 'project', value: project, label: 'Projet · ' + project + ' (' + n + ')' });
+      }
+
+      for (const chip of chips) {
+        const btn = el('button', 'chip-btn', chip.label);
+        btn.type = 'button';
+        const isActive = chip.type === null
+          ? activeFilter === null
+          : activeFilter && activeFilter.type === chip.type && activeFilter.value === chip.value;
+        btn.setAttribute('aria-pressed', String(!!isActive));
+        btn.onclick = () => {
+          activeFilter = chip.type === null ? null : { type: chip.type, value: chip.value };
+          renderFilters(facets);
+          renderFiles();
         };
-        confirmBtn.addEventListener('click', handler);
-      };
+        box.appendChild(btn);
+      }
+    }
 
-      window.hidePlanSelectModal = function () {
-        overlay.classList.remove('visible');
-      };
-    })();
+    function visibleWorks() {
+      if (!activeFilter) return allWorks;
+      return allWorks.filter(w =>
+        activeFilter.type === 'client' ? w.client === activeFilter.value : w.project === activeFilter.value);
+    }
+
+    function renderFiles() {
+      const body = document.getElementById('filesBody');
+      const works = visibleWorks();
+      body.innerHTML = '';
+
+      document.getElementById('filesCount').textContent =
+        allWorks.length + (allWorks.length > 1 ? ' travaux' : ' travail');
+
+      if (works.length === 0) {
+        body.appendChild(el('div', 'empty-state',
+          allWorks.length === 0
+            ? "Aucun travail indexé pour l'instant. Dès qu'un lot passe par Édition AI, il apparaît ici avec ses tags, ses retours et ses fichiers."
+            : 'Aucun travail pour ce filtre.'));
+        return;
+      }
+
+      const grid = el('div', 'files-grid');
+
+      for (const work of works) {
+        const card = el('div', 'work-card');
+
+        const top = el('div', 'work-top');
+        top.appendChild(el('span', 'tag tag-tool-' + work.tool, TOOL_LABEL[work.tool] || work.tool));
+        top.appendChild(el('div', 'spacer'));
+        top.appendChild(el('span', 'work-when', relativeDate(work.updatedAt)));
+        card.appendChild(top);
+
+        card.appendChild(el('span', 'work-ref', work.ref));
+
+        const parts = work.partIds && work.partIds.length ? work.partIds.join(', ') : 'aucune pièce';
+        card.appendChild(el('span', 'work-sub',
+          work.planCount + (work.planCount > 1 ? ' plans' : ' plan') + ' · ' + parts));
+
+        const tags = el('div', 'tags');
+        tags.appendChild(el('span', 'tag tag-status-' + work.status, STATUS_LABEL[work.status] || work.status));
+        tags.appendChild(el('span', 'tag tag-client', 'Client · ' + work.client));
+        if (work.project) tags.appendChild(el('span', 'tag tag-project', 'Projet · ' + work.project));
+        if (work.feedback && work.feedback.plus) {
+          tags.appendChild(el('span', 'tag tag-fb-plus', 'Feedback + ' + work.feedback.plus));
+        }
+        if (work.feedback && work.feedback.minus) {
+          tags.appendChild(el('span', 'tag tag-fb-minus', 'Feedback − ' + work.feedback.minus));
+        }
+        card.appendChild(tags);
+
+        if (work.fileCount > 0) {
+          const btn = el('button', 'work-files-btn',
+            work.fileCount + (work.fileCount > 1 ? ' fichiers archivés' : ' fichier archivé'));
+          btn.type = 'button';
+          const list = el('div', 'work-files-list');
+          list.hidden = true;
+          btn.onclick = async () => {
+            if (!list.hidden) { list.hidden = true; return; }
+            list.hidden = false;
+            if (list.childElementCount === 0) {
+              list.appendChild(el('span', 'work-sub', 'chargement…'));
+              try {
+                const resp = await fetch('/api/works/' + encodeURIComponent(work.id) + '/files');
+                const data = await resp.json();
+                list.innerHTML = '';
+                for (const file of data.files || []) {
+                  if (!file.url) { list.appendChild(el('span', 'work-sub', file.fileName)); continue; }
+                  const a = el('a', null, file.fileName);
+                  a.href = file.url;
+                  a.target = '_blank';
+                  a.rel = 'noopener noreferrer';
+                  list.appendChild(a);
+                }
+              } catch (err) {
+                list.innerHTML = '';
+                list.appendChild(el('span', 'work-sub', 'Fichiers illisibles : ' + err.message));
+              }
+            }
+          };
+          card.appendChild(btn);
+          card.appendChild(list);
+        } else if (work.dropboxLink) {
+          const a = el('a', 'work-files-btn', 'Ouvrir sur Dropbox');
+          a.href = work.dropboxLink;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          card.appendChild(a);
+        }
+
+        grid.appendChild(card);
+      }
+
+      body.appendChild(grid);
+    }
+
+    // ── Load ─────────────────────────────────────────────────────
+
+    async function load() {
+      try {
+        const resp = await fetch('/api/works?limit=60');
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
+
+        allWorks = data.works || [];
+        renderToolCard('edition', allWorks);
+        renderToolCard('chiffrage', allWorks);
+        renderFilters(data.facets || { clients: {}, projects: {} });
+        renderFiles();
+      } catch (err) {
+        document.getElementById('editionLast').textContent = 'index indisponible';
+        document.getElementById('chiffrageLast').textContent = 'index indisponible';
+        const body = document.getElementById('filesBody');
+        body.innerHTML = '';
+        body.appendChild(el('div', 'error-state',
+          "L'index des travaux est injoignable : " + err.message));
+      }
+    }
+
+    load();
   </script>
-
 </body>
 </html>

@@ -142,7 +142,7 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
   }
 
   try {
-    const result = await runPipelinePhase1(payload);
+    const result = await runPipelinePhase1(payload, 'email');
 
     logger.info(
       { of: result.resolvedOF, sessionId: result.sessionId, status: result.status },

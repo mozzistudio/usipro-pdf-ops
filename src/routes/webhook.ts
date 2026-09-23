@@ -10,6 +10,8 @@ import * as pdfAnonymizer from '../services/pdfAnonymizer';
 import { registerCorrectPageEndpoint } from '../services/correctPage';
 import { registerStepCompareEndpoints } from './stepCompare';
 import { registerEmailTriggerEndpoint } from './emailTrigger';
+import { registerFeedbackEndpoints } from './feedback';
+import { registerWorksEndpoints } from './works';
 
 export const apiRouter = Router();
 
@@ -21,6 +23,12 @@ registerStepCompareEndpoints(apiRouter);
 
 // Register the email trigger consumed by the Apps Script Gmail bridge
 registerEmailTriggerEndpoint(apiRouter);
+
+// Register operator feedback endpoints — what steers the next AI operation
+registerFeedbackEndpoints(apiRouter);
+
+// Register the index of work done — what the home page lists
+registerWorksEndpoints(apiRouter);
 
 /**
  * POST /api/anonymize-zone

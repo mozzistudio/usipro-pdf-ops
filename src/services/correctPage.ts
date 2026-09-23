@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { PDFDocument, rgb } from 'pdf-lib';
 import { logger } from '../utils/logger';
 import { renderPageToPng } from './renderPdfPage';
+import { buildGuidance, FeedbackScope } from './feedbackStore';
 
 interface CorrectionZone {
   x_percent: number;
@@ -15,6 +16,8 @@ interface CorrectionRequest {
   pageIndex: number;
   zones: CorrectionZone[];
   prompt?: string;
+  /** Which plan this is, so past retours on the same family are replayed. */
+  scope?: FeedbackScope;
 }
 
 interface AICorrectionResult {
@@ -36,6 +39,8 @@ async function analyzeWithAI(
   pagePng: Buffer | null,
   zones: CorrectionZone[],
   prompt: string,
+  /** Consignes distilled from past operator retours on this kind of plan. */
+  guidance = '',
 ): Promise<AICorrectionResult> {
   const Anthropic = (await import('@anthropic-ai/sdk')).default;
   const { CLAUDE_MODEL, THINKING, parseJsonResponse } = await import('./claudeModel');
@@ -78,7 +83,7 @@ Règles:
 - type peut être "mask" (rectangle blanc) ou "redact" (rectangle noir)
 - Si la table USI-PRO doit être redessinée, mettre redraw_table: true et indiquer table_zone
 - cartouche_overrides: { "designation": "...", "material": "..." } si des données doivent changer
-- Retourner UNIQUEMENT du JSON valide`;
+- Retourner UNIQUEMENT du JSON valide${guidance}`;
 
   const userContent: any[] = [];
 
@@ -157,7 +162,7 @@ async function applyZoneMasks(
  */
 export function registerCorrectPageEndpoint(router: Router): void {
   router.post('/api/correct-page', async (req: Request, res: Response) => {
-    const { pdfBase64, pageIndex, zones, prompt } = req.body as CorrectionRequest;
+    const { pdfBase64, pageIndex, zones, prompt, scope } = req.body as CorrectionRequest;
 
     if (!pdfBase64 || pageIndex == null || !Array.isArray(zones)) {
       res.status(400).json({ error: 'pdfBase64, pageIndex et zones sont requis' });
@@ -176,7 +181,8 @@ export function registerCorrectPageEndpoint(router: Router): void {
       if (apiKey && prompt) {
         try {
           const pagePng = await renderPageToPng(pdfBytes, pageIndex);
-          const aiResult = await analyzeWithAI(pagePng, zones, prompt);
+          const guidance = await buildGuidance('correct-page', scope ?? {});
+          const aiResult = await analyzeWithAI(pagePng, zones, prompt, guidance);
           analysis = aiResult.analysis;
           corrections = aiResult.corrections || [];
 

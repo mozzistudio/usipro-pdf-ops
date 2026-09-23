@@ -337,3 +337,124 @@
     min-height: 40vh;
   }
 }
+
+/* ── Operator feedback on AI operations ──────────────────────────
+   Shown at the end of every AI operation: what the operator types here is
+   replayed into the prompt of the next operation of the same kind. */
+
+.ai-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-top: 1px solid #e2e8f0;
+  background: #f4fbf9;
+}
+
+.ai-feedback.sent {
+  background: #f6f9fb;
+}
+
+.ai-feedback-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #148f77;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.ai-feedback-op {
+  color: #64748b;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: none;
+}
+
+.ai-feedback-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ai-fb-verdict {
+  height: 38px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.ai-fb-verdict:hover { border-color: #94a3b8; }
+
+.ai-fb-verdict.ok.selected {
+  background: #1abc9c;
+  border-color: #148f77;
+  color: #0f1a2e;
+}
+
+.ai-fb-verdict.ko.selected {
+  background: #fef3c7;
+  border-color: #d97706;
+  color: #92400e;
+}
+
+.ai-fb-input {
+  flex: 1 1 260px;
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 13px;
+  color: #1e293b;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+.ai-fb-input:focus {
+  outline: none;
+  border-color: #1abc9c;
+  box-shadow: 0 0 0 3px rgba(26,188,156,0.15);
+}
+
+.ai-fb-send,
+.ai-fb-continue {
+  height: 38px;
+  padding: 0 18px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  background: #0f1a2e;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.ai-fb-send:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.ai-feedback-status {
+  font-size: 12.5px;
+  color: #64748b;
+  min-height: 16px;
+}
+
+.ai-feedback-status.warn { color: #b45309; font-weight: 600; }
+.ai-feedback-status.done { color: #148f77; font-weight: 600; }
+
+/* Inside the fullscreen correction panel the surface is the panel, not a card */
+.correction-panel .ai-feedback {
+  border-top: none;
+  border-radius: 10px;
+  margin-bottom: 12px;
+}

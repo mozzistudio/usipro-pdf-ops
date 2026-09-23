@@ -56,6 +56,7 @@
         partId: p.partId,
         originalBase64: p.originalBase64,
         anonymizedBase64: p.anonymizedBase64,
+        format: p.format || null,
         feedback: p.feedback || null,
         ofNum,
         pages: Array.from({ length: numPages }, () => ({ validated: false, correctedBase64: null })),
@@ -227,6 +228,13 @@
 
     pageEntry.appendChild(comparison);
     pgList.appendChild(pageEntry);
+
+    // Feedback on whatever produced the page currently shown
+    card.appendChild(buildFeedbackBar({
+      operation: s.pages[entry.pageIndex].lastOperation || 'anonymize',
+      scope: feedbackScope(s),
+      question: 'Ce plan anonymisé te convient ?',
+    }));
 
     // Action bars
     const isValidated = s.pages[entry.pageIndex].validated;
@@ -606,6 +614,7 @@
           pageIndex: entry.pageIndex,
           zones,
           prompt: prompt || undefined,
+          scope: feedbackScope(s),
         }),
       });
 
@@ -614,6 +623,7 @@
 
       // Store corrected PDF
       s.pages[entry.pageIndex].correctedBase64 = result.pdfBase64;
+      s.pages[entry.pageIndex].lastOperation = 'correct-page';
 
       // Show AI result
       const aiResult = document.getElementById('corrAiResult');
@@ -641,6 +651,16 @@
           closeCorrectionMode();
           advanceAfterValidation();
         };
+        // The before/after is still on screen: this is the moment the operator
+        // can say what the correction got wrong.
+        actionsDiv.parentElement.insertBefore(
+          buildFeedbackBar({
+            operation: 'correct-page',
+            scope: feedbackScope(s),
+            question: 'La correction a-t-elle fait ce que tu voulais ?',
+          }),
+          actionsDiv,
+        );
         document.getElementById('corrRetryBtn').onclick = () => {
           // Reset and re-render
           _correctionZones = [];
@@ -841,7 +861,26 @@
 
       // Store as corrected for this page
       s.pages[entry.pageIndex].correctedBase64 = modifiedB64;
+      s.pages[entry.pageIndex].lastOperation = 'usipro-table';
       s.pages[entry.pageIndex].validated = true;
+
+      // Ask before advancing: once the next page is up, nobody comes back to
+      // say the table landed 3 mm too low.
+      if (tbar) {
+        tbar.innerHTML = '';
+        tbar.appendChild(buildFeedbackBar({
+          operation: 'usipro-table',
+          scope: feedbackScope(s),
+          question: 'La table est-elle bien placée ?',
+        }));
+        const next = document.createElement('button');
+        next.type = 'button';
+        next.className = 'ai-fb-continue';
+        next.textContent = 'Continuer →';
+        next.onclick = () => advanceAfterValidation();
+        tbar.appendChild(next);
+        return;
+      }
 
       advanceAfterValidation();
     } catch (err) {
@@ -905,6 +944,146 @@
       isDragging = false;
       isResizing = false;
     });
+  }
+
+  // ── Operator feedback on AI operations ────────────────────────
+  //
+  // Every AI operation ends with the operator saying whether the result was
+  // right. What they type is filed against this plan family and pasted back
+  // into the prompt of the next operation of the same kind — so the same
+  // remark never has to be made twice.
+
+  const OPERATION_LABELS = {
+    'anonymize': 'anonymisation du plan',
+    'correct-page': 'correction par zone',
+    'usipro-table': 'table USI-PRO',
+    'plan-select': 'choix du plan',
+  };
+
+  /** What identifies this plan family for the feedback store. */
+  function feedbackScope(s) {
+    const scope = { partId: s.partId, ofNumber: s.ofNum };
+    if (s.format) scope.format = s.format;
+    return scope;
+  }
+
+  /**
+   * Builds the feedback bar for one operation.
+   * opts: { operation, scope, question?, onDone? }
+   */
+  function buildFeedbackBar(opts) {
+    const wrap = document.createElement('div');
+    wrap.className = 'ai-feedback';
+
+    const head = document.createElement('div');
+    head.className = 'ai-feedback-head';
+    head.innerHTML =
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"' +
+      ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>' +
+      '<span class="ai-feedback-q"></span>' +
+      '<span class="ai-feedback-op"></span>';
+    head.querySelector('.ai-feedback-q').textContent = opts.question || 'Ce résultat te convient ?';
+    head.querySelector('.ai-feedback-op').textContent =
+      OPERATION_LABELS[opts.operation] || opts.operation;
+    wrap.appendChild(head);
+
+    const row = document.createElement('div');
+    row.className = 'ai-feedback-row';
+
+    const btnOk = document.createElement('button');
+    btnOk.type = 'button';
+    btnOk.className = 'ai-fb-verdict ok';
+    btnOk.textContent = "C'est bon";
+
+    const btnKo = document.createElement('button');
+    btnKo.type = 'button';
+    btnKo.className = 'ai-fb-verdict ko';
+    btnKo.textContent = 'À revoir';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'ai-fb-input';
+    input.placeholder = 'ce qu\'il faut faire autrement la prochaine fois';
+    input.setAttribute('aria-label', 'Votre retour sur cette opération');
+
+    const send = document.createElement('button');
+    send.type = 'button';
+    send.className = 'ai-fb-send';
+    send.textContent = 'Envoyer';
+
+    row.append(btnOk, btnKo, input, send);
+    wrap.appendChild(row);
+
+    const status = document.createElement('div');
+    status.className = 'ai-feedback-status';
+    wrap.appendChild(status);
+
+    let verdict = null;
+
+    function pick(v) {
+      verdict = v;
+      btnOk.classList.toggle('selected', v === 'ok');
+      btnKo.classList.toggle('selected', v === 'ko');
+      status.className = 'ai-feedback-status';
+      status.textContent =
+        v === 'ko' ? 'Dis en une phrase ce qui ne va pas — sinon rien ne peut changer.' : '';
+      if (v === 'ko') input.focus();
+    }
+
+    btnOk.onclick = () => pick('ok');
+    btnKo.onclick = () => pick('ko');
+    input.onkeydown = (e) => { if (e.key === 'Enter') send.click(); };
+
+    send.onclick = async () => {
+      const comment = input.value.trim();
+      // A retour with text but no thumb is a correction: that is what "ko" means.
+      const chosen = verdict || (comment ? 'ko' : null);
+      if (!chosen) {
+        status.className = 'ai-feedback-status warn';
+        status.textContent = 'Choisis « C\'est bon » ou « À revoir » avant d\'envoyer.';
+        return;
+      }
+      if (chosen === 'ko' && !comment) {
+        status.className = 'ai-feedback-status warn';
+        status.textContent = 'Écris ce qui ne va pas — un pouce vers le bas seul n\'apprend rien.';
+        input.focus();
+        return;
+      }
+
+      send.disabled = true;
+      status.className = 'ai-feedback-status';
+      status.textContent = 'Envoi...';
+
+      try {
+        const resp = await fetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            operation: opts.operation,
+            verdict: chosen,
+            comment,
+            scope: opts.scope || {},
+          }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
+
+        wrap.classList.add('sent');
+        row.remove();
+        status.className = 'ai-feedback-status done';
+        status.textContent = comment
+          ? 'Pris en compte — ' + data.activeForScope + ' consigne(s) active(s) sur ce type de plan.'
+          : 'Merci — retour enregistré.';
+        if (typeof opts.onDone === 'function') opts.onDone();
+      } catch (err) {
+        send.disabled = false;
+        status.className = 'ai-feedback-status warn';
+        status.textContent = 'Retour non enregistré : ' + err.message;
+      }
+    };
+
+    return wrap;
   }
 
   // ── Render helpers ─────────────────────────────────────────────

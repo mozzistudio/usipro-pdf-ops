@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import JSZip from 'jszip';
 import { OFData, PartFeedback, PipelineResult } from '../types';
-import { buildDropboxPaths, getExtension, isPdf, isStep } from '../utils/helpers';
+import { CLIENT_CODE, buildDropboxPaths, getExtension, isPdf, isStep } from '../utils/helpers';
 import { ofLogger } from '../utils/logger';
 import * as dropboxService from '../services/dropbox';
 import * as documentGenerator from '../services/documentGenerator';
@@ -19,12 +19,23 @@ import {
   deleteState,
 } from '../services/sessionStore';
 import { selectPlanPdf } from '../services/planSelector';
+import {
+  WorkSource,
+  addWorkFile,
+  recordWorkDelivered,
+  recordWorkStarted,
+} from '../services/worksStore';
 
 /** One anonymized plan handed to the operator for validation. */
 export interface Phase1Pdf {
   partId: string;
   originalBase64: string;
   anonymizedBase64: string;
+  /**
+   * Detected cartouche format. Sent to the UI so a retour given on this plan is
+   * filed against the family it belongs to rather than against every client.
+   */
+  format?: string;
   /** Set only when the client left a comment on this part. */
   feedback?: PartFeedback;
 }
@@ -55,7 +66,11 @@ export type Phase1Result =
  * `awaiting_selection` with first-page thumbnails so the frontend can prompt
  * the user. Call `resumePhase1AfterSelection` with the user's picks to finish.
  */
-export async function runPipelinePhase1(ofData: OFData): Promise<Phase1Result> {
+export async function runPipelinePhase1(
+  ofData: OFData,
+  /** Form submission or mail to chiffrage@ — kept for the index of work. */
+  source: WorkSource = 'form',
+): Promise<Phase1Result> {
   const { ofNumber, parts } = ofData;
   const log = ofLogger(ofNumber);
 
@@ -122,7 +137,7 @@ export async function runPipelinePhase1(ofData: OFData): Promise<Phase1Result> {
       })),
     );
 
-    const selection = await selectPlanPdf(candidates);
+    const selection = await selectPlanPdf(candidates, { partId, ofNumber: resolvedOF });
     log.info(
       { partId, selectedIndex: selection.selectedIndex, confidence: selection.confidence, reason: selection.reason },
       'AI plan selection result',
@@ -158,6 +173,7 @@ export async function runPipelinePhase1(ofData: OFData): Promise<Phase1Result> {
       paths,
       partDocs,
       missingParts,
+      source,
       createdAt: Date.now(),
     };
     savePendingSelection(sessionId, pending);
@@ -177,7 +193,7 @@ export async function runPipelinePhase1(ofData: OFData): Promise<Phase1Result> {
   }
 
   // ─── Otherwise, finish Phase 1 now ────────────────────────────
-  return finishPhase1(ofData, resolvedOF, paths, partDocs, stepDocs);
+  return finishPhase1(ofData, resolvedOF, paths, partDocs, stepDocs, source);
 }
 
 /**
@@ -224,6 +240,7 @@ export async function resumePhase1AfterSelection(
     pending.paths,
     pending.partDocs,
     stepDocs,
+    pending.source ?? 'form',
   );
 }
 
@@ -244,6 +261,7 @@ async function finishPhase1(
   paths: ReturnType<typeof buildDropboxPaths>,
   partDocs: PartDocs[],
   stepDocs: Array<{ name: string; path_display: string; partId: string }>,
+  source: WorkSource,
 ): Promise<Phase1Result> {
   const log = ofLogger(resolvedOF);
   const partIds = ofData.parts.map(p => p.id.trim());
@@ -315,11 +333,12 @@ async function finishPhase1(
       const originalBase64 = pdfBytes.toString('base64');
 
       const comment = commentByPart.get(pd.partId) || undefined;
-      const { pdf: anonBytes, refinement } = await pdfAnonymizer.anonymizePdf(
+      const { pdf: anonBytes, format, refinement } = await pdfAnonymizer.anonymizePdf(
         pdfBytes,
         pd.partId,
         resolvedOF,
         comment,
+        { partId: pd.partId, ofNumber: resolvedOF },
       );
       const anonymizedBase64 = anonBytes.toString('base64');
 
@@ -339,6 +358,7 @@ async function finishPhase1(
         partId: pd.partId,
         originalBase64,
         anonymizedBase64,
+        format,
         ...(comment && {
           feedback: {
             comment,
@@ -385,6 +405,23 @@ async function finishPhase1(
     createdAt: Date.now(),
   };
   saveState(newSessionId, state);
+
+  // Indexed now rather than at delivery: a lot abandoned during validation is
+  // still work that happened, and the home must show it. A failure here never
+  // costs the operator the plans that are already anonymized.
+  try {
+    await recordWorkStarted({
+      tool: 'edition',
+      source,
+      ref: resolvedOF,
+      client: CLIENT_CODE,
+      partIds,
+      planCount: pdfs.length,
+      missingParts,
+    });
+  } catch (err: any) {
+    log.error({ err: err.message }, 'Travail non indexé — la home ne le montrera pas');
+  }
 
   log.info({ sessionId: newSessionId, pdfCount: pdfs.length, missingParts }, 'Phase 1 complete — awaiting validation');
   return {
@@ -483,6 +520,49 @@ export async function runPipelinePhase2(
   deleteState(sessionId);
 
   const missingParts = state.missingParts;
+
+  // ─── Step 8: Keep our own copy of what was delivered ──────────
+  // Dropbox is where the client's files live; this is where OUR trace lives.
+  // Archiving is best-effort: an OF that reached Dropbox is delivered whether
+  // or not our copy succeeded.
+  try {
+    for (const { partId, pdfBase64 } of validatedPdfs) {
+      await addWorkFile({
+        tool: 'edition',
+        ref: resolvedOF,
+        kind: 'plan_anonymise',
+        partId,
+        fileName: `${partId}.pdf`,
+        bytes: Buffer.from(pdfBase64, 'base64'),
+        contentType: 'application/pdf',
+      });
+    }
+    await addWorkFile({
+      tool: 'edition',
+      ref: resolvedOF,
+      kind: 'devis_pdf',
+      fileName: `${resolvedOF}.pdf`,
+      bytes: pdfBuffer,
+      contentType: 'application/pdf',
+    });
+    await addWorkFile({
+      tool: 'edition',
+      ref: resolvedOF,
+      kind: 'devis_docx',
+      fileName: `${resolvedOF}.docx`,
+      bytes: docxBuffer,
+      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+    await recordWorkDelivered('edition', resolvedOF, {
+      dropboxLink,
+      planCount: validatedPdfs.length,
+      missingParts,
+      client: CLIENT_CODE,
+    });
+  } catch (err: any) {
+    log.error({ err: err.message }, 'Archivage du travail incomplet — les fichiers sont sur Dropbox');
+  }
+
   log.info({ dropboxLink, missingParts }, 'Pipeline completed successfully');
   return { ofNumber: resolvedOF, dropboxLink, missingParts, zipBase64, mainPath: paths.main };
 }
