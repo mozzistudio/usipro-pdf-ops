@@ -161,6 +161,51 @@
     }
     .pricing .hint { font-size: 12px; color: #92400e; }
 
+    .settings {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 18px 20px; margin-bottom: 20px;
+    }
+    .settings summary {
+      cursor: pointer; font-size: 14px; font-weight: 700; list-style: none;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .settings summary::-webkit-details-marker { display: none; }
+    .settings summary::before { content: '⚙'; color: var(--text-dim); }
+    .settings .note { font-size: 12.5px; color: var(--text-muted); line-height: 1.6; margin: 10px 0 16px; max-width: 78ch; }
+    .grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px;
+    }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label { font-size: 11.5px; font-weight: 600; color: #475569; }
+    .field .unit { font-size: 11px; color: var(--text-dim); }
+    .field input {
+      height: 38px; padding: 0 10px; font-family: inherit; font-size: 13px;
+      border: 1px solid var(--border-strong); border-radius: 8px;
+    }
+    .settings-actions { display: flex; align-items: center; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+
+    .price { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .price strong { font-size: 14px; }
+    .why {
+      font-family: inherit; font-size: 11.5px; font-weight: 600;
+      color: var(--accent-deep); background: none; border: none;
+      padding: 0; cursor: pointer; text-decoration: underline;
+    }
+    .breakdown {
+      background: var(--surface-alt); border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0; padding: 12px 14px; margin: 4px 0 10px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .bd-item { display: flex; align-items: baseline; gap: 10px; font-size: 12.5px; }
+    .bd-item .amount { font-weight: 700; min-width: 74px; text-align: right; font-variant-numeric: tabular-nums; }
+    .bd-item .basis { color: var(--text-muted); }
+    .bd-assumption { font-size: 12px; color: #92400e; }
+
+    .totals {
+      display: flex; align-items: baseline; gap: 10px;
+      font-size: 14px; font-weight: 700; justify-content: flex-end;
+    }
+
     .action-note { font-size: 12.5px; color: var(--text-muted); }
     .action-note.done { color: var(--accent-deep); font-weight: 600; }
     .action-note.warn { color: #b45309; font-weight: 600; }
@@ -207,6 +252,18 @@
       étaient écrites. Quand une demande est traitée de ton côté, marque-la comme
       close — c'est toi qui décides, rien ne le fait à ta place.
     </p>
+    <details class="settings" id="settings">
+      <summary>Paramètres du chiffrage — taux horaire, temps, matières</summary>
+      <p class="note">
+        Ces valeurs sont des <strong>hypothèses de départ</strong>, pas des mesures : un taux
+        horaire d'usinage de PME, une mise en train forfaitaire, une courbe d'apprentissage
+        usuelle, des tarifs matière au cours du marché. Elles existent pour qu'un prix soit
+        affichable dès aujourd'hui et corrigeable par toi. Corrige-les, puis relance le calcul
+        sur une demande : rien ne se recalcule dans ton dos.
+      </p>
+      <div id="settingsBody">chargement…</div>
+    </details>
+
     <div id="body"><div class="empty-state">chargement…</div></div>
   </main>
 
@@ -236,29 +293,60 @@
       const table = el('table');
       const thead = el('thead');
       const hr = el('tr');
-      ['Référence', 'Désignation', 'Matière', 'Quantité', 'Commentaire'].forEach(h => {
+      ['Référence', 'Désignation', 'Matière', 'Quantité', 'Prix unitaire', 'Total'].forEach(h => {
         hr.appendChild(el('th', null, h));
       });
       thead.appendChild(hr);
       table.appendChild(thead);
 
       const tbody = el('tbody');
+      let total = 0;
+
       for (const line of lines) {
         const tr = el('tr');
-        [
-          line.reference || '—',
-          line.designation || '—',
-          line.material || '—',
-          line.quantity || '—',
-          line.comment || '—',
-        ].forEach((value, i) => {
-          const td = el('td', value === '—' ? 'dim' : null, value);
-          tr.appendChild(td);
-        });
+        [line.reference || '—', line.designation || '—', line.material || '—', line.quantity || '—']
+          .forEach(value => tr.appendChild(el('td', value === '—' ? 'dim' : null, value)));
+
+        const unit = el('td', 'price');
+        if (line.unitPrice != null) {
+          unit.appendChild(el('strong', null, line.unitPrice.toFixed(2) + ' €'));
+          if (line.priceBreakdown) {
+            const why = el('button', 'why', 'pourquoi');
+            why.type = 'button';
+            const detail = el('tr');
+            const cell = el('td');
+            cell.colSpan = 6;
+            cell.appendChild(renderBreakdown(line.priceBreakdown));
+            detail.appendChild(cell);
+            detail.hidden = true;
+            why.onclick = () => { detail.hidden = !detail.hidden; };
+            unit.appendChild(document.createElement('br'));
+            unit.appendChild(why);
+            tr.appendChild(unit);
+            tr.appendChild(el('td', 'price', line.totalPrice != null ? line.totalPrice.toFixed(2) + ' €' : '—'));
+            tbody.appendChild(tr);
+            tbody.appendChild(detail);
+            total += line.totalPrice || 0;
+            continue;
+          }
+        } else {
+          unit.appendChild(el('span', 'dim', '—'));
+        }
+        tr.appendChild(unit);
+        tr.appendChild(el('td', 'price', line.totalPrice != null ? line.totalPrice.toFixed(2) + ' €' : '—'));
         tbody.appendChild(tr);
+        total += line.totalPrice || 0;
       }
+
       table.appendChild(tbody);
       container.appendChild(table);
+
+      if (total > 0) {
+        const sum = el('div', 'totals');
+        sum.appendChild(el('span', null, 'Total demande'));
+        sum.appendChild(el('span', null, total.toFixed(2) + ' €'));
+        container.appendChild(sum);
+      }
     }
 
     function renderRequest(work) {
@@ -342,6 +430,33 @@
       };
       actions.appendChild(btn);
 
+      const reprice = el('button', 'btn btn-ghost', 'Rechiffrer');
+      reprice.type = 'button';
+      reprice.onclick = async () => {
+        reprice.disabled = true;
+        note.className = 'action-note';
+        note.textContent = 'Calcul…';
+        try {
+          const resp = await fetch('/api/works/' + encodeURIComponent(work.id) + '/price', { method: 'POST' });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
+          linesBox.innerHTML = '';
+          if ((data.lines || []).length === 0) {
+            linesBox.appendChild(el('div', 'no-lines', 'Aucune ligne à chiffrer.'));
+          } else {
+            renderLines(linesBox, data.lines);
+          }
+          note.className = 'action-note done';
+          note.textContent = data.count + ' ligne(s) rechiffrée(s)';
+        } catch (err) {
+          note.className = 'action-note warn';
+          note.textContent = 'Chiffrage impossible : ' + err.message;
+        } finally {
+          reprice.disabled = false;
+        }
+      };
+      actions.appendChild(reprice);
+
       const mail = el('a', 'btn btn-ghost', 'Ouvrir le mail');
       mail.href = 'https://mail.google.com/mail/u/0/#search/' + encodeURIComponent(work.ref);
       mail.target = '_blank';
@@ -355,6 +470,24 @@
     }
 
     let PRICING = {};
+    let SETTINGS = null;
+    let MATERIALS = [];
+
+    /** Le bordereau d'une ligne: chaque poste, sa base, et ce qui a été supposé. */
+    function renderBreakdown(bd) {
+      const box = el('div', 'breakdown');
+      for (const item of bd.items || []) {
+        const row = el('div', 'bd-item');
+        row.appendChild(el('span', 'amount', item.amount.toFixed(2) + ' €'));
+        row.appendChild(el('span', null, item.label));
+        row.appendChild(el('span', 'basis', '— ' + item.basis));
+        box.appendChild(row);
+      }
+      for (const hypothese of bd.assumptions || []) {
+        box.appendChild(el('div', 'bd-assumption', '⚠ ' + hypothese));
+      }
+      return box;
+    }
 
     /**
      * Le prix par défaut du client — posé à la main, jamais calculé.
@@ -365,7 +498,7 @@
       const box = el('div', 'pricing');
       const current = PRICING[work.client];
 
-      box.appendChild(el('span', 'label', 'Prix par défaut client'));
+      box.appendChild(el('span', 'label', 'Prix imposé pour ce client'));
 
       const input = el('input');
       input.type = 'number';
@@ -408,16 +541,119 @@
       box.appendChild(btn);
       box.appendChild(note);
       box.appendChild(el('span', 'hint',
-        "Valeur posée à la main, pas un prix calculé : aucun moteur de coût n'existe encore."));
+        "Laissé vide, c'est le moteur qui décide. Rempli, ce tarif l'emporte — mais le prix calculé reste au bordereau et l'écart est nommé, jamais effacé."));
       return box;
+    }
+
+    const SETTING_FIELDS = [
+      ['hourlyRate', 'Taux horaire', '€ / h'],
+      ['setupMinutes', 'Mise en train', 'min par référence'],
+      ['minutesPerDm3', 'Usinage', 'min par dm³ enlevé'],
+      ['removalRatio', 'Part de matière enlevée', '0 à 1'],
+      ['learningCurve', 'Courbe d’apprentissage', '0.90 = −10 % au doublement'],
+      ['marginPct', 'Marge', '%'],
+      ['handlingMinutesPerPart', 'Reprise et contrôle', 'min par pièce'],
+    ];
+
+    function renderSettings() {
+      const box = document.getElementById('settingsBody');
+      box.innerHTML = '';
+      if (!SETTINGS) {
+        box.appendChild(el('div', 'action-note warn', 'Paramètres injoignables.'));
+        return;
+      }
+
+      const grid = el('div', 'grid');
+      const inputs = {};
+      for (const [key, label, unit] of SETTING_FIELDS) {
+        const field = el('div', 'field');
+        field.appendChild(el('label', null, label));
+        const input = el('input');
+        input.type = 'number';
+        input.step = '0.01';
+        input.min = '0';
+        input.value = SETTINGS[key];
+        input.setAttribute('aria-label', label);
+        inputs[key] = input;
+        field.appendChild(input);
+        field.appendChild(el('span', 'unit', unit));
+        grid.appendChild(field);
+      }
+      box.appendChild(grid);
+
+      const mat = el('div', 'grid');
+      mat.style.marginTop = '18px';
+      const matInputs = {};
+      for (const m of MATERIALS) {
+        const field = el('div', 'field');
+        field.appendChild(el('label', null, m.label));
+        const price = el('input');
+        price.type = 'number'; price.step = '0.01'; price.min = '0';
+        price.value = m.pricePerKg;
+        price.setAttribute('aria-label', 'Prix au kilo — ' + m.label);
+        matInputs[m.id] = price;
+        field.appendChild(price);
+        field.appendChild(el('span', 'unit', '€ / kg · densité ' + m.density));
+        mat.appendChild(field);
+      }
+      box.appendChild(mat);
+
+      const actions = el('div', 'settings-actions');
+      const save = el('button', 'btn btn-teal', 'Enregistrer les paramètres');
+      save.type = 'button';
+      const note = el('span', 'action-note');
+
+      save.onclick = async () => {
+        save.disabled = true;
+        note.className = 'action-note';
+        note.textContent = 'Enregistrement…';
+        try {
+          const patch = {};
+          for (const [key] of SETTING_FIELDS) patch[key] = Number(inputs[key].value);
+          const resp = await fetch('/api/pricing/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patch),
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
+          SETTINGS = data.settings;
+
+          for (const m of MATERIALS) {
+            const value = Number(matInputs[m.id].value);
+            if (value === m.pricePerKg) continue;
+            const r = await fetch('/api/pricing/materials', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: m.id, pricePerKg: value }),
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.message || 'HTTP ' + r.status);
+            MATERIALS = d.materials;
+          }
+
+          note.className = 'action-note done';
+          note.textContent = 'Enregistré — relance « Rechiffrer » sur une demande pour appliquer.';
+        } catch (err) {
+          note.className = 'action-note warn';
+          note.textContent = 'Non enregistré : ' + err.message;
+        } finally {
+          save.disabled = false;
+        }
+      };
+
+      actions.appendChild(save);
+      actions.appendChild(note);
+      box.appendChild(actions);
     }
 
     async function load() {
       const body = document.getElementById('body');
       try {
-        const [resp, pricingResp] = await Promise.all([
+        const [resp, pricingResp, settingsResp] = await Promise.all([
           fetch('/api/works?tool=chiffrage&limit=100'),
           fetch('/api/pricing'),
+          fetch('/api/pricing/settings'),
         ]);
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
@@ -425,6 +661,11 @@
         const pricingData = await pricingResp.json().catch(() => ({ pricing: [] }));
         PRICING = {};
         for (const p of pricingData.pricing || []) PRICING[p.client] = p;
+
+        const settingsData = await settingsResp.json().catch(() => ({}));
+        SETTINGS = settingsData.settings || null;
+        MATERIALS = settingsData.materials || [];
+        renderSettings();
 
         const works = data.works || [];
         const pending = works.filter(w => w.status === 'a_valider').length;

@@ -4,7 +4,7 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 import { parseChiffrageEmail, InboundEmail } from '../services/emailParser';
 import { readAttachment } from '../services/attachments';
-import { recordChiffrageRequest } from '../services/worksStore';
+import { priceRequest, recordChiffrageRequest } from '../services/worksStore';
 import { attachPart } from '../services/articleStore';
 
 /**
@@ -156,6 +156,16 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
   try {
     const work = await recordChiffrageRequest(request, 'email');
 
+    // Chiffrage immédiat: l'opérateur ouvre la demande avec un prix déjà posé,
+    // ses hypothèses affichées, et corrige plutôt que de partir de rien. Un
+    // moteur en panne ne doit pas faire perdre la demande.
+    let pricedLines = 0;
+    try {
+      pricedLines = (await priceRequest(work.id)).length;
+    } catch (err: any) {
+      logger.warn({ reference: request.reference, err: err.message }, 'Chiffrage impossible — demande enregistrée sans prix');
+    }
+
     // Chaque STEP reçu entre au référentiel: c'est ce qui permettra de dire,
     // la prochaine fois, « cette pièce est déjà passée ». Un référentiel
     // injoignable ne doit pas faire perdre la demande elle-même.
@@ -191,6 +201,7 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
         detailsInAttachments: request.detailsInAttachments,
         fileCount: files.length,
         stepCount: files.filter(f => f.stepBytes).length,
+        pricedLines,
       },
       'Email trigger: demande de chiffrage enregistrée',
     );

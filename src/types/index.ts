@@ -103,6 +103,11 @@ export interface ChiffrageLine {
   /** Laissée en texte: « 10 », « 5 + option 20 », « selon PJ » sont tous des cas réels. */
   quantity: string;
   comment: string;
+  /** Prix calculé par le moteur de coût, quand il a tourné sur cette ligne. */
+  unitPrice?: number | null;
+  totalPrice?: number | null;
+  /** Le bordereau: chaque poste et sa base de calcul. */
+  priceBreakdown?: { items: Array<{ label: string; amount: number; basis: string }>; assumptions: string[]; quantity: number } | null;
 }
 
 /**

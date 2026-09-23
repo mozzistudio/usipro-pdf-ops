@@ -2,12 +2,17 @@ import { Router, Request, Response } from 'express';
 import { logger } from '../utils/logger';
 import {
   WorkTool,
+  getPricingSettings,
   listClientPricing,
+  listMaterialRates,
   listRequestLines,
   listWorkFiles,
   listWorks,
+  priceRequest,
   requestLineCounts,
   setClientPricing,
+  setMaterialRate,
+  setPricingSettings,
   setWorkProject,
   setWorkStatus,
   workFacets,
@@ -23,6 +28,10 @@ const TOOLS: WorkTool[] = ['edition', 'chiffrage'];
  * GET  /api/works             — the jobs, newest activity first, with their tags
  * GET  /api/works/:id/files   — the deliverables of one job, as signed URLs
  * GET  /api/works/:id/lines   — les lignes d'une demande de chiffrage
+ * GET  /api/pricing/settings  — paramètres du moteur et tarifs matière
+ * POST /api/pricing/settings  — corriger un paramètre du moteur
+ * POST /api/pricing/materials — corriger le tarif d'une nuance
+ * POST /api/works/:id/price   — (re)chiffrer une demande
  * GET  /api/pricing           — les prix par défaut, par client
  * POST /api/pricing           — poser ou changer le prix par défaut d'un client
  * POST /api/works/:id/status  — l'opérateur clôt une demande, ou la rouvre
@@ -93,6 +102,84 @@ export function registerWorksEndpoints(router: Router): void {
       res.json({ status: 'ok', count: lines.length, lines });
     } catch (err: any) {
       logger.error({ err: err.message, id: req.params.id }, 'Lecture des lignes impossible');
+      res.status(503).json({ status: 'error', message: err.message });
+    }
+  });
+
+  // ── Moteur de coût ─────────────────────────────────────────────
+  // Les valeurs livrées sont des hypothèses. L'atelier les corrige ici, et
+  // chaque demande peut être rechiffrée avec les nouvelles.
+  router.get('/api/pricing/settings', async (_req: Request, res: Response) => {
+    try {
+      const [settings, materials] = await Promise.all([getPricingSettings(), listMaterialRates()]);
+      res.json({ status: 'ok', settings, materials });
+    } catch (err: any) {
+      logger.error({ err: err.message }, 'Lecture des paramètres de prix impossible');
+      res.status(503).json({ status: 'error', message: err.message });
+    }
+  });
+
+  router.post('/api/pricing/settings', async (req: Request, res: Response) => {
+    const patch = req.body as Record<string, unknown>;
+    const numeric = [
+      'hourlyRate', 'setupMinutes', 'minutesPerDm3',
+      'removalRatio', 'learningCurve', 'marginPct', 'handlingMinutesPerPart',
+    ];
+
+    for (const key of numeric) {
+      if (patch[key] === undefined) continue;
+      const value = Number(patch[key]);
+      if (!Number.isFinite(value) || value < 0) {
+        res.status(400).json({ status: 'error', message: `${key} doit être un nombre positif` });
+        return;
+      }
+      patch[key] = value;
+    }
+
+    try {
+      res.json({ status: 'ok', settings: await setPricingSettings(patch as any) });
+    } catch (err: any) {
+      logger.error({ err: err.message }, 'Paramètres de prix non enregistrés');
+      res.status(503).json({ status: 'error', message: err.message });
+    }
+  });
+
+  router.post('/api/pricing/materials', async (req: Request, res: Response) => {
+    const { id, pricePerKg, density, label, aliases } = req.body as {
+      id?: string; pricePerKg?: number; density?: number; label?: string; aliases?: string[];
+    };
+    if (!id || !String(id).trim()) {
+      res.status(400).json({ status: 'error', message: 'id de nuance requis' });
+      return;
+    }
+    for (const [key, value] of [['pricePerKg', pricePerKg], ['density', density]] as const) {
+      if (value === undefined) continue;
+      if (!Number.isFinite(Number(value)) || Number(value) <= 0) {
+        res.status(400).json({ status: 'error', message: `${key} doit être un nombre positif` });
+        return;
+      }
+    }
+
+    try {
+      const materials = await setMaterialRate(String(id).trim(), {
+        pricePerKg: pricePerKg === undefined ? undefined : Number(pricePerKg),
+        density: density === undefined ? undefined : Number(density),
+        label,
+        aliases,
+      });
+      res.json({ status: 'ok', materials });
+    } catch (err: any) {
+      logger.error({ err: err.message, id }, 'Tarif matière non enregistré');
+      res.status(400).json({ status: 'error', message: err.message });
+    }
+  });
+
+  router.post('/api/works/:id/price', async (req: Request, res: Response) => {
+    try {
+      const lines = await priceRequest(String(req.params.id));
+      res.json({ status: 'ok', count: lines.length, lines });
+    } catch (err: any) {
+      logger.error({ err: err.message, id: req.params.id }, 'Chiffrage impossible');
       res.status(503).json({ status: 'error', message: err.message });
     }
   });

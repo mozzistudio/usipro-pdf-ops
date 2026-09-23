@@ -5,6 +5,12 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 import { supabase, supabaseStorage, STORAGE_BUCKET } from './supabaseClient';
 import { ChiffrageLine, ChiffrageRequest } from '../types';
+import {
+  DEFAULT_SETTINGS,
+  MaterialRate,
+  PricingSettings,
+  computeLinePrice,
+} from './costEngine';
 
 /**
  * The index of work actually done, and the deliverables themselves.
@@ -447,6 +453,180 @@ async function replaceRequestLines(id: string, lines: ChiffrageLine[]): Promise<
   if (error) throw new Error(`Lignes de la demande non enregistrées: ${error.message}`);
 }
 
+// ── Moteur de coût : paramètres et tarifs ────────────────────────
+
+/**
+ * Les paramètres du moteur. Sans base, on rend les valeurs par défaut: un prix
+ * doit pouvoir s'afficher même sur un poste de développement.
+ */
+export async function getPricingSettings(): Promise<PricingSettings> {
+  const db = supabase();
+  if (!db) return DEFAULT_SETTINGS;
+
+  const { data, error } = await db.from('pricing_settings').select('*').eq('id', 'default').maybeSingle();
+  if (error) throw new Error(`Lecture des paramètres de prix impossible: ${error.message}`);
+  if (!data) return DEFAULT_SETTINGS;
+
+  return {
+    currency: data.currency ?? 'EUR',
+    hourlyRate: Number(data.hourly_rate),
+    setupMinutes: Number(data.setup_minutes),
+    minutesPerDm3: Number(data.minutes_per_dm3),
+    removalRatio: Number(data.removal_ratio),
+    learningCurve: Number(data.learning_curve),
+    marginPct: Number(data.margin_pct),
+    handlingMinutesPerPart: Number(data.handling_minutes_per_part),
+  };
+}
+
+export async function setPricingSettings(patch: Partial<PricingSettings>): Promise<PricingSettings> {
+  const db = supabase();
+  if (!db) throw new Error('Paramètres de prix indisponibles : Supabase non configuré');
+
+  const row: Record<string, unknown> = { id: 'default', updated_at: new Date().toISOString() };
+  const map: Array<[keyof PricingSettings, string]> = [
+    ['currency', 'currency'],
+    ['hourlyRate', 'hourly_rate'],
+    ['setupMinutes', 'setup_minutes'],
+    ['minutesPerDm3', 'minutes_per_dm3'],
+    ['removalRatio', 'removal_ratio'],
+    ['learningCurve', 'learning_curve'],
+    ['marginPct', 'margin_pct'],
+    ['handlingMinutesPerPart', 'handling_minutes_per_part'],
+  ];
+  for (const [key, column] of map) {
+    if (patch[key] !== undefined) row[column] = patch[key];
+  }
+
+  const { error } = await db.from('pricing_settings').upsert(row, { onConflict: 'id' });
+  if (error) throw new Error(`Paramètres de prix non enregistrés: ${error.message}`);
+
+  logger.info({ patch }, 'Paramètres du moteur de coût modifiés');
+  return getPricingSettings();
+}
+
+export async function listMaterialRates(): Promise<MaterialRate[]> {
+  const db = supabase();
+  if (!db) return [];
+
+  const { data, error } = await db.from('material_rates').select('*').order('label');
+  if (error) throw new Error(`Lecture des tarifs matière impossible: ${error.message}`);
+
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    label: row.label,
+    aliases: String(row.aliases || '').split(',').map(a => a.trim()).filter(Boolean),
+    pricePerKg: Number(row.price_per_kg),
+    density: Number(row.density),
+  }));
+}
+
+export async function setMaterialRate(
+  id: string,
+  patch: { pricePerKg?: number; density?: number; label?: string; aliases?: string[] },
+): Promise<MaterialRate[]> {
+  const db = supabase();
+  if (!db) throw new Error('Tarifs matière indisponibles : Supabase non configuré');
+
+  const row: Record<string, unknown> = { id, updated_at: new Date().toISOString() };
+  if (patch.pricePerKg !== undefined) row.price_per_kg = patch.pricePerKg;
+  if (patch.density !== undefined) row.density = patch.density;
+  if (patch.label !== undefined) row.label = patch.label;
+  if (patch.aliases !== undefined) row.aliases = patch.aliases.join(',');
+
+  // Une nuance ajoutée à la volée doit porter un libellé: sans lui, l'opérateur
+  // verrait une ligne anonyme dans son tarif.
+  if (patch.label === undefined) {
+    const existing = await db.from('material_rates').select('id').eq('id', id).maybeSingle();
+    if (!existing.data) throw new Error(`Nuance inconnue: ${id} — donner un libellé pour la créer`);
+  }
+
+  const { error } = await db.from('material_rates').upsert(row, { onConflict: 'id' });
+  if (error) throw new Error(`Tarif matière non enregistré: ${error.message}`);
+
+  logger.info({ id, patch }, 'Tarif matière modifié');
+  return listMaterialRates();
+}
+
+/**
+ * Calcule — ou recalcule — le prix des lignes d'une demande, et le fige.
+ *
+ * Figé, parce qu'un prix doit être rejouable: on garde les postes et leurs
+ * bases, pas seulement le total. Un changement de paramètres ne réécrit donc
+ * pas le passé tout seul; il faut relancer le calcul, et c'est voulu.
+ */
+export async function priceRequest(id: string): Promise<ChiffrageLine[]> {
+  const db = supabase();
+  if (!db) return [];
+
+  const [settings, rates] = await Promise.all([getPricingSettings(), listMaterialRates()]);
+
+  // Un prix imposé par client existe parfois: accord cadre, tarif négocié. Il
+  // gagne sur le calcul, mais jamais en silence — le prix calculé reste au
+  // bordereau, et l'écart est nommé. C'est ce qui permet de répondre « pourquoi
+  // ce n'est pas le prix de la dernière fois » sans enquête.
+  const work = await readExisting(id);
+  const imposed = work ? (await getClientPricing(work.client))?.defaultUnitPrice ?? null : null;
+
+  const { data, error } = await db
+    .from('request_lines')
+    .select('*')
+    .eq('work_id', id)
+    .order('position', { ascending: true });
+  if (error) throw new Error(`Lecture des lignes impossible: ${error.message}`);
+
+  const now = new Date().toISOString();
+  const out: ChiffrageLine[] = [];
+
+  for (const row of (data ?? []) as any[]) {
+    const line: ChiffrageLine = {
+      reference: row.reference ?? '',
+      designation: row.designation ?? '',
+      material: row.material ?? '',
+      quantity: row.quantity ?? '',
+      comment: row.comment ?? '',
+    };
+
+    const price = computeLinePrice(line, settings, rates);
+    let unitPrice = price.unitPrice;
+    let totalPrice = price.totalPrice;
+    const items = [...price.items];
+    const assumptions = [...price.assumptions];
+
+    if (imposed !== null) {
+      const delta = Math.round((imposed - price.unitPrice) * 100) / 100;
+      items.push({
+        label: 'Prix imposé client',
+        amount: delta,
+        basis:
+          `tarif ${imposed} €/pièce fixé pour ce client — écart de ${delta >= 0 ? '+' : ''}${delta} € ` +
+          `sur le prix calculé (${price.unitPrice} €)`,
+      });
+      assumptions.push(`prix imposé par le tarif client, le calcul est conservé au bordereau`);
+      unitPrice = imposed;
+      totalPrice = Math.round(imposed * price.quantity * 100) / 100;
+    }
+
+    const breakdown = { items, assumptions, quantity: price.quantity };
+
+    const { error: upErr } = await db
+      .from('request_lines')
+      .update({
+        unit_price: unitPrice,
+        total_price: totalPrice,
+        price_breakdown: breakdown,
+        price_computed_at: now,
+      })
+      .eq('id', row.id);
+    if (upErr) throw new Error(`Prix non enregistré: ${upErr.message}`);
+
+    out.push({ ...line, unitPrice, totalPrice, priceBreakdown: breakdown });
+  }
+
+  logger.info({ id, lines: out.length }, 'Demande chiffrée');
+  return out;
+}
+
 /** Les lignes d'une demande, dans l'ordre où le mail les donnait. */
 export async function listRequestLines(id: string): Promise<ChiffrageLine[]> {
   const db = supabase();
@@ -465,6 +645,9 @@ export async function listRequestLines(id: string): Promise<ChiffrageLine[]> {
     material: row.material ?? '',
     quantity: row.quantity ?? '',
     comment: row.comment ?? '',
+    unitPrice: row.unit_price === null || row.unit_price === undefined ? null : Number(row.unit_price),
+    totalPrice: row.total_price === null || row.total_price === undefined ? null : Number(row.total_price),
+    priceBreakdown: row.price_breakdown ?? null,
   }));
 }
 
