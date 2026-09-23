@@ -3,25 +3,6 @@ import JSZip from 'jszip';
 import { logger } from '../utils/logger';
 
 /**
- * Ce require n'a l'air de rien et fait tout: il est littéral, donc le traceur
- * de dépendances de la plateforme le voit et embarque le paquet dans la
- * fonction déployée.
- *
- * pdf-parse, lui, charge `@napi-rs/canvas` par un require dynamique dans un
- * try/catch: invisible au traceur. La dépendance était déclarée, installée au
- * build, et absente du bundle — d'où « DOMMatrix is not defined » en
- * production alors que tout marchait sur une machine de développement.
- *
- * Emballé par sécurité: si le binaire natif venait à manquer, on perd le
- * second lecteur PDF, pas le serveur.
- */
-try {
-  require('@napi-rs/canvas');
-} catch (err: any) {
-  logger.warn({ err: err?.message }, 'canvas indisponible — second lecteur PDF dégradé');
-}
-
-/**
  * Lecture des pièces jointes d'une demande de chiffrage.
  *
  * Les vraies demandes reçues sur chiffrage@usi-pro.com mettent l'essentiel
@@ -256,41 +237,25 @@ function sheetToText(bytes: Buffer, name: string): string {
 }
 
 /**
- * Le texte d'un PDF, par deux lecteurs plutôt qu'un.
+ * Le texte d'un PDF.
  *
- * pdf2json encaisse des PDF que pdf-parse refuse, et l'inverse est vrai aussi:
- * il rendait une chaîne vide sur des plans parfaitement lisibles, en avalant
- * son erreur. Un plan muet fait chiffrer une pièce sur son nom de fichier,
- * donc on essaie le second avant d'abandonner.
+ * Un seul lecteur, pdf2json — celui qui sert à l'anonymiseur depuis le début,
+ * sur de vrais plans clients. Trois tentatives de second lecteur ont échoué,
+ * chacune pour une raison différente: pdf-parse réclame `@napi-rs/canvas` et
+ * un fichier worker que le traceur de la plateforme n'embarque pas, pdfjs-dist
+ * est en ESM pur et disparaît du bundle pareillement, et un extracteur maison
+ * sur les flux de contenu ne lit pas davantage ce que pdf2json refuse.
  *
- * pdf-parse s'appuie sur `@napi-rs/canvas`, qu'il charge par un require
- * dynamique que le traceur de la plateforme ne voit pas. Le require littéral
- * en tête de ce fichier est ce qui le fait embarquer: sans lui le second
- * lecteur échouait en production sur « DOMMatrix is not defined », et
- * seulement là.
+ * Les deux premiers marchaient en développement et nulle part ailleurs, ce qui
+ * est pire que pas de second lecteur du tout.
  *
- * Quand les deux échouent, ce n'est pas forcément une panne: un plan scanné
- * n'a pas de couche texte. L'appelant le dit à l'opérateur au lieu de laisser
- * croire que la pièce jointe était vide.
+ * Quand celui-ci ne rend rien, ce n'est pas forcément une panne: un plan scanné
+ * n'a pas de couche texte. L'appelant le dit à l'opérateur, qui ouvre le
+ * fichier lui-même — il est archivé pour ça.
  */
 async function pdfToText(bytes: Buffer): Promise<string> {
   const { extractTextFromPdf } = await import('./pdfAnonymizer');
-  const first = (await extractTextFromPdf(bytes)) || '';
-  if (first.trim()) return first.slice(0, MAX_TEXT_PER_FILE);
-
-  try {
-    const { PDFParse } = await import('pdf-parse');
-    const parser = new PDFParse({ data: new Uint8Array(bytes) });
-    try {
-      const result = await parser.getText();
-      return (result.text || '').slice(0, MAX_TEXT_PER_FILE);
-    } finally {
-      await parser.destroy();
-    }
-  } catch (err: any) {
-    logger.warn({ err: err.message }, 'Second lecteur PDF en échec');
-    return '';
-  }
+  return ((await extractTextFromPdf(bytes)) || '').slice(0, MAX_TEXT_PER_FILE);
 }
 
 /**
