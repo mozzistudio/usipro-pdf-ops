@@ -3,7 +3,9 @@ import crypto from 'crypto';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { parseChiffrageEmail, InboundEmail } from '../services/emailParser';
+import { readAttachment } from '../services/attachments';
 import { recordChiffrageRequest } from '../services/worksStore';
+import { attachPart } from '../services/articleStore';
 
 /**
  * Constant-time comparison so a wrong secret leaks nothing through timing.
@@ -80,6 +82,7 @@ export function registerEmailTriggerEndpoint(router: Router): void {
       from: String(email.from || ''),
       subject: String(email.subject || ''),
       body: email.body,
+      attachments: Array.isArray(email.attachments) ? email.attachments : [],
     };
 
     const messageId = String(email.messageId || '');
@@ -136,9 +139,13 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
     };
   }
 
+  // Les pièces jointes sont lues avant l'extraction: c'est là que sont les
+  // quantités et les matières dans deux demandes sur trois.
+  const files = await Promise.all((inbound.attachments ?? []).map(readAttachment));
+
   let request;
   try {
-    request = await parseChiffrageEmail(inbound);
+    request = await parseChiffrageEmail(inbound, files);
   } catch (err: any) {
     // Une newsletter ou une alerte de sécurité n'est pas une panne: 422 pour
     // que le pont l'étiquette et cesse de la rejouer.
@@ -149,12 +156,41 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
   try {
     const work = await recordChiffrageRequest(request, 'email');
 
+    // Chaque STEP reçu entre au référentiel: c'est ce qui permettra de dire,
+    // la prochaine fois, « cette pièce est déjà passée ». Un référentiel
+    // injoignable ne doit pas faire perdre la demande elle-même.
+    const attachments = [] as Array<{ file: string; mode: string; summary: string }>;
+    for (const file of files) {
+      if (!file.stepBytes) continue;
+      try {
+        const result = await attachPart({
+          client: work.client,
+          reference: file.name.replace(/\.(stp|step)$/i, ''),
+          sourceOf: request.reference,
+          stepBytes: file.stepBytes,
+          designation: file.name,
+        });
+        attachments.push({ file: file.name, mode: result.mode, summary: result.summary });
+        logger.info(
+          { reference: request.reference, file: file.name, mode: result.mode, summary: result.summary },
+          'STEP rattaché au référentiel',
+        );
+      } catch (err: any) {
+        logger.warn(
+          { reference: request.reference, file: file.name, err: err.message },
+          'Rattachement du STEP impossible — la demande reste enregistrée',
+        );
+      }
+    }
+
     logger.info(
       {
         reference: work.ref,
         client: work.client,
         lineCount: request.lines.length,
         detailsInAttachments: request.detailsInAttachments,
+        fileCount: files.length,
+        stepCount: files.filter(f => f.stepBytes).length,
       },
       'Email trigger: demande de chiffrage enregistrée',
     );

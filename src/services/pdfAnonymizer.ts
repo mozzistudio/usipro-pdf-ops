@@ -31,7 +31,7 @@ const { PNG } = require('pngjs') as { PNG: any };
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const PDFParser = require('pdf2json');
 
-async function extractTextFromPdf(pdfBytes: Buffer): Promise<string> {
+export async function extractTextFromPdf(pdfBytes: Buffer): Promise<string> {
   return new Promise((resolve) => {
     try {
       const parser = new PDFParser(null, 1); // 1 = raw text mode

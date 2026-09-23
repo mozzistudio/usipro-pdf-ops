@@ -1,6 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { CLAUDE_MODEL, THINKING, parseJsonResponse } from './claudeModel';
 import { ChiffrageLine, ChiffrageRequest, FormPayload, Part } from '../types';
+import {
+  InboundAttachment,
+  ReadAttachment,
+  attachmentsToPrompt,
+  findSharingLinks,
+} from './attachments';
 import { logger } from '../utils/logger';
 
 /** An inbound email as forwarded by the Apps Script bridge. */
@@ -10,6 +16,8 @@ export interface InboundEmail {
   body: string;
   /** Gmail message id — used to recognize a replayed message, not for parsing. */
   messageId?: string;
+  /** Pièces jointes transmises par le pont, contenu compris quand il tient. */
+  attachments?: InboundAttachment[];
 }
 
 interface ExtractionResult {
@@ -122,7 +130,8 @@ Règles:
 - "reference" est la référence de la demande telle qu'elle apparaît: DE5421, CC5296, "notre consultation 1180", un numéro d'affaire. Si l'objet du mail en porte une, prends-la. Sinon null.
 - "client" est le DONNEUR D'ORDRES, c'est-à-dire celui qui demande le prix — pas l'atelier, pas la personne qui transfère le mail en interne. Ces mails sont souvent des transferts: la vraie demande est dans le message réexpédié, en dessous.
 - "lines": une entrée par pièce demandée. Tous les champs sont facultatifs et valent "" s'ils ne sont pas donnés. Une ligne sans quantité est une information, pas un vide à combler.
-- "details_in_attachments" vaut true quand le corps renvoie l'essentiel aux pièces jointes ("quantités en PJ", "voir Excel", "package de plans joint"). Dans ce cas ne DEVINE PAS les lignes: retourne ce qui est écrit dans le corps, et rien de plus.
+- "details_in_attachments" vaut true quand la demande renvoie à un contenu que tu n'as PAS sous les yeux: pièce jointe non transmise, plans annoncés mais absents, lien de partage à ouvrir. Si le contenu d'une pièce jointe t'est donné plus bas, lis-le et remplis les lignes: il n'est alors plus "en pièce jointe", il est devant toi.
+- Le contenu des pièces jointes, quand il est fourni, arrive après le corps sous "CONTENU DES PIÈCES JOINTES". Un tableur y est aplati ligne à ligne, séparateurs " | ". Les en-têtes, totaux et lignes vides sont à ignorer; ne retiens que les lignes qui décrivent une pièce à chiffrer.
 - "is_chiffrage_request" vaut false pour tout ce qui n'est pas une demande de prix: newsletter, alerte de sécurité, facture, relance administrative.
 - N'INVENTE RIEN. Aucune matière, aucune quantité, aucune référence qui ne soit écrite noir sur blanc.
 - "summary" décrit la demande en une phrase, en français, pour un opérateur qui n'a pas ouvert le mail.
@@ -138,7 +147,11 @@ Pas de markdown, pas d'explication hors JSON.`;
  * reviendrait à perdre une consultation parce qu'elle a été écrite en deux
  * lignes et un fichier Excel.
  */
-export async function parseChiffrageEmail(email: InboundEmail): Promise<ChiffrageRequest> {
+export async function parseChiffrageEmail(
+  email: InboundEmail,
+  /** Pièces jointes déjà lues — leur texte entre dans le prompt tel quel. */
+  files: ReadAttachment[] = [],
+): Promise<ChiffrageRequest> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY absent — extraction email impossible');
@@ -154,7 +167,10 @@ export async function parseChiffrageEmail(email: InboundEmail): Promise<Chiffrag
     messages: [
       {
         role: 'user',
-        content: `De: ${email.from}\nObjet: ${email.subject}\n\n${email.body}`,
+        content:
+          `De: ${email.from}\nObjet: ${email.subject}\n\n${email.body}` +
+          describeFiles(files) +
+          attachmentsToPrompt(files),
       },
     ],
   } as any);
@@ -176,12 +192,19 @@ export async function parseChiffrageEmail(email: InboundEmail): Promise<Chiffrag
     // Une ligne entièrement vide n'apprend rien et encombrerait le dossier.
     .filter(l => l.reference || l.designation || l.material || l.quantity);
 
+  // Des liens de partage sans contenu lisible, c'est une demande dont le fond
+  // reste à ouvrir à la main: on le dit, même si le modèle ne l'a pas vu.
+  const links = findSharingLinks(email.body || '');
+  const unreadable = files.filter(f => !f.text.trim() && f.kind !== 'step' && f.kind !== 'image');
+
   const request: ChiffrageRequest = {
     reference: str(extracted.reference) || fallbackReference(email),
     client: str(extracted.client),
     lines,
     summary: str(extracted.summary),
-    detailsInAttachments: extracted.details_in_attachments === true,
+    detailsInAttachments:
+      extracted.details_in_attachments === true || links.length > 0 || unreadable.length > 0,
+    links,
   };
 
   logger.info(
@@ -190,6 +213,8 @@ export async function parseChiffrageEmail(email: InboundEmail): Promise<Chiffrag
       client: request.client,
       lineCount: lines.length,
       detailsInAttachments: request.detailsInAttachments,
+      fileCount: files.length,
+      linkCount: links.length,
     },
     'Demande de chiffrage extraite',
   );
@@ -207,4 +232,22 @@ function fallbackReference(email: InboundEmail): string {
   if (id) return `DEM-${id}`;
   const subject = str(email.subject).replace(/[^A-Za-z0-9]+/g, '-').slice(0, 24);
   return subject ? `DEM-${subject}` : 'DEM-SANS-REFERENCE';
+}
+
+/**
+ * L'inventaire des pièces jointes, y compris celles qu'on n'a pas su lire.
+ * Le modèle doit savoir qu'un plan existe même quand son contenu manque:
+ * c'est la différence entre « demande sans pièces » et « pièces à ouvrir ».
+ */
+function describeFiles(files: ReadAttachment[]): string {
+  if (files.length === 0) return '';
+  const lignes = files.map(f => {
+    const etat = f.text.trim()
+      ? 'contenu lu ci-dessous'
+      : f.kind === 'step'
+        ? 'modèle 3D, analysé séparément'
+        : f.note || 'non lu';
+    return `- ${f.name} (${f.kind}, ${Math.round((f.size || 0) / 1024)} ko) — ${etat}`;
+  });
+  return `\n\n--- PIÈCES JOINTES AU MAIL ---\n${lignes.join('\n')}`;
 }

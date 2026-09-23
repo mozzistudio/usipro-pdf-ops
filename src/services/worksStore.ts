@@ -57,6 +57,8 @@ export interface WorkRecord {
   summary?: string;
   /** Vrai quand le contenu de la demande est dans les pièces jointes. */
   detailsInAttachments?: boolean;
+  /** Liens de partage à ouvrir à la main (WeTransfer, Drive…). */
+  links?: string[];
 }
 
 export interface WorkFileRecord {
@@ -105,6 +107,7 @@ interface WorkRow {
   dropbox_link: string | null;
   summary: string | null;
   details_in_attachments: boolean | null;
+  links: string[] | null;
 }
 
 function fromRow(row: WorkRow): WorkRecord {
@@ -124,6 +127,7 @@ function fromRow(row: WorkRow): WorkRecord {
     dropboxLink: row.dropbox_link ?? undefined,
     summary: row.summary ?? undefined,
     detailsInAttachments: row.details_in_attachments ?? undefined,
+    links: row.links ?? [],
   };
 }
 
@@ -144,6 +148,7 @@ function toRow(rec: WorkRecord): WorkRow {
     dropbox_link: rec.dropboxLink ?? null,
     summary: rec.summary ?? null,
     details_in_attachments: rec.detailsInAttachments ?? false,
+    links: rec.links ?? [],
   };
 }
 
@@ -397,6 +402,7 @@ export async function recordChiffrageRequest(
     dropboxLink: existing?.dropboxLink,
     summary: request.summary,
     detailsInAttachments: request.detailsInAttachments,
+    links: request.links ?? [],
   };
 
   await write(rec);
@@ -460,6 +466,80 @@ export async function listRequestLines(id: string): Promise<ChiffrageLine[]> {
     quantity: row.quantity ?? '',
     comment: row.comment ?? '',
   }));
+}
+
+// ── Prix par défaut, par client ──────────────────────────────────
+
+export interface ClientPricing {
+  client: string;
+  defaultUnitPrice: number | null;
+  currency: string;
+  note?: string;
+  updatedAt: string;
+}
+
+/**
+ * Le prix par défaut d'un client.
+ *
+ * Ce n'est pas un prix calculé et ça ne prétend pas l'être: aucun moteur de
+ * coût n'existe encore. C'est une valeur posée à la main, affichée comme
+ * telle, que l'opérateur ajuste par donneur d'ordres. La nommer « par défaut »
+ * partout est ce qui empêche qu'elle finisse un jour dans un devis en se
+ * faisant passer pour une estimation.
+ */
+export async function getClientPricing(client: string): Promise<ClientPricing | null> {
+  const db = supabase();
+  if (!db) return null;
+
+  const { data, error } = await db.from('client_pricing').select('*').eq('client', client).maybeSingle();
+  if (error) throw new Error(`Lecture du prix client impossible: ${error.message}`);
+  return data ? toPricing(data) : null;
+}
+
+export async function listClientPricing(): Promise<ClientPricing[]> {
+  const db = supabase();
+  if (!db) return [];
+
+  const { data, error } = await db.from('client_pricing').select('*').order('client');
+  if (error) throw new Error(`Lecture des prix clients impossible: ${error.message}`);
+  return (data ?? []).map(toPricing);
+}
+
+export async function setClientPricing(
+  client: string,
+  defaultUnitPrice: number | null,
+  note?: string,
+): Promise<ClientPricing> {
+  const db = supabase();
+  if (!db) throw new Error('Prix client indisponible : Supabase non configuré');
+
+  const row = {
+    client,
+    default_unit_price: defaultUnitPrice,
+    currency: 'EUR',
+    note: note ?? null,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await db
+    .from('client_pricing')
+    .upsert(row, { onConflict: 'client' })
+    .select()
+    .single();
+  if (error) throw new Error(`Prix client non enregistré: ${error.message}`);
+
+  logger.info({ client, defaultUnitPrice }, 'Prix par défaut du client modifié');
+  return toPricing(data);
+}
+
+function toPricing(row: any): ClientPricing {
+  return {
+    client: row.client,
+    defaultUnitPrice: row.default_unit_price === null ? null : Number(row.default_unit_price),
+    currency: row.currency ?? 'EUR',
+    note: row.note ?? undefined,
+    updatedAt: row.updated_at,
+  };
 }
 
 // ── The deliverables themselves ──────────────────────────────────

@@ -137,6 +137,30 @@
     }
     .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
+    .links {
+      background: var(--surface-alt); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 14px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .links .label {
+      font-size: 10.5px; font-weight: 700; letter-spacing: 0.8px;
+      text-transform: uppercase; color: var(--text-dim);
+    }
+    .links a { font-size: 12.5px; word-break: break-all; }
+
+    .pricing {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 12px 14px; background: #fffbeb;
+      border: 1px solid #fcd34d; border-radius: 8px;
+    }
+    .pricing .label { font-size: 12.5px; font-weight: 600; color: #92400e; }
+    .pricing input {
+      width: 120px; height: 36px; padding: 0 10px;
+      font-family: inherit; font-size: 13px;
+      border: 1px solid var(--border-strong); border-radius: 8px;
+    }
+    .pricing .hint { font-size: 12px; color: #92400e; }
+
     .action-note { font-size: 12.5px; color: var(--text-muted); }
     .action-note.done { color: var(--accent-deep); font-weight: 600; }
     .action-note.warn { color: #b45309; font-weight: 600; }
@@ -252,6 +276,23 @@
 
       if (work.summary) card.appendChild(el('div', 'summary', work.summary));
 
+      if ((work.links || []).length > 0) {
+        const box = el('div', 'links');
+        box.appendChild(el('span', 'label', 'Contenu déposé sur une plateforme'));
+        for (const url of work.links) {
+          const a = el('a', null, url);
+          a.href = url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          box.appendChild(a);
+        }
+        box.appendChild(el('span', 'hint',
+          "Ces liens ne sont pas ouverts automatiquement : ils expirent, demandent souvent une session, et suivre une URL reçue par mail se décide à l'œil."));
+        card.appendChild(box);
+      }
+
+      card.appendChild(renderPricing(work));
+
       const linesBox = el('div');
       linesBox.appendChild(el('div', 'action-note', 'chargement des lignes…'));
       card.appendChild(linesBox);
@@ -313,12 +354,77 @@
       return card;
     }
 
+    let PRICING = {};
+
+    /**
+     * Le prix par défaut du client — posé à la main, jamais calculé.
+     * Le dire à chaque fois est ce qui empêche qu'il finisse pris pour une
+     * estimation dans un devis.
+     */
+    function renderPricing(work) {
+      const box = el('div', 'pricing');
+      const current = PRICING[work.client];
+
+      box.appendChild(el('span', 'label', 'Prix par défaut client'));
+
+      const input = el('input');
+      input.type = 'number';
+      input.step = '0.01';
+      input.min = '0';
+      input.placeholder = 'non défini';
+      if (current && current.defaultUnitPrice != null) input.value = current.defaultUnitPrice;
+      input.setAttribute('aria-label', 'Prix par défaut pour ' + work.client);
+      box.appendChild(input);
+      box.appendChild(el('span', 'label', '€ / pièce'));
+
+      const btn = el('button', 'btn btn-ghost', 'Enregistrer');
+      btn.type = 'button';
+      const note = el('span', 'action-note');
+
+      btn.onclick = async () => {
+        btn.disabled = true;
+        note.className = 'action-note';
+        note.textContent = 'Enregistrement…';
+        try {
+          const value = input.value.trim() === '' ? null : Number(input.value);
+          const resp = await fetch('/api/pricing', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ client: work.client, defaultUnitPrice: value }),
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
+          PRICING[work.client] = data.pricing;
+          note.className = 'action-note done';
+          note.textContent = 'Appliqué à toutes les demandes de ' + work.client;
+        } catch (err) {
+          note.className = 'action-note warn';
+          note.textContent = 'Non enregistré : ' + err.message;
+        } finally {
+          btn.disabled = false;
+        }
+      };
+
+      box.appendChild(btn);
+      box.appendChild(note);
+      box.appendChild(el('span', 'hint',
+        "Valeur posée à la main, pas un prix calculé : aucun moteur de coût n'existe encore."));
+      return box;
+    }
+
     async function load() {
       const body = document.getElementById('body');
       try {
-        const resp = await fetch('/api/works?tool=chiffrage&limit=100');
+        const [resp, pricingResp] = await Promise.all([
+          fetch('/api/works?tool=chiffrage&limit=100'),
+          fetch('/api/pricing'),
+        ]);
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
+
+        const pricingData = await pricingResp.json().catch(() => ({ pricing: [] }));
+        PRICING = {};
+        for (const p of pricingData.pricing || []) PRICING[p.client] = p;
 
         const works = data.works || [];
         const pending = works.filter(w => w.status === 'a_valider').length;

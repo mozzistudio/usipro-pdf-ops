@@ -2,10 +2,12 @@ import { Router, Request, Response } from 'express';
 import { logger } from '../utils/logger';
 import {
   WorkTool,
+  listClientPricing,
   listRequestLines,
   listWorkFiles,
   listWorks,
   requestLineCounts,
+  setClientPricing,
   setWorkProject,
   setWorkStatus,
   workFacets,
@@ -21,6 +23,8 @@ const TOOLS: WorkTool[] = ['edition', 'chiffrage'];
  * GET  /api/works             — the jobs, newest activity first, with their tags
  * GET  /api/works/:id/files   — the deliverables of one job, as signed URLs
  * GET  /api/works/:id/lines   — les lignes d'une demande de chiffrage
+ * GET  /api/pricing           — les prix par défaut, par client
+ * POST /api/pricing           — poser ou changer le prix par défaut d'un client
  * POST /api/works/:id/status  — l'opérateur clôt une demande, ou la rouvre
  * POST /api/works/:id/project — set the project tag (the one no pipeline knows)
  */
@@ -89,6 +93,46 @@ export function registerWorksEndpoints(router: Router): void {
       res.json({ status: 'ok', count: lines.length, lines });
     } catch (err: any) {
       logger.error({ err: err.message, id: req.params.id }, 'Lecture des lignes impossible');
+      res.status(503).json({ status: 'error', message: err.message });
+    }
+  });
+
+  // ── Prix par défaut, par client ────────────────────────────────
+  // Aucun moteur de coût n'existe: ces valeurs sont posées à la main et
+  // affichées comme telles. L'API les expose séparément des demandes pour
+  // qu'on ne puisse jamais les confondre avec un prix calculé.
+  router.get('/api/pricing', async (_req: Request, res: Response) => {
+    try {
+      res.json({ status: 'ok', pricing: await listClientPricing() });
+    } catch (err: any) {
+      logger.error({ err: err.message }, 'Lecture des prix clients impossible');
+      res.status(503).json({ status: 'error', message: err.message });
+    }
+  });
+
+  router.post('/api/pricing', async (req: Request, res: Response) => {
+    const { client, defaultUnitPrice, note } = req.body as {
+      client?: string;
+      defaultUnitPrice?: number | null;
+      note?: string;
+    };
+
+    if (!client || !String(client).trim()) {
+      res.status(400).json({ status: 'error', message: 'client est requis' });
+      return;
+    }
+    const price =
+      defaultUnitPrice === null || defaultUnitPrice === undefined ? null : Number(defaultUnitPrice);
+    if (price !== null && (!Number.isFinite(price) || price < 0)) {
+      res.status(400).json({ status: 'error', message: 'defaultUnitPrice doit être un nombre positif ou null' });
+      return;
+    }
+
+    try {
+      const pricing = await setClientPricing(String(client).trim(), price, note);
+      res.json({ status: 'ok', pricing });
+    } catch (err: any) {
+      logger.error({ err: err.message, client }, 'Prix client non enregistré');
       res.status(503).json({ status: 'error', message: err.message });
     }
   });

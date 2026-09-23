@@ -29,6 +29,16 @@ var LABEL_ERROR = 'chiffrage/erreur';
 /** Nombre d'échecs serveur tolérés avant d'abandonner un message. */
 var MAX_ATTEMPTS = 5;
 
+// Le contenu des pièces jointes part avec le mail: c'est là que sont les
+// quantités et les matières dans la plupart des demandes réelles. Deux bornes,
+// parce qu'un package de plans peut peser des dizaines de mégaoctets et que le
+// serveur, lui, a une limite de corps de requête.
+var MAX_ATTACHMENT_BYTES = 6 * 1024 * 1024;
+var MAX_TOTAL_BYTES = 18 * 1024 * 1024;
+
+/** Formats dont le serveur sait tirer quelque chose. Le reste part en nom seul. */
+var PARSABLE = /\.(xlsx|xlsm|xls|csv|tsv|pdf|stp|step|txt)$/i;
+
 /**
  * À exécuter une fois à la main: crée les libellés et le déclencheur minute.
  * Idempotent — relancer ne crée pas de doublon.
@@ -113,6 +123,7 @@ function pollInbox() {
           from: message.getFrom(),
           subject: message.getSubject(),
           body: message.getPlainBody(),
+          attachments: collectAttachments(message),
         }),
         muteHttpExceptions: true,
         followRedirects: false,
@@ -161,6 +172,47 @@ function pollInbox() {
 
     Logger.log('Échec ' + code + ' — ' + message.getSubject() + ' → ' + response.getContentText());
     countFailure(thread, message, errored);
+  });
+}
+
+/**
+ * Les pièces jointes d'un message, contenu compris quand il tient dans les
+ * bornes. Un fichier écarté part quand même, avec son nom et la raison: savoir
+ * qu'un plan existe mais n'a pas été lu vaut mieux que ne rien savoir.
+ *
+ * Les images inline sont exclues: ce sont les logos des signatures.
+ */
+function collectAttachments(message) {
+  var budget = MAX_TOTAL_BYTES;
+  var files = message.getAttachments({ includeInlineImages: false, includeAttachments: true });
+
+  return files.map(function (file) {
+    var name = file.getName();
+    var size = file.getSize();
+    var out = {
+      name: name,
+      contentType: file.getContentType(),
+      size: size,
+      contentBase64: null,
+      skipped: null,
+    };
+
+    if (!PARSABLE.test(name)) {
+      out.skipped = 'format non lu automatiquement';
+      return out;
+    }
+    if (size > MAX_ATTACHMENT_BYTES) {
+      out.skipped = 'trop volumineux (' + Math.round(size / 1024 / 1024) + ' Mo)';
+      return out;
+    }
+    if (size > budget) {
+      out.skipped = 'budget du mail atteint, fichier non transmis';
+      return out;
+    }
+
+    budget -= size;
+    out.contentBase64 = Utilities.base64Encode(file.getBytes());
+    return out;
   });
 }
 

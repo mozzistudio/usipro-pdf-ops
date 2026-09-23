@@ -125,4 +125,6 @@ export interface ChiffrageRequest {
    * plutôt que de sortir une liste inventée.
    */
   detailsInAttachments: boolean;
+  /** Liens WeTransfer, Drive, Dropbox… trouvés dans le mail, à ouvrir à la main. */
+  links: string[];
 }
