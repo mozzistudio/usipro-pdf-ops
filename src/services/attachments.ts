@@ -254,17 +254,49 @@ async function pdfToText(bytes: Buffer): Promise<string> {
   if (first.trim()) return first.slice(0, MAX_TEXT_PER_FILE);
 
   try {
-    const { PDFParse } = await import('pdf-parse');
-    const parser = new PDFParse({ data: new Uint8Array(bytes) });
-    try {
-      const result = await parser.getText();
-      return (result.text || '').slice(0, MAX_TEXT_PER_FILE);
-    } finally {
-      await parser.destroy();
-    }
+    return (await pdfjsText(bytes)).slice(0, MAX_TEXT_PER_FILE);
   } catch (err: any) {
     logger.warn({ err: err.message }, 'Second lecteur PDF en échec');
     return '';
+  }
+}
+
+/**
+ * Le texte d'un PDF par pdf.js, sans rien de natif.
+ *
+ * pdf-parse tenait ce rôle et marchait sur cette machine — parce que
+ * `@napi-rs/canvas` y est installé en dépendance optionnelle. Sur l'hôte Linux
+ * de production il ne l'est pas, et le lecteur tombait sur « DOMMatrix is not
+ * defined ». Deux plans sur deux revenaient sans matière ni quantité, chiffrés
+ * sur leur seul nom de fichier.
+ *
+ * pdf.js seul suffit à lire du texte: le canvas ne sert qu'au rendu.
+ *
+ * L'import passe par `new Function` parce que ce paquet est en ESM et que
+ * TypeScript, en sortie CommonJS, transformerait un `import()` littéral en
+ * `require()` — qui échoue sur un module ESM.
+ */
+async function pdfjsText(bytes: Buffer): Promise<string> {
+  const load = new Function('return import("pdfjs-dist/legacy/build/pdf.mjs")') as () => Promise<any>;
+  const pdfjs = await load();
+
+  const doc = await pdfjs.getDocument({
+    data: new Uint8Array(bytes),
+    isEvalSupported: false,
+    useSystemFonts: false,
+    disableFontFace: true,
+  }).promise;
+
+  try {
+    const pages: string[] = [];
+    for (let n = 1; n <= doc.numPages; n++) {
+      const page = await doc.getPage(n);
+      const content = await page.getTextContent();
+      pages.push(content.items.map((item: any) => item.str ?? '').join(' '));
+    }
+    return pages.join('\n');
+  } finally {
+    await doc.destroy();
   }
 }
 
