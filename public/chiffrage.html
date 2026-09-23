@@ -216,6 +216,8 @@
     let DOC = null;       // le document ouvert { fileId, fileName, pdf, pages }
     let PAGE = 1;         // sa page affichée
     let PICKED = null;    // document choisi à la main — il prime sur le rattachement
+    let DOCS_OPEN = false; // la liste complète des documents est dépliée
+    const MAX_CHIPS = 8;   // au-delà, la liste se replie
     let RENDER = 0;       // jeton : un rendu dépassé ne doit pas écraser le suivant
 
     pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -404,12 +406,12 @@
       const prev = el('button', 'btn btn-ghost', '← Précédent');
       prev.type = 'button';
       prev.disabled = INDEX === 0;
-      prev.onclick = () => { INDEX--; PICKED = null; renderAll(); };
+      prev.onclick = () => { INDEX--; PICKED = null; DOCS_OPEN = false; renderAll(); };
 
       const next = el('button', 'btn btn-ghost', 'Suivant →');
       next.type = 'button';
       next.disabled = INDEX >= LINES.length - 1;
-      next.onclick = () => { INDEX++; PICKED = null; renderAll(); };
+      next.onclick = () => { INDEX++; PICKED = null; DOCS_OPEN = false; renderAll(); };
 
       nav.appendChild(prev);
       nav.appendChild(el('span', 'pos', (INDEX + 1) + ' / ' + LINES.length));
@@ -505,8 +507,16 @@
 
       if (FILES.length === 0) return box;
 
+      // Un package de plans peut contenir soixante fichiers. Tout afficher
+      // écrase la feuille au profit d'une liste que personne ne lit: on montre
+      // le document ouvert, et le reste sur demande.
+      const many = FILES.length > MAX_CHIPS;
+      const shown = many && !DOCS_OPEN
+        ? FILES.filter(f => target && f.id === target.id)
+        : FILES;
+
       const chips = el('div', 'docs');
-      for (const file of FILES) {
+      for (const file of shown) {
         if (isViewable(file.fileName)) {
           const chip = el('button', 'doc-chip', file.fileName);
           chip.type = 'button';
@@ -522,6 +532,15 @@
           link.appendChild(el('span', 'n', '↓'));
           chips.appendChild(link);
         }
+      }
+      if (many) {
+        const toggle = el('button', 'doc-chip',
+          DOCS_OPEN
+            ? 'replier la liste'
+            : 'voir les ' + FILES.length + ' documents');
+        toggle.type = 'button';
+        toggle.onclick = () => { DOCS_OPEN = !DOCS_OPEN; renderPlan(); };
+        chips.appendChild(toggle);
       }
       box.appendChild(chips);
 
