@@ -3,696 +3,526 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>USI-PRO — Chiffrage AI</title>
+  <title>Usi-Pro Chiffrage — Revue technique</title>
   <link rel="icon" type="image/png" href="/favicon.png">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/usipro.css">
   <style>
-    /* Même langage que la home : fond #eef2f7, cartes blanches, une seule
-       couleur d'accent pour les actions. Pas de code couleur sémantique —
-       un statut se lit, il ne clignote pas. */
-    :root {
-      --dark: #0f1a2e;
-      --accent: #1abc9c;
-      --accent-deep: #0f766e;
-      --accent-soft: #e6f8f4;
-      --navy-soft: #e8edf6;
-      --surface: #ffffff;
-      --surface-alt: #f8fafc;
-      --text: #1e293b;
-      --text-muted: #64748b;
-      --text-dim: #94a3b8;
-      --border: #e2e8f0;
-      --border-strong: #cbd5e1;
-      --radius: 12px;
+    /* ── Trois colonnes : les devis, le plan, la proposition ── */
+    .workbench {
+      display: grid;
+      grid-template-columns: 248px minmax(0, 1fr) 400px;
+      height: calc(100vh - 56px);
     }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: 'DM Sans', system-ui, sans-serif;
-      background: #eef2f7;
-      color: var(--text);
-      min-height: 100vh;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    a { color: var(--accent-deep); }
-
-    .navbar {
-      background: var(--dark);
-      height: 64px;
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      padding: 0 32px;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      border-bottom: 2px solid var(--accent);
-      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
-    }
-    .navbar-logo img { height: 28px; display: block; }
-    .navbar-divider { width: 1px; height: 28px; background: rgba(255,255,255,0.14); }
-    .nav-title { font-size: 15px; font-weight: 600; color: #fff; line-height: 1; }
-    .nav-subtitle {
-      font-size: 10px; color: rgba(255,255,255,0.45); font-weight: 500;
-      letter-spacing: 0.8px; text-transform: uppercase; line-height: 1;
-    }
-    .navbar-link {
-      color: rgba(255,255,255,0.7); font-size: 13px; font-weight: 600;
-      text-decoration: none; padding: 8px 12px; border-radius: 8px;
-    }
-    .navbar-link:hover { color: #fff; background: rgba(255,255,255,0.07); }
-    .spacer { flex-grow: 1; }
-
-    .page { max-width: 1280px; margin: 0 auto; padding: 28px 32px 60px; }
-
-    .head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 8px; }
-    .head h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.3px; }
-    .head .count { font-size: 13px; color: var(--text-muted); }
-
-    .lede {
-      font-size: 13.5px; color: var(--text-muted); line-height: 1.6;
-      max-width: 72ch; margin-bottom: 22px;
-    }
-
-    /* ── Carte de demande ── */
-    .request {
+    /* Colonne 1 — les devis en cours */
+    .rail {
       background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px 24px;
-      margin-bottom: 16px;
+      border-right: 1px solid var(--line);
+      padding: 18px 16px;
+      overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 14px;
-      box-shadow: 0 1px 3px rgba(15,26,46,0.05);
+      gap: 18px;
     }
-    .request.livre { background: var(--surface-alt); }
+    .rail-head { display: flex; flex-direction: column; gap: 4px; }
+    .rail-ref { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+    .rail-client { font-size: 12px; color: var(--ink-2); }
+    .rail-count { display: flex; align-items: baseline; gap: 8px; }
+    .rail-count .n { font-family: var(--mono); font-size: 26px; font-weight: 600; line-height: 1; }
+    .rail-count .label { font-size: 11.5px; color: var(--ink-3); max-width: 96px; line-height: 1.3; }
 
-    .req-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .req-ref { font-size: 17px; font-weight: 700; }
-    .req-when { font-size: 11.5px; color: var(--text-dim); }
+    .devis-list { display: flex; flex-direction: column; gap: 2px; }
+    .devis {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 10px; border-radius: 6px;
+      cursor: pointer; background: none; border: none; width: 100%;
+      text-align: left; font-family: var(--sans); color: var(--ink);
+    }
+    .devis:hover { background: var(--surface-2); }
+    .devis[aria-current="true"] { background: var(--teal-soft); }
+    .devis .ref { font-family: var(--mono); font-size: 12px; flex-grow: 1; }
+    .devis .n { font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
 
-    /* Chips d'identité, comme sur la home. Aucune ne signale une alerte. */
-    .tag { font-size: 11px; font-weight: 600; border-radius: 6px; padding: 4px 8px; }
-    .tag-client { color: #6b21a8; background: #f4e8ff; }
-    .tag-status-a_valider { color: #475569; background: #f1f5f9; }
-    .tag-status-livre { color: var(--accent-deep); background: var(--accent-soft); }
-    .tag-pj { color: #475569; background: #f1f5f9; }
-    .tag-source { color: #475569; background: #f1f5f9; }
-
-    .summary { font-size: 13.5px; line-height: 1.6; color: #475569; }
-
-    /* ── Tableau des lignes ── */
-    table { width: 100%; border-collapse: collapse; }
-    th {
-      text-align: left; font-size: 11px; font-weight: 700;
-      letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-dim);
-      padding: 0 12px 10px 0; border-bottom: 1px solid var(--border);
+    /* Colonne 2 — le plan */
+    .plan { background: var(--plan); display: flex; flex-direction: column; min-width: 0; }
+    .plan-bar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 18px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      color: rgba(255,255,255,.72);
+      font-family: var(--mono); font-size: 11.5px;
     }
-    td {
-      font-size: 13.5px; padding: 11px 12px 11px 0;
-      border-bottom: 1px solid #f1f5f9; vertical-align: top;
+    .plan-bar .badge {
+      background: rgba(255,255,255,.1); color: rgba(255,255,255,.85);
+      border-radius: 4px; padding: 3px 7px; font-size: 10.5px;
     }
-    td.dim { color: var(--text-dim); }
-
-    .price { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-    .price strong { font-size: 14px; font-weight: 600; }
-    .why {
-      font-family: inherit; font-size: 11.5px; font-weight: 600;
-      color: var(--accent-deep); background: none; border: none;
-      padding: 0; cursor: pointer; text-decoration: underline;
+    .plan-body {
+      flex-grow: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px;
+      padding: 28px; text-align: center;
+      color: rgba(255,255,255,.55); font-size: 12.5px; line-height: 1.6;
+      overflow-y: auto;
     }
-
-    .breakdown {
-      background: var(--surface-alt); border: 1px solid var(--border);
-      border-radius: 8px; padding: 14px 16px; margin: 6px 0 12px;
-      display: flex; flex-direction: column; gap: 7px;
+    .plan-sheet {
+      background: var(--paper); color: var(--ink);
+      width: min(560px, 100%); aspect-ratio: 1.414;
+      border-radius: 4px; padding: 22px;
+      display: flex; flex-direction: column; gap: 10px;
+      box-shadow: 0 18px 40px -18px rgba(0,0,0,.6);
+      text-align: left;
     }
-    .bd-item { display: flex; align-items: baseline; gap: 12px; font-size: 12.5px; }
-    .bd-item .amount {
-      font-weight: 600; min-width: 78px; text-align: right;
-      font-variant-numeric: tabular-nums;
+    .plan-sheet .title { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+    .plan-sheet .frame {
+      flex-grow: 1; border: 1px solid var(--line-2); border-radius: 2px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--ink-3); font-size: 12px; text-align: center; padding: 16px; line-height: 1.6;
     }
-    .bd-item .basis { color: var(--text-muted); }
-    .bd-assumption { font-size: 12px; color: var(--text-muted); font-style: italic; }
-
-    .totals {
-      display: flex; align-items: baseline; gap: 12px; justify-content: flex-end;
-      font-size: 15px; font-weight: 700; padding-top: 12px;
+    .plan-sheet .cartouche {
+      border: 1px solid var(--line-2); border-radius: 2px; padding: 8px 10px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+      font-family: var(--mono); font-size: 10.5px; color: var(--ink-2);
     }
-    .totals .label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
-
-    .no-lines, .links {
-      background: var(--surface-alt); border: 1px solid var(--border);
-      border-radius: 8px; padding: 14px 16px;
-      font-size: 13px; color: var(--text-muted); line-height: 1.6;
-      display: flex; flex-direction: column; gap: 6px;
-    }
-    .links .label {
-      font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
-      text-transform: uppercase; color: var(--text-dim);
-    }
-    .links a { font-size: 12.5px; word-break: break-all; }
-    .links .hint { font-size: 12px; color: var(--text-muted); }
-
-    /* ── Tarif client ── */
-    .pricing {
-      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-      padding: 14px 16px; background: var(--surface-alt);
-      border: 1px solid var(--border); border-radius: 8px;
-    }
-    .pricing .label { font-size: 12.5px; font-weight: 600; color: #475569; }
-    .pricing .hint { font-size: 12px; color: var(--text-muted); }
-    .pricing input {
-      width: 120px; height: 38px; padding: 0 10px;
-      font-family: inherit; font-size: 13px;
-      border: 1px solid var(--border-strong); border-radius: 8px;
-    }
-
-    /* ── Actions ── */
-    .actions {
+    .plan-nav {
       display: flex; align-items: center; gap: 10px;
-      padding-top: 14px; border-top: 1px solid #eef2f7; flex-wrap: wrap;
+      padding: 12px 18px; border-top: 1px solid rgba(255,255,255,.08);
     }
-    .btn {
-      height: 44px; padding: 0 18px;
-      font-family: inherit; font-size: 13.5px; font-weight: 700;
-      border: none; border-radius: 8px; cursor: pointer;
-      display: inline-flex; align-items: center; gap: 8px;
-      text-decoration: none;
-    }
-    .btn-teal { background: var(--accent); color: var(--dark); }
-    .btn-ghost {
-      background: var(--surface); color: var(--text);
-      border: 1px solid var(--border-strong); font-weight: 600;
-    }
-    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .plan-nav .btn { height: 34px; padding: 0 12px; font-size: 12px; }
+    .plan-nav .pos { font-family: var(--mono); font-size: 12px; color: rgba(255,255,255,.72); }
 
-    .action-note { font-size: 12.5px; color: var(--text-muted); }
-    .action-note.done { color: var(--accent-deep); font-weight: 600; }
-    .action-note.warn { color: #475569; font-weight: 600; }
+    /* Colonne 3 — la proposition */
+    .proposal {
+      background: var(--surface); border-left: 1px solid var(--line);
+      overflow-y: auto; display: flex; flex-direction: column;
+    }
+    .prop-head { padding: 18px 20px 14px; border-bottom: 1px solid var(--line); }
+    .price-big { font-family: var(--mono); font-size: 30px; font-weight: 600; line-height: 1.1; margin: 8px 0 4px; }
+    .price-none { font-size: 17px; font-weight: 600; color: var(--red); margin: 8px 0 4px; }
+    .price-sub { font-size: 12px; color: var(--ink-3); }
 
-    /* ── Paramètres ── */
-    .settings {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 20px 24px; margin-bottom: 20px;
-      box-shadow: 0 1px 3px rgba(15,26,46,0.05);
+    .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); }
+    .fact { background: var(--surface); padding: 12px 14px; }
+    .fact .k {
+      font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--ink-3);
     }
-    .settings summary {
-      cursor: pointer; font-size: 15px; font-weight: 700; list-style: none;
-      display: flex; align-items: center; gap: 10px;
-    }
-    .settings summary::-webkit-details-marker { display: none; }
-    .settings summary::after { content: '▾'; color: var(--text-dim); font-size: 12px; }
-    .settings .note {
-      font-size: 12.5px; color: var(--text-muted); line-height: 1.6;
-      margin: 12px 0 18px; max-width: 78ch;
-    }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
-    .field { display: flex; flex-direction: column; gap: 5px; }
-    .field label { font-size: 11.5px; font-weight: 600; color: #475569; }
-    .field .unit { font-size: 11px; color: var(--text-dim); }
-    .field input {
-      height: 38px; padding: 0 10px; font-family: inherit; font-size: 13px;
-      border: 1px solid var(--border-strong); border-radius: 8px;
-    }
-    .settings-actions { display: flex; align-items: center; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+    .fact .v { font-size: 13px; font-weight: 600; margin-top: 3px; word-break: break-word; }
 
-    .empty-state, .error-state {
-      background: var(--surface); border: 1px dashed var(--border-strong);
-      border-radius: 10px; padding: 32px; text-align: center;
-      color: var(--text-muted); font-size: 13.5px; line-height: 1.6;
+    .section {
+      padding: 16px 20px; border-bottom: 1px solid var(--line);
+      display: flex; flex-direction: column; gap: 10px;
     }
-    .error-state { text-align: left; border-style: solid; }
+    .detail-row { display: flex; align-items: baseline; gap: 10px; font-size: 12.5px; }
+    .detail-row .label { flex-grow: 1; color: var(--ink-2); }
+    .detail-row .amount { font-family: var(--mono); font-weight: 600; }
+    .detail-basis { font-size: 11.5px; color: var(--ink-3); line-height: 1.5; margin: -4px 0 4px; }
 
-    @media (max-width: 720px) {
-      .page { padding: 20px 16px 40px; }
-      table, thead, tbody, th, td, tr { display: block; }
-      th { display: none; }
-      td { padding: 4px 0; border: none; }
-      td:first-child { font-weight: 600; padding-top: 12px; }
-      tr { border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; }
+    .alert { display: flex; gap: 9px; font-size: 12.5px; line-height: 1.5; }
+    .alert .dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+    .alert-rouge .dot { background: var(--red); }
+    .alert-jaune .dot { background: var(--amber); }
+    .alert-vert .dot { background: var(--green); }
+
+    .choice {
+      display: flex; flex-direction: column; gap: 3px;
+      padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px;
+      cursor: pointer; background: var(--surface); text-align: left; width: 100%;
+      font-family: var(--sans);
+    }
+    .choice:hover { border-color: var(--line-2); background: var(--surface-2); }
+    .choice[aria-expanded="true"] { border-color: var(--teal); background: var(--teal-soft); }
+    .choice .t { font-size: 13px; font-weight: 600; }
+    .choice .d { font-size: 11.5px; color: var(--ink-2); }
+    .choice-body { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 2px; }
+
+    .verdict { display: flex; gap: 10px; padding: 16px 20px; }
+    .verdict .btn { flex: 1; }
+
+    .note { font-size: 12px; color: var(--ink-2); line-height: 1.55; }
+    .note.done { color: var(--teal-ink); font-weight: 600; }
+    .note.warn { color: var(--red); font-weight: 600; }
+
+    .empty { padding: 40px 24px; text-align: center; color: var(--ink-3); font-size: 13px; line-height: 1.6; }
+
+    @media (max-width: 1100px) {
+      .workbench { grid-template-columns: 1fr; height: auto; }
+      .rail, .proposal { border: none; border-bottom: 1px solid var(--line); }
+      .plan { min-height: 440px; }
     }
   </style>
 </head>
 <body>
 
-  <nav class="navbar">
-    <div class="navbar-logo"><img src="/logo.png" alt="USI-PRO"></div>
-    <div class="navbar-divider"></div>
-    <div style="display:flex;flex-direction:column;gap:3px">
-      <span class="nav-title">Chiffrage AI</span>
-      <span class="nav-subtitle">Demandes reçues</span>
-    </div>
+  <header class="app-bar">
+    <span class="app-name">Usi<em>·</em>Pro Chiffrage</span>
+    <a class="app-nav" href="/chiffrage.html" aria-current="page">Devis</a>
+    <a class="app-nav" href="/parametrage.html">Paramétrage</a>
     <div class="spacer"></div>
-    <a class="navbar-link" href="/">← Accueil</a>
-    <a class="navbar-link" href="/guide.html">Guide</a>
-  </nav>
+    <a class="app-nav" href="/">Accueil</a>
+  </header>
 
-  <main class="page">
-    <div class="head">
-      <h1>Demandes de chiffrage</h1>
-      <span class="count" id="count">—</span>
-    </div>
-    <p class="lede">
-      Ce que l'atelier a reçu sur <strong>chiffrage@usi-pro.com</strong>, lu et rangé.
-      Aucun prix n'est calculé ici : les lignes sont celles du mail, telles qu'elles
-      étaient écrites. Quand une demande est traitée de ton côté, marque-la comme
-      close — c'est toi qui décides, rien ne le fait à ta place.
-    </p>
-    <details class="settings" id="settings">
-      <summary>Paramètres du chiffrage — taux horaire, temps, matières</summary>
-      <p class="note">
-        Ces valeurs sont des <strong>hypothèses de départ</strong>, pas des mesures : un taux
-        horaire d'usinage de PME, une mise en train forfaitaire, une courbe d'apprentissage
-        usuelle, des tarifs matière au cours du marché. Elles existent pour qu'un prix soit
-        affichable dès aujourd'hui et corrigeable par toi. Corrige-les, puis relance le calcul
-        sur une demande : rien ne se recalcule dans ton dos.
-      </p>
-      <div id="settingsBody">chargement…</div>
-    </details>
+  <main class="workbench">
+    <aside class="rail" id="rail"><div class="empty">chargement…</div></aside>
 
-    <div id="body"><div class="empty-state">chargement…</div></div>
+    <section class="plan">
+      <div class="plan-bar" id="planBar"><span>—</span></div>
+      <div class="plan-body" id="planBody"></div>
+      <div class="plan-nav" id="planNav"></div>
+    </section>
+
+    <aside class="proposal" id="proposal"><div class="empty">chargement…</div></aside>
   </main>
 
   <script>
-    const STATUS_LABEL = { a_valider: 'À traiter', livre: 'Traitée' };
-    const SOURCE_LABEL = { email: 'reçue par mail', form: 'saisie à la main' };
+    let WORKS = [];
+    let CURRENT = null;   // le devis affiché
+    let LINES = [];       // ses articles
+    let INDEX = 0;        // l'article en revue
+
+    const STATUS_LABEL = {
+      a_traiter: 'à traiter',
+      validee: 'validé',
+      forcee: 'prix imposé',
+      manuelle: 'traitement manuel',
+      rejetee: 'rejeté',
+    };
 
     function el(tag, className, text) {
       const node = document.createElement(tag);
       if (className) node.className = className;
-      if (text != null) node.textContent = text;  // jamais innerHTML: ces textes viennent des mails
+      if (text != null) node.textContent = text;   // jamais innerHTML : ce texte vient des mails
       return node;
     }
 
-    function relativeDate(iso) {
-      const then = new Date(iso);
-      if (Number.isNaN(then.getTime())) return '';
-      const mins = Math.round((Date.now() - then.getTime()) / 60000);
-      if (mins < 1) return "à l'instant";
-      if (mins < 60) return 'il y a ' + mins + ' min';
-      const hours = Math.round(mins / 60);
-      if (hours < 24) return 'il y a ' + hours + ' h';
-      return then.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    function money(value) {
+      return value == null ? '—' : value.toFixed(2).replace('.', ',') + ' €';
     }
 
-    function renderLines(container, lines) {
-      const table = el('table');
-      const thead = el('thead');
-      const hr = el('tr');
-      ['Référence', 'Désignation', 'Matière', 'Quantité', 'Prix unitaire', 'Total'].forEach(h => {
-        hr.appendChild(el('th', null, h));
-      });
-      thead.appendChild(hr);
-      table.appendChild(thead);
+    // ── Colonne 1 : les devis ──────────────────────────────────
+    function renderRail() {
+      const rail = document.getElementById('rail');
+      rail.innerHTML = '';
 
-      const tbody = el('tbody');
-      let total = 0;
-
-      for (const line of lines) {
-        const tr = el('tr');
-        [line.reference || '—', line.designation || '—', line.material || '—', line.quantity || '—']
-          .forEach(value => tr.appendChild(el('td', value === '—' ? 'dim' : null, value)));
-
-        const unit = el('td', 'price');
-        if (line.unitPrice != null) {
-          unit.appendChild(el('strong', null, line.unitPrice.toFixed(2) + ' €'));
-          if (line.priceBreakdown) {
-            const why = el('button', 'why', 'pourquoi');
-            why.type = 'button';
-            const detail = el('tr');
-            const cell = el('td');
-            cell.colSpan = 6;
-            cell.appendChild(renderBreakdown(line.priceBreakdown));
-            detail.appendChild(cell);
-            detail.hidden = true;
-            why.onclick = () => { detail.hidden = !detail.hidden; };
-            unit.appendChild(document.createElement('br'));
-            unit.appendChild(why);
-            tr.appendChild(unit);
-            tr.appendChild(el('td', 'price', line.totalPrice != null ? line.totalPrice.toFixed(2) + ' €' : '—'));
-            tbody.appendChild(tr);
-            tbody.appendChild(detail);
-            total += line.totalPrice || 0;
-            continue;
-          }
-        } else {
-          unit.appendChild(el('span', 'dim', '—'));
-        }
-        tr.appendChild(unit);
-        tr.appendChild(el('td', 'price', line.totalPrice != null ? line.totalPrice.toFixed(2) + ' €' : '—'));
-        tbody.appendChild(tr);
-        total += line.totalPrice || 0;
-      }
-
-      table.appendChild(tbody);
-      container.appendChild(table);
-
-      if (total > 0) {
-        const sum = el('div', 'totals');
-        sum.appendChild(el('span', 'label', 'Total demande'));
-        sum.appendChild(el('span', null, total.toFixed(2) + ' €'));
-        container.appendChild(sum);
-      }
-    }
-
-    function renderRequest(work) {
-      const card = el('div', 'request' + (work.status === 'livre' ? ' livre' : ''));
-
-      const head = el('div', 'req-head');
-      head.appendChild(el('span', 'req-ref', work.ref));
-      head.appendChild(el('span', 'tag tag-status-' + work.status, STATUS_LABEL[work.status] || work.status));
-      head.appendChild(el('span', 'tag tag-client', 'Client · ' + work.client));
-      if (work.detailsInAttachments) head.appendChild(el('span', 'tag tag-pj', 'Détails en pièce jointe'));
-      head.appendChild(el('span', 'tag tag-source', SOURCE_LABEL[work.source] || work.source));
-      head.appendChild(el('div', 'spacer'));
-      head.appendChild(el('span', 'req-when', relativeDate(work.updatedAt)));
-      card.appendChild(head);
-
-      if (work.summary) card.appendChild(el('div', 'summary', work.summary));
-
-      if ((work.links || []).length > 0) {
-        const box = el('div', 'links');
-        box.appendChild(el('span', 'label', 'Contenu déposé sur une plateforme'));
-        for (const url of work.links) {
-          const a = el('a', null, url);
-          a.href = url;
-          a.target = '_blank';
-          a.rel = 'noopener noreferrer';
-          box.appendChild(a);
-        }
-        box.appendChild(el('span', 'hint',
-          "Ces liens ne sont pas ouverts automatiquement : ils expirent, demandent souvent une session, et suivre une URL reçue par mail se décide à l'œil."));
-        card.appendChild(box);
-      }
-
-      card.appendChild(renderPricing(work));
-
-      const linesBox = el('div');
-      linesBox.appendChild(el('div', 'action-note', 'chargement des lignes…'));
-      card.appendChild(linesBox);
-
-      fetch('/api/works/' + encodeURIComponent(work.id) + '/lines')
-        .then(r => r.json())
-        .then(data => {
-          linesBox.innerHTML = '';
-          if ((data.lines || []).length === 0) {
-            linesBox.appendChild(el('div', 'no-lines',
-              work.detailsInAttachments
-                ? "Le corps du mail renvoie aux pièces jointes : rien n'a été inventé ici. Ouvre le mail pour lire l'Excel ou les plans — la lecture automatique des pièces jointes n'existe pas encore."
-                : "Aucune ligne n'a pu être lue dans ce mail."));
-          } else {
-            renderLines(linesBox, data.lines);
-          }
-        })
-        .catch(err => {
-          linesBox.innerHTML = '';
-          linesBox.appendChild(el('div', 'action-note warn', 'Lignes illisibles : ' + err.message));
-        });
-
-      const actions = el('div', 'actions');
-      const note = el('span', 'action-note');
-      const btn = el('button', 'btn ' + (work.status === 'livre' ? 'btn-ghost' : 'btn-teal'),
-        work.status === 'livre' ? 'Rouvrir' : 'Marquer comme traitée');
-      btn.type = 'button';
-      btn.onclick = async () => {
-        const next = work.status === 'livre' ? 'a_valider' : 'livre';
-        btn.disabled = true;
-        note.className = 'action-note';
-        note.textContent = 'Enregistrement…';
-        try {
-          const resp = await fetch('/api/works/' + encodeURIComponent(work.id) + '/status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: next }),
-          });
-          const data = await resp.json();
-          if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
-          load();
-        } catch (err) {
-          btn.disabled = false;
-          note.className = 'action-note warn';
-          note.textContent = 'Non enregistré : ' + err.message;
-        }
-      };
-      actions.appendChild(btn);
-
-      const reprice = el('button', 'btn btn-ghost', 'Rechiffrer');
-      reprice.type = 'button';
-      reprice.onclick = async () => {
-        reprice.disabled = true;
-        note.className = 'action-note';
-        note.textContent = 'Calcul…';
-        try {
-          const resp = await fetch('/api/works/' + encodeURIComponent(work.id) + '/price', { method: 'POST' });
-          const data = await resp.json();
-          if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
-          linesBox.innerHTML = '';
-          if ((data.lines || []).length === 0) {
-            linesBox.appendChild(el('div', 'no-lines', 'Aucune ligne à chiffrer.'));
-          } else {
-            renderLines(linesBox, data.lines);
-          }
-          note.className = 'action-note done';
-          note.textContent = data.count + ' ligne(s) rechiffrée(s)';
-        } catch (err) {
-          note.className = 'action-note warn';
-          note.textContent = 'Chiffrage impossible : ' + err.message;
-        } finally {
-          reprice.disabled = false;
-        }
-      };
-      actions.appendChild(reprice);
-
-      const mail = el('a', 'btn btn-ghost', 'Ouvrir le mail');
-      mail.href = 'https://mail.google.com/mail/u/0/#search/' + encodeURIComponent(work.ref);
-      mail.target = '_blank';
-      mail.rel = 'noopener noreferrer';
-      actions.appendChild(mail);
-
-      actions.appendChild(note);
-      card.appendChild(actions);
-
-      return card;
-    }
-
-    let PRICING = {};
-    let SETTINGS = null;
-    let MATERIALS = [];
-
-    /** Le bordereau d'une ligne: chaque poste, sa base, et ce qui a été supposé. */
-    function renderBreakdown(bd) {
-      const box = el('div', 'breakdown');
-      for (const item of bd.items || []) {
-        const row = el('div', 'bd-item');
-        row.appendChild(el('span', 'amount', item.amount.toFixed(2) + ' €'));
-        row.appendChild(el('span', null, item.label));
-        row.appendChild(el('span', 'basis', '— ' + item.basis));
-        box.appendChild(row);
-      }
-      for (const hypothese of bd.assumptions || []) {
-        box.appendChild(el('div', 'bd-assumption', 'hypothèse — ' + hypothese));
-      }
-      return box;
-    }
-
-    /**
-     * Le prix par défaut du client — posé à la main, jamais calculé.
-     * Le dire à chaque fois est ce qui empêche qu'il finisse pris pour une
-     * estimation dans un devis.
-     */
-    function renderPricing(work) {
-      const box = el('div', 'pricing');
-      const current = PRICING[work.client];
-
-      box.appendChild(el('span', 'label', 'Prix imposé pour ce client'));
-
-      const input = el('input');
-      input.type = 'number';
-      input.step = '0.01';
-      input.min = '0';
-      input.placeholder = 'non défini';
-      if (current && current.defaultUnitPrice != null) input.value = current.defaultUnitPrice;
-      input.setAttribute('aria-label', 'Prix par défaut pour ' + work.client);
-      box.appendChild(input);
-      box.appendChild(el('span', 'label', '€ / pièce'));
-
-      const btn = el('button', 'btn btn-ghost', 'Enregistrer');
-      btn.type = 'button';
-      const note = el('span', 'action-note');
-
-      btn.onclick = async () => {
-        btn.disabled = true;
-        note.className = 'action-note';
-        note.textContent = 'Enregistrement…';
-        try {
-          const value = input.value.trim() === '' ? null : Number(input.value);
-          const resp = await fetch('/api/pricing', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ client: work.client, defaultUnitPrice: value }),
-          });
-          const data = await resp.json();
-          if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
-          PRICING[work.client] = data.pricing;
-          note.className = 'action-note done';
-          note.textContent = 'Appliqué à toutes les demandes de ' + work.client;
-        } catch (err) {
-          note.className = 'action-note warn';
-          note.textContent = 'Non enregistré : ' + err.message;
-        } finally {
-          btn.disabled = false;
-        }
-      };
-
-      box.appendChild(btn);
-      box.appendChild(note);
-      box.appendChild(el('span', 'hint',
-        "Laissé vide, c'est le moteur qui décide. Rempli, ce tarif l'emporte — mais le prix calculé reste au bordereau et l'écart est nommé, jamais effacé."));
-      return box;
-    }
-
-    const SETTING_FIELDS = [
-      ['hourlyRate', 'Taux horaire', '€ / h'],
-      ['setupMinutes', 'Mise en train', 'min par référence'],
-      ['minutesPerDm3', 'Usinage', 'min par dm³ enlevé'],
-      ['removalRatio', 'Part de matière enlevée', '0 à 1'],
-      ['learningCurve', 'Courbe d’apprentissage', '0.90 = −10 % au doublement'],
-      ['marginPct', 'Marge', '%'],
-      ['handlingMinutesPerPart', 'Reprise et contrôle', 'min par pièce'],
-    ];
-
-    function renderSettings() {
-      const box = document.getElementById('settingsBody');
-      box.innerHTML = '';
-      if (!SETTINGS) {
-        box.appendChild(el('div', 'action-note warn', 'Paramètres injoignables.'));
+      if (!CURRENT) {
+        rail.appendChild(el('div', 'empty', 'Aucun devis.'));
         return;
       }
 
-      const grid = el('div', 'grid');
-      const inputs = {};
-      for (const [key, label, unit] of SETTING_FIELDS) {
-        const field = el('div', 'field');
-        field.appendChild(el('label', null, label));
-        const input = el('input');
-        input.type = 'number';
-        input.step = '0.01';
-        input.min = '0';
-        input.value = SETTINGS[key];
-        input.setAttribute('aria-label', label);
-        inputs[key] = input;
-        field.appendChild(input);
-        field.appendChild(el('span', 'unit', unit));
-        grid.appendChild(field);
+      const head = el('div', 'rail-head');
+      head.appendChild(el('span', 'rail-ref', CURRENT.ref));
+      head.appendChild(el('span', 'rail-client', CURRENT.client));
+      rail.appendChild(head);
+
+      const pending = LINES.filter(l => l.status === 'a_traiter').length;
+      const count = el('div', 'rail-count');
+      count.appendChild(el('span', 'n', String(pending)));
+      count.appendChild(el('span', 'label', pending > 1 ? 'articles à traiter' : 'article à traiter'));
+      rail.appendChild(count);
+
+      const list = el('div', 'devis-list');
+      list.appendChild(el('div', 'eyebrow', 'Devis en cours'));
+      for (const work of WORKS) {
+        const btn = el('button', 'devis');
+        btn.type = 'button';
+        btn.setAttribute('aria-current', String(work.id === CURRENT.id));
+        btn.appendChild(el('span', 'ref', work.ref));
+        btn.appendChild(el('span', 'n', String(work.lineCount || 0)));
+        btn.onclick = () => selectWork(work.id);
+        list.appendChild(btn);
       }
-      box.appendChild(grid);
-
-      const mat = el('div', 'grid');
-      mat.style.marginTop = '18px';
-      const matInputs = {};
-      for (const m of MATERIALS) {
-        const field = el('div', 'field');
-        field.appendChild(el('label', null, m.label));
-        const price = el('input');
-        price.type = 'number'; price.step = '0.01'; price.min = '0';
-        price.value = m.pricePerKg;
-        price.setAttribute('aria-label', 'Prix au kilo — ' + m.label);
-        matInputs[m.id] = price;
-        field.appendChild(price);
-        field.appendChild(el('span', 'unit', '€ / kg · densité ' + m.density));
-        mat.appendChild(field);
-      }
-      box.appendChild(mat);
-
-      const actions = el('div', 'settings-actions');
-      const save = el('button', 'btn btn-teal', 'Enregistrer les paramètres');
-      save.type = 'button';
-      const note = el('span', 'action-note');
-
-      save.onclick = async () => {
-        save.disabled = true;
-        note.className = 'action-note';
-        note.textContent = 'Enregistrement…';
-        try {
-          const patch = {};
-          for (const [key] of SETTING_FIELDS) patch[key] = Number(inputs[key].value);
-          const resp = await fetch('/api/pricing/settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(patch),
-          });
-          const data = await resp.json();
-          if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
-          SETTINGS = data.settings;
-
-          for (const m of MATERIALS) {
-            const value = Number(matInputs[m.id].value);
-            if (value === m.pricePerKg) continue;
-            const r = await fetch('/api/pricing/materials', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: m.id, pricePerKg: value }),
-            });
-            const d = await r.json();
-            if (!r.ok) throw new Error(d.message || 'HTTP ' + r.status);
-            MATERIALS = d.materials;
-          }
-
-          note.className = 'action-note done';
-          note.textContent = 'Enregistré — relance « Rechiffrer » sur une demande pour appliquer.';
-        } catch (err) {
-          note.className = 'action-note warn';
-          note.textContent = 'Non enregistré : ' + err.message;
-        } finally {
-          save.disabled = false;
-        }
-      };
-
-      actions.appendChild(save);
-      actions.appendChild(note);
-      box.appendChild(actions);
+      rail.appendChild(list);
     }
 
-    async function load() {
-      const body = document.getElementById('body');
+    // ── Colonne 2 : le plan ────────────────────────────────────
+    function renderPlan() {
+      const bar = document.getElementById('planBar');
+      const body = document.getElementById('planBody');
+      const nav = document.getElementById('planNav');
+      bar.innerHTML = ''; body.innerHTML = ''; nav.innerHTML = '';
+
+      const line = LINES[INDEX];
+      if (!line) {
+        body.appendChild(el('div', null, 'Aucun article à afficher pour ce devis.'));
+        return;
+      }
+
+      bar.appendChild(el('span', null, CURRENT.ref));
+      bar.appendChild(el('span', 'badge', 'Article ' + (INDEX + 1) + ' / ' + LINES.length));
+      if (line.alertLevel && line.alertLevel !== 'vert') {
+        bar.appendChild(el('span', 'badge', line.alertLevel === 'rouge' ? 'non chiffrable' : 'sous hypothèse'));
+      }
+      if (line.status && line.status !== 'a_traiter') {
+        bar.appendChild(el('span', 'badge', STATUS_LABEL[line.status]));
+      }
+
+      // Le plan n'est pas encore rendu graphiquement : plutôt qu'un cadre vide,
+      // on montre ce qu'on sait de la pièce et on dit ce qui manque.
+      const sheet = el('div', 'plan-sheet');
+      sheet.appendChild(el('div', 'title', (line.reference || '—') + ' · ' + (line.designation || 'sans désignation')));
+
+      const frame = el('div', 'frame');
+      frame.appendChild(el('span', null,
+        CURRENT.detailsInAttachments
+          ? 'Le plan est dans les pièces jointes du mail — son rendu graphique n’est pas encore branché.'
+          : 'Aucun plan reçu avec cette demande. Le chiffrage s’appuie sur le texte du mail.'));
+      sheet.appendChild(frame);
+
+      const cartouche = el('div', 'cartouche');
+      [['MATIÈRE', line.material || 'Non lisible'],
+       ['QTÉ', line.quantity || '—'],
+       ['ÉTAT', STATUS_LABEL[line.status] || '—']].forEach(([k, v]) => {
+        const cell = el('div');
+        cell.appendChild(el('div', 'dim', k));
+        cell.appendChild(el('div', null, v));
+        cartouche.appendChild(cell);
+      });
+      sheet.appendChild(cartouche);
+      body.appendChild(sheet);
+
+      if (line.comment) body.appendChild(el('div', null, line.comment));
+
+      const prev = el('button', 'btn btn-ghost', '← Précédent');
+      prev.type = 'button';
+      prev.disabled = INDEX === 0;
+      prev.onclick = () => { INDEX--; renderAll(); };
+
+      const next = el('button', 'btn btn-ghost', 'Suivant →');
+      next.type = 'button';
+      next.disabled = INDEX >= LINES.length - 1;
+      next.onclick = () => { INDEX++; renderAll(); };
+
+      nav.appendChild(prev);
+      nav.appendChild(el('span', 'pos', (INDEX + 1) + ' / ' + LINES.length));
+      nav.appendChild(next);
+    }
+
+    // ── Colonne 3 : la proposition ─────────────────────────────
+    function renderProposal() {
+      const box = document.getElementById('proposal');
+      box.innerHTML = '';
+
+      const line = LINES[INDEX];
+      if (!line) {
+        box.appendChild(el('div', 'empty',
+          CURRENT && CURRENT.detailsInAttachments
+            ? 'Cette demande n’a aucune ligne lisible : son contenu est dans les pièces jointes.'
+            : 'Aucun article.'));
+        return;
+      }
+
+      const head = el('div', 'prop-head');
+      head.appendChild(el('div', 'eyebrow', 'Proposition · prix de revient unitaire'));
+      if (line.unitPrice != null) {
+        head.appendChild(el('div', 'price-big', money(line.unitPrice)));
+        head.appendChild(el('div', 'price-sub',
+          line.status === 'forcee'
+            ? 'prix imposé par le technicien'
+            : 'calcul déterministe · ' + money(line.totalPrice) + ' pour la série'));
+      } else {
+        head.appendChild(el('div', 'price-none', 'Pas de prix'));
+        head.appendChild(el('div', 'price-sub',
+          line.status === 'manuelle'
+            ? 'ligne sortie du chiffrage, à compléter à la main'
+            : 'article non chiffrable en l’état'));
+      }
+      box.appendChild(head);
+
+      const facts = el('div', 'facts');
+      [['Désignation', line.designation || '—'],
+       ['Matière', line.material || 'Non lisible'],
+       ['Qté', line.quantity || '—']].forEach(([k, v]) => {
+        const f = el('div', 'fact');
+        f.appendChild(el('div', 'k', k));
+        f.appendChild(el('div', 'v', v));
+        facts.appendChild(f);
+      });
+      box.appendChild(facts);
+
+      const detail = el('div', 'section');
+      detail.appendChild(el('div', 'eyebrow', 'Détail du calcul'));
+      const items = (line.priceBreakdown && line.priceBreakdown.items) || [];
+      if (items.length === 0) {
+        detail.appendChild(el('div', 'note', 'Aucun calcul : cette ligne n’a pas été chiffrée.'));
+      }
+      for (const item of items) {
+        const row = el('div', 'detail-row');
+        row.appendChild(el('span', 'label', item.label));
+        row.appendChild(el('span', 'amount', money(item.amount)));
+        detail.appendChild(row);
+        detail.appendChild(el('div', 'detail-basis', item.basis));
+      }
+      box.appendChild(detail);
+
+      const alerts = el('div', 'section');
+      alerts.appendChild(el('div', 'eyebrow', 'Alertes'));
+      const list = (line.alerts && line.alerts.length) ? line.alerts : [];
+      if (list.length === 0) {
+        const ok = el('div', 'alert alert-vert');
+        ok.appendChild(el('span', 'dot'));
+        ok.appendChild(el('span', null, 'Rien à signaler : la demande se suffit à elle-même.'));
+        alerts.appendChild(ok);
+      }
+      for (const text of list) {
+        const a = el('div', 'alert alert-' + (line.alertLevel || 'jaune'));
+        a.appendChild(el('span', 'dot'));
+        a.appendChild(el('span', null, text));
+        alerts.appendChild(a);
+      }
+      box.appendChild(alerts);
+
+      box.appendChild(renderChoices(line));
+
+      const verdict = el('div', 'verdict');
+      const reject = el('button', 'btn btn-danger', '✕ Rejeter');
+      reject.type = 'button';
+      reject.onclick = () => review(line, 'rejeter');
+      const validate = el('button', 'btn btn-primary', '✓ Valider');
+      validate.type = 'button';
+      validate.onclick = () => review(line, 'valider');
+      verdict.appendChild(reject);
+      verdict.appendChild(validate);
+      box.appendChild(verdict);
+
+      if (line.reviewNote) {
+        const n = el('div', 'section');
+        n.appendChild(el('div', 'eyebrow', 'Consigne du technicien'));
+        n.appendChild(el('div', 'note', line.reviewNote));
+        box.appendChild(n);
+      }
+    }
+
+    /** Les trois issues autres que « valider » : imposer, recalculer, sortir. */
+    function renderChoices(line) {
+      const box = el('div', 'section');
+
+      const force = el('button', 'choice');
+      force.type = 'button';
+      force.setAttribute('aria-expanded', 'false');
+      force.appendChild(el('span', 't', 'Forcer le prix'));
+      force.appendChild(el('span', 'd', 'prix imposé, sans recalcul — le calcul reste au bordereau'));
+      const forceBody = el('div', 'choice-body');
+      forceBody.hidden = true;
+      const priceInput = el('input');
+      priceInput.type = 'number'; priceInput.step = '0.01'; priceInput.min = '0';
+      priceInput.placeholder = 'prix unitaire imposé';
+      priceInput.setAttribute('aria-label', 'Prix unitaire imposé');
+      const forceBtn = el('button', 'btn btn-ghost', 'Imposer ce prix');
+      forceBtn.type = 'button';
+      forceBtn.onclick = () => review(line, 'forcer', { price: Number(priceInput.value) });
+      forceBody.appendChild(priceInput);
+      forceBody.appendChild(forceBtn);
+      force.onclick = () => {
+        const open = forceBody.hidden;
+        forceBody.hidden = !open;
+        force.setAttribute('aria-expanded', String(open));
+      };
+      box.appendChild(force);
+      box.appendChild(forceBody);
+
+      const recalc = el('button', 'choice');
+      recalc.type = 'button';
+      recalc.setAttribute('aria-expanded', 'false');
+      recalc.appendChild(el('span', 't', 'Commentaire de recalcul'));
+      recalc.appendChild(el('span', 'd', 'l’outil recalcule avec votre consigne'));
+      const recalcBody = el('div', 'choice-body');
+      recalcBody.hidden = true;
+      const noteInput = el('textarea');
+      noteInput.rows = 3;
+      noteInput.placeholder = 'ex : reprendre en inox 316L, brut barre Ø60';
+      noteInput.setAttribute('aria-label', 'Consigne de recalcul');
+      const recalcBtn = el('button', 'btn btn-ghost', 'Envoyer la consigne');
+      recalcBtn.type = 'button';
+      recalcBtn.onclick = () => review(line, 'recalculer', { note: noteInput.value });
+      recalcBody.appendChild(noteInput);
+      recalcBody.appendChild(recalcBtn);
+      recalc.onclick = () => {
+        const open = recalcBody.hidden;
+        recalcBody.hidden = !open;
+        recalc.setAttribute('aria-expanded', String(open));
+      };
+      box.appendChild(recalc);
+      box.appendChild(recalcBody);
+
+      const manual = el('button', 'choice');
+      manual.type = 'button';
+      manual.appendChild(el('span', 't', 'Traitement manuel'));
+      manual.appendChild(el('span', 'd', 'la ligne part sans prix, marquée à compléter'));
+      manual.onclick = () => review(line, 'manuel');
+      box.appendChild(manual);
+
+      return box;
+    }
+
+    // ── La décision ────────────────────────────────────────────
+    async function review(line, action, options = {}) {
       try {
-        const [resp, pricingResp, settingsResp] = await Promise.all([
-          fetch('/api/works?tool=chiffrage&limit=100'),
-          fetch('/api/pricing'),
-          fetch('/api/pricing/settings'),
-        ]);
+        const resp = await fetch('/api/lines/' + encodeURIComponent(line.id) + '/review', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, ...options }),
+        });
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
 
-        const pricingData = await pricingResp.json().catch(() => ({ pricing: [] }));
-        PRICING = {};
-        for (const p of pricingData.pricing || []) PRICING[p.client] = p;
+        LINES[INDEX] = { ...LINES[INDEX], ...data.line };
+        // La revue s'enchaîne : on passe à l'article suivant, sauf si on vient
+        // de demander un recalcul — là on reste pour en voir le résultat.
+        if (action !== 'recalculer' && INDEX < LINES.length - 1) INDEX++;
+        renderAll();
+      } catch (err) {
+        const box = document.getElementById('proposal');
+        const warn = el('div', 'section');
+        warn.appendChild(el('div', 'note warn', 'Décision non enregistrée : ' + err.message));
+        box.prepend(warn);
+      }
+    }
 
-        const settingsData = await settingsResp.json().catch(() => ({}));
-        SETTINGS = settingsData.settings || null;
-        MATERIALS = settingsData.materials || [];
-        renderSettings();
+    function renderAll() {
+      renderRail();
+      renderPlan();
+      renderProposal();
+    }
 
-        const works = data.works || [];
-        const pending = works.filter(w => w.status === 'a_valider').length;
-        document.getElementById('count').textContent =
-          works.length + (works.length > 1 ? ' demandes' : ' demande') +
-          (pending ? ' · ' + pending + ' à traiter' : '');
+    async function selectWork(id) {
+      CURRENT = WORKS.find(w => w.id === id) || null;
+      INDEX = 0;
+      LINES = [];
+      renderAll();
+      if (!CURRENT) return;
 
-        body.innerHTML = '';
-        if (works.length === 0) {
-          body.appendChild(el('div', 'empty-state',
-            "Aucune demande pour l'instant. Un mail envoyé à chiffrage@usi-pro.com apparaît ici dans la minute."));
+      try {
+        const resp = await fetch('/api/works/' + encodeURIComponent(CURRENT.id) + '/lines');
+        const data = await resp.json();
+        LINES = data.lines || [];
+      } catch (err) {
+        LINES = [];
+      }
+      renderAll();
+    }
+
+    async function load() {
+      const rail = document.getElementById('rail');
+      const proposal = document.getElementById('proposal');
+      try {
+        const resp = await fetch('/api/works?tool=chiffrage&limit=100');
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
+
+        WORKS = data.works || [];
+        if (WORKS.length === 0) {
+          rail.innerHTML = '';
+          rail.appendChild(el('div', 'empty', 'Aucune demande reçue.'));
+          proposal.innerHTML = '';
+          proposal.appendChild(el('div', 'empty',
+            'Un mail envoyé à chiffrage@usi-pro.com apparaît ici dans la minute.'));
           return;
         }
-        for (const work of works) body.appendChild(renderRequest(work));
+        await selectWork(WORKS[0].id);
       } catch (err) {
-        body.innerHTML = '';
-        body.appendChild(el('div', 'error-state', 'Demandes injoignables : ' + err.message));
+        proposal.innerHTML = '';
+        proposal.appendChild(el('div', 'empty', 'Demandes injoignables : ' + err.message));
       }
     }
 

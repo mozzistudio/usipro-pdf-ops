@@ -579,6 +579,12 @@ export async function priceRequest(id: string): Promise<ChiffrageLine[]> {
   const out: ChiffrageLine[] = [];
 
   for (const row of (data ?? []) as any[]) {
+    // Une ligne déjà tranchée par un humain n'est pas réécrite par le moteur.
+    if (row.status === 'forcee' || row.status === 'manuelle' || row.status === 'rejetee') {
+      out.push(fromLineRow(row));
+      continue;
+    }
+
     const line: ChiffrageLine = {
       reference: row.reference ?? '',
       designation: row.designation ?? '',
@@ -609,6 +615,13 @@ export async function priceRequest(id: string): Promise<ChiffrageLine[]> {
 
     const breakdown = { items, assumptions, quantity: price.quantity };
 
+    // Le niveau d'alerte suit ce qui manque, pas l'humeur du moteur.
+    // Rouge: la matière ET l'encombrement manquent — le prix ne repose sur rien.
+    // Jaune: une hypothèse a été nécessaire. Vert: la demande se suffit.
+    const alerts = assumptions.slice();
+    const severes = assumptions.filter(a => a.includes('encombrement') || a.includes('matière'));
+    const alertLevel = severes.length >= 2 ? 'rouge' : assumptions.length > 0 ? 'jaune' : 'vert';
+
     const { error: upErr } = await db
       .from('request_lines')
       .update({
@@ -616,15 +629,98 @@ export async function priceRequest(id: string): Promise<ChiffrageLine[]> {
         total_price: totalPrice,
         price_breakdown: breakdown,
         price_computed_at: now,
+        alert_level: alertLevel,
+        alerts,
       })
       .eq('id', row.id);
     if (upErr) throw new Error(`Prix non enregistré: ${upErr.message}`);
 
-    out.push({ ...line, unitPrice, totalPrice, priceBreakdown: breakdown });
+    out.push({
+      ...line,
+      id: row.id,
+      unitPrice,
+      totalPrice,
+      priceBreakdown: breakdown,
+      status: row.status ?? 'a_traiter',
+      alertLevel,
+      alerts,
+    });
   }
 
   logger.info({ id, lines: out.length }, 'Demande chiffrée');
   return out;
+}
+
+function fromLineRow(row: any): ChiffrageLine {
+  return {
+    id: row.id,
+    reference: row.reference ?? '',
+    designation: row.designation ?? '',
+    material: row.material ?? '',
+    quantity: row.quantity ?? '',
+    comment: row.comment ?? '',
+    unitPrice: row.unit_price === null || row.unit_price === undefined ? null : Number(row.unit_price),
+    totalPrice: row.total_price === null || row.total_price === undefined ? null : Number(row.total_price),
+    priceBreakdown: row.price_breakdown ?? null,
+    status: row.status ?? 'a_traiter',
+    forcedPrice: row.forced_price === null || row.forced_price === undefined ? null : Number(row.forced_price),
+    reviewNote: row.review_note ?? null,
+    alertLevel: row.alert_level ?? 'vert',
+    alerts: row.alerts ?? [],
+  };
+}
+
+/**
+ * La décision du technicien sur une ligne.
+ *
+ * Quatre issues, volontairement distinctes : valider le prix proposé, l'imposer
+ * (le moteur s'est trompé, le calcul reste au bordereau), demander un recalcul
+ * avec une consigne, ou sortir la ligne du chiffrage automatique. Une ligne
+ * « traitement manuel » part sans prix et le dit — c'est plus honnête qu'un
+ * chiffre posé pour ne pas laisser de case vide.
+ */
+export async function reviewLine(
+  lineId: string,
+  action: 'valider' | 'forcer' | 'recalculer' | 'manuel' | 'rejeter',
+  options: { price?: number | null; note?: string } = {},
+): Promise<ChiffrageLine> {
+  const db = supabase();
+  if (!db) throw new Error('Revue indisponible : Supabase non configuré');
+
+  const patch: Record<string, unknown> = { reviewed_at: new Date().toISOString() };
+  if (options.note !== undefined) patch.review_note = options.note || null;
+
+  if (action === 'valider') {
+    patch.status = 'validee';
+  } else if (action === 'forcer') {
+    if (options.price == null || !Number.isFinite(options.price) || options.price < 0) {
+      throw new Error('Un prix imposé doit être un nombre positif');
+    }
+    patch.status = 'forcee';
+    patch.forced_price = options.price;
+    patch.unit_price = options.price;
+  } else if (action === 'manuel') {
+    // Sans prix, explicitement: la ligne part à compléter à la main.
+    patch.status = 'manuelle';
+    patch.unit_price = null;
+    patch.total_price = null;
+  } else if (action === 'rejeter') {
+    patch.status = 'rejetee';
+  } else {
+    // Recalcul: la consigne est gardée, la ligne repasse à traiter.
+    patch.status = 'a_traiter';
+  }
+
+  const { data, error } = await db
+    .from('request_lines')
+    .update(patch)
+    .eq('id', lineId)
+    .select()
+    .single();
+  if (error) throw new Error(`Décision non enregistrée: ${error.message}`);
+
+  logger.info({ lineId, action, price: options.price }, 'Revue technique: décision enregistrée');
+  return fromLineRow(data);
 }
 
 /** Les lignes d'une demande, dans l'ordre où le mail les donnait. */
@@ -639,16 +735,7 @@ export async function listRequestLines(id: string): Promise<ChiffrageLine[]> {
     .order('position', { ascending: true });
   if (error) throw new Error(`Lecture des lignes impossible: ${error.message}`);
 
-  return (data ?? []).map((row: any) => ({
-    reference: row.reference ?? '',
-    designation: row.designation ?? '',
-    material: row.material ?? '',
-    quantity: row.quantity ?? '',
-    comment: row.comment ?? '',
-    unitPrice: row.unit_price === null || row.unit_price === undefined ? null : Number(row.unit_price),
-    totalPrice: row.total_price === null || row.total_price === undefined ? null : Number(row.total_price),
-    priceBreakdown: row.price_breakdown ?? null,
-  }));
+  return (data ?? []).map(fromLineRow);
 }
 
 // ── Prix par défaut, par client ──────────────────────────────────

@@ -10,6 +10,7 @@ import {
   listWorks,
   priceRequest,
   requestLineCounts,
+  reviewLine,
   setClientPricing,
   setMaterialRate,
   setPricingSettings,
@@ -32,6 +33,7 @@ const TOOLS: WorkTool[] = ['edition', 'chiffrage'];
  * POST /api/pricing/settings  — corriger un paramètre du moteur
  * POST /api/pricing/materials — corriger le tarif d'une nuance
  * POST /api/works/:id/price   — (re)chiffrer une demande
+ * POST /api/lines/:id/review  — la décision du technicien sur une ligne
  * GET  /api/pricing           — les prix par défaut, par client
  * POST /api/pricing           — poser ou changer le prix par défaut d'un client
  * POST /api/works/:id/status  — l'opérateur clôt une demande, ou la rouvre
@@ -170,6 +172,33 @@ export function registerWorksEndpoints(router: Router): void {
       res.json({ status: 'ok', materials });
     } catch (err: any) {
       logger.error({ err: err.message, id }, 'Tarif matière non enregistré');
+      res.status(400).json({ status: 'error', message: err.message });
+    }
+  });
+
+  // La décision du technicien sur une ligne. Quatre issues distinctes, parce
+  // qu'un prix imposé, une ligne à recalculer et une ligne sortie du chiffrage
+  // ne racontent pas la même chose au reste de la chaîne.
+  router.post('/api/lines/:lineId/review', async (req: Request, res: Response) => {
+    const { action, price, note } = req.body as {
+      action?: string;
+      price?: number | null;
+      note?: string;
+    };
+    const actions = ['valider', 'forcer', 'recalculer', 'manuel', 'rejeter'];
+    if (!action || !actions.includes(action)) {
+      res.status(400).json({ status: 'error', message: `action doit être l'une de: ${actions.join(', ')}` });
+      return;
+    }
+
+    try {
+      const line = await reviewLine(String(req.params.lineId), action as any, {
+        price: price === undefined || price === null ? null : Number(price),
+        note,
+      });
+      res.json({ status: 'ok', line });
+    } catch (err: any) {
+      logger.error({ err: err.message, lineId: req.params.lineId, action }, 'Décision non enregistrée');
       res.status(400).json({ status: 'error', message: err.message });
     }
   });

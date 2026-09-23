@@ -1,0 +1,163 @@
+/**
+ * Le système visuel d'Usi-Pro Chiffrage.
+ *
+ * Repris de la maquette de présentation : Archivo pour le texte, JetBrains
+ * Mono pour tout ce qui est chiffre, référence ou identifiant — un prix et une
+ * cote se lisent en chasse fixe, sinon l'œil ne les aligne pas. Le teal porte
+ * l'action, et le triptyque vert / jaune / rouge porte l'état d'un article :
+ * chiffré sans réserve, chiffré sous hypothèse, pas chiffrable.
+ */
+
+:root {
+  --bg: #EDF1F0;
+  --surface: #FFFFFF;
+  --surface-2: #F4F7F6;
+  --surface-3: #E8EEEC;
+  --paper: #FCFCFA;
+  --plan: #1E2A28;
+
+  --ink: #15201E;
+  --ink-2: #4B5956;
+  --ink-3: #83918D;
+
+  --line: #D6DFDC;
+  --line-2: #C3CFCB;
+
+  --teal: #0DAE98;
+  --teal-ink: #07796A;
+  --teal-soft: #DAF2EE;
+
+  --green: #2C9454;
+  --green-soft: #DDF1E4;
+  --amber: #C98A10;
+  --amber-soft: #FBEFD2;
+  --red: #CF4338;
+  --red-soft: #FBE2DF;
+
+  --sans: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --shadow: 0 1px 2px rgba(15,30,28,.06), 0 12px 32px -12px rgba(15,30,28,.18);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--teal-ink); }
+
+/* ── Barre d'application ── */
+.app-bar {
+  height: 56px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.app-name { font-size: 14px; font-weight: 700; letter-spacing: -0.2px; }
+.app-name em { font-style: normal; color: var(--teal-ink); }
+
+.app-nav {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-3);
+  text-decoration: none;
+  padding: 6px 2px;
+  border-bottom: 2px solid transparent;
+}
+.app-nav:hover { color: var(--ink); }
+.app-nav[aria-current="page"] { color: var(--ink); border-bottom-color: var(--teal); }
+
+.spacer { flex-grow: 1; }
+
+/* ── Étiquettes ── */
+.chip {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 4px;
+  padding: 3px 7px;
+  background: var(--surface-3);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.chip-vert  { background: var(--green-soft); color: var(--green); }
+.chip-jaune { background: var(--amber-soft); color: var(--amber); }
+.chip-rouge { background: var(--red-soft);   color: var(--red); }
+.chip-teal  { background: var(--teal-soft);  color: var(--teal-ink); }
+
+/* ── Boutons ── */
+.btn {
+  height: 40px;
+  padding: 0 16px;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+}
+.btn-primary { background: var(--teal); color: #05312B; }
+.btn-primary:hover { background: var(--teal-ink); color: #fff; }
+.btn-ghost { background: var(--surface); color: var(--ink); border-color: var(--line-2); }
+.btn-ghost:hover { background: var(--surface-2); }
+.btn-danger { background: var(--surface); color: var(--red); border-color: var(--red); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Saisies ── */
+input[type="text"], input[type="number"], textarea, select {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  padding: 9px 10px;
+  width: 100%;
+}
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px var(--teal-soft);
+}
+
+/* ── Libellés de section ── */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ── Cartes ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+.muted { color: var(--ink-2); }
+.dim { color: var(--ink-3); }

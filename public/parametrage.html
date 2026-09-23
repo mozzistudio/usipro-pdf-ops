@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Usi-Pro Chiffrage — Paramétrage</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/usipro.css">
+  <style>
+    .page { max-width: 980px; margin: 0 auto; padding: 28px 24px 64px; display: flex; flex-direction: column; gap: 22px; }
+    h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.3px; }
+    .lede { font-size: 13.5px; color: var(--ink-2); line-height: 1.65; max-width: 74ch; }
+
+    .block { padding: 20px 22px; display: flex; flex-direction: column; gap: 16px; }
+    .block h2 { font-size: 15px; font-weight: 700; }
+    .block .why { font-size: 12.5px; color: var(--ink-2); line-height: 1.6; max-width: 74ch; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label { font-size: 12px; font-weight: 600; }
+    .field .unit { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+
+    .actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .note { font-size: 12.5px; color: var(--ink-2); }
+    .note.done { color: var(--teal-ink); font-weight: 600; }
+    .note.warn { color: var(--red); font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <header class="app-bar">
+    <span class="app-name">Usi<em>·</em>Pro Chiffrage</span>
+    <a class="app-nav" href="/chiffrage.html">Devis</a>
+    <a class="app-nav" href="/parametrage.html" aria-current="page">Paramétrage</a>
+    <div class="spacer"></div>
+    <a class="app-nav" href="/">Accueil</a>
+  </header>
+
+  <main class="page">
+    <div>
+      <h1>Paramétrage du chiffrage</h1>
+      <p class="lede">
+        Ces valeurs commandent chaque prix proposé. Celles livrées sont des
+        <strong>hypothèses de départ</strong> — un taux horaire d'usinage de PME, une mise en
+        train forfaitaire, une courbe d'apprentissage usuelle, des tarifs matière au cours du
+        marché. Aucune n'est mesurée chez vous. Corrigez-les, puis relancez le calcul sur un
+        devis : rien n'est recalculé dans votre dos, parce qu'un prix déjà parti chez un client
+        ne doit pas changer tout seul.
+      </p>
+    </div>
+
+    <section class="card block">
+      <h2>Temps et taux</h2>
+      <p class="why">
+        Le prix se construit toujours de la même façon : matière, puis temps d'usinage au taux
+        horaire, puis mise en train amortie sur la série, puis marge. Deux quantités du même
+        article donnent donc deux prix cohérents entre eux par construction.
+      </p>
+      <div class="grid" id="settingsGrid"></div>
+    </section>
+
+    <section class="card block">
+      <h2>Matières</h2>
+      <p class="why">
+        Prix au kilo et densité : les deux seules choses dont le moteur a besoin pour passer d'un
+        encombrement à un coût matière. La ligne « Matière non identifiée » est un repli assumé —
+        quand une nuance n'est pas reconnue, elle sert, et l'article porte une alerte.
+      </p>
+      <div class="grid" id="materialGrid"></div>
+    </section>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="save" type="button">Enregistrer</button>
+      <span class="note" id="note"></span>
+    </div>
+  </main>
+
+  <script>
+    const FIELDS = [
+      ['hourlyRate', 'Taux horaire', '€/h · machine + opérateur'],
+      ['setupMinutes', 'Mise en train', 'min par référence'],
+      ['minutesPerDm3', 'Usinage', 'min par dm³ enlevé'],
+      ['removalRatio', 'Part de matière enlevée', '0 à 1'],
+      ['learningCurve', 'Courbe d’apprentissage', '0.90 = −10 % au doublement'],
+      ['marginPct', 'Marge', '%'],
+      ['handlingMinutesPerPart', 'Reprise et contrôle', 'min par pièce'],
+    ];
+
+    let SETTINGS = null;
+    let MATERIALS = [];
+    const inputs = {};
+    const matInputs = {};
+
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text != null) node.textContent = text;
+      return node;
+    }
+
+    function field(label, unit, value, key, store) {
+      const box = el('div', 'field');
+      box.appendChild(el('label', null, label));
+      const input = el('input');
+      input.type = 'number';
+      input.step = '0.01';
+      input.min = '0';
+      input.value = value;
+      input.setAttribute('aria-label', label);
+      store[key] = input;
+      box.appendChild(input);
+      box.appendChild(el('span', 'unit', unit));
+      return box;
+    }
+
+    function render() {
+      const grid = document.getElementById('settingsGrid');
+      grid.innerHTML = '';
+      for (const [key, label, unit] of FIELDS) {
+        grid.appendChild(field(label, unit, SETTINGS[key], key, inputs));
+      }
+
+      const mats = document.getElementById('materialGrid');
+      mats.innerHTML = '';
+      for (const m of MATERIALS) {
+        mats.appendChild(field(m.label, '€/kg · densité ' + m.density, m.pricePerKg, m.id, matInputs));
+      }
+    }
+
+    document.getElementById('save').onclick = async () => {
+      const note = document.getElementById('note');
+      const button = document.getElementById('save');
+      button.disabled = true;
+      note.className = 'note';
+      note.textContent = 'Enregistrement…';
+
+      try {
+        const patch = {};
+        for (const [key] of FIELDS) patch[key] = Number(inputs[key].value);
+        const resp = await fetch('/api/pricing/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
+        SETTINGS = data.settings;
+
+        for (const m of MATERIALS) {
+          const value = Number(matInputs[m.id].value);
+          if (value === m.pricePerKg) continue;
+          const r = await fetch('/api/pricing/materials', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: m.id, pricePerKg: value }),
+          });
+          const d = await r.json();
+          if (!r.ok) throw new Error(d.message || 'HTTP ' + r.status);
+          MATERIALS = d.materials;
+        }
+
+        render();
+        note.className = 'note done';
+        note.textContent = 'Enregistré — les devis déjà chiffrés gardent leur prix jusqu’à un recalcul.';
+      } catch (err) {
+        note.className = 'note warn';
+        note.textContent = 'Non enregistré : ' + err.message;
+      } finally {
+        button.disabled = false;
+      }
+    };
+
+    (async function load() {
+      const note = document.getElementById('note');
+      try {
+        const resp = await fetch('/api/pricing/settings');
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
+        SETTINGS = data.settings;
+        MATERIALS = data.materials || [];
+        render();
+      } catch (err) {
+        note.className = 'note warn';
+        note.textContent = 'Paramètres injoignables : ' + err.message;
+      }
+    })();
+  </script>
+</body>
+</html>

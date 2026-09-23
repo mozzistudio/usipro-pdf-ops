@@ -108,6 +108,17 @@ export interface ChiffrageLine {
   totalPrice?: number | null;
   /** Le bordereau: chaque poste et sa base de calcul. */
   priceBreakdown?: { items: Array<{ label: string; amount: number; basis: string }>; assumptions: string[]; quantity: number } | null;
+  /** Identifiant de la ligne — nécessaire pour la trancher une par une. */
+  id?: string;
+  /** Où en est la revue technique de cette ligne. */
+  status?: 'a_traiter' | 'validee' | 'forcee' | 'manuelle' | 'rejetee';
+  /** Prix imposé par le technicien. Le calcul reste au bordereau. */
+  forcedPrice?: number | null;
+  /** Consigne écrite par le technicien: corriger, ou expliquer. */
+  reviewNote?: string | null;
+  /** rouge: pas chiffrable · jaune: chiffré sous hypothèse · vert: rien à signaler. */
+  alertLevel?: 'vert' | 'jaune' | 'rouge';
+  alerts?: string[];
 }
 
 /**
