@@ -44,6 +44,35 @@ var MAX_TOTAL_BYTES = 18 * 1024 * 1024;
 var PARSABLE = /\.(xlsx|xlsm|xls|csv|tsv|pdf|stp|step|txt|jpe?g|png|gif|webp)$/i;
 
 /**
+ * Rejoue les mails déjà traités.
+ *
+ * Placée en tête volontairement: l'éditeur Apps Script vise la première
+ * fonction du fichier quand on clique sur Exécuter, et c'est celle-ci qu'on
+ * veut sous la main le jour où le serveur a été corrigé.
+ *
+ * À lancer après une correction: un mail perdu sur un bug n'a aucune raison
+ * de l'être définitivement, et le redemander au client n'est pas une option.
+ * L'état « vu » est effacé, le prochain passage reprend la boîte depuis le
+ * début. Les demandes déjà enregistrées sont mises à jour, pas dupliquées:
+ * le serveur les range par référence.
+ */
+function rejouer() {
+  var props = PropertiesService.getScriptProperties();
+  var keys = Object.keys(props.getProperties());
+  var n = 0;
+
+  keys.forEach(function (key) {
+    if (key.indexOf('seen:') === 0 || key.indexOf('attempts:') === 0) {
+      props.deleteProperty(key);
+      n++;
+    }
+  });
+
+  Logger.log('Etat efface pour ' + n + ' entree(s). Lancez pollInbox, ou attendez la minute.');
+  return n;
+}
+
+/**
  * À exécuter une fois à la main: crée les libellés et le déclencheur minute.
  * Idempotent — relancer ne crée pas de doublon.
  */
@@ -221,31 +250,6 @@ function collectAttachments(message) {
 }
 
 /** Clé d'état d'un message. Stable: l'identifiant Gmail ne change pas. */
-/**
- * Rejoue les mails déjà traités.
- *
- * À lancer à la main après une correction du serveur: un mail perdu sur un
- * bug n'a aucune raison de l'être définitivement, et le redemander au client
- * n'est pas une option. L'état « vu » est effacé, le prochain passage
- * reprend la boîte depuis le début. Les demandes déjà enregistrées sont mises
- * à jour, pas dupliquées: le serveur les range par référence.
- */
-function rejouer() {
-  var props = PropertiesService.getScriptProperties();
-  var keys = Object.keys(props.getProperties());
-  var n = 0;
-
-  keys.forEach(function (key) {
-    if (key.indexOf('seen:') === 0 || key.indexOf('attempts:') === 0) {
-      props.deleteProperty(key);
-      n++;
-    }
-  });
-
-  Logger.log('Etat efface pour ' + n + ' entree(s). Lancez pollInbox, ou attendez la minute.');
-  return n;
-}
-
 function seenKey(message) {
   return 'seen:' + message.getId();
 }

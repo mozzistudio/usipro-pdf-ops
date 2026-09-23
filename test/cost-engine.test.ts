@@ -83,6 +83,15 @@ assert(!!plat && plat[0] === 200 && plat[1] === 150, `deux côtés lus (obtenu $
 assert(parseBbox2dMm('lot de 12 x 5 pièces') === null, "un décompte n'est pas une cote");
 assert(parseBbox2dMm('aucune cote ici') === null, 'aucune cote inventée');
 
+assert(
+  parseBbox2dMm('Casser les arêtes vives CH 0.5x0.5 ; point de centre accepté') === null,
+  "un chanfrein n'est pas un encombrement",
+);
+assert(
+  JSON.stringify(parseBbox2dMm('CH 0.5x0.5 ; brut 200 x 150 ; congé R2x2')) === '[200,150]',
+  'entre plusieurs couples de cotes, le plus grand est retenu',
+);
+
 console.log('\n─── Supposer le moins possible ─────────────────────────────');
 
 const bride = computeLinePrice(

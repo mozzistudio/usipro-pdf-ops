@@ -837,6 +837,34 @@ export async function addWorkFile(input: {
   const storage = supabaseStorage();
   if (!db || !storage) return null;
 
+  // Rejouer un mail ne doit pas empiler ses pièces jointes. Le même fichier,
+  // de la même taille, sur le même travail, est déjà là: on le laisse.
+  const { data: existing } = await db
+    .from('work_files')
+    .select('id, storage_path, created_at, part_id, byte_size')
+    .eq('work_id', workId(input.tool, input.ref))
+    .eq('kind', input.kind)
+    .eq('file_name', input.fileName)
+    .eq('byte_size', input.bytes.length)
+    .maybeSingle();
+
+  if (existing) {
+    const row = existing as {
+      id: string; storage_path: string; created_at: string;
+      part_id: string | null; byte_size: number;
+    };
+    return {
+      id: row.id,
+      workId: workId(input.tool, input.ref),
+      createdAt: row.created_at,
+      kind: input.kind,
+      partId: row.part_id ?? undefined,
+      fileName: input.fileName,
+      storagePath: row.storage_path,
+      byteSize: row.byte_size,
+    };
+  }
+
   const id = crypto.randomUUID();
   const storagePath = `${input.tool}/${input.ref}/${input.kind}/${id}-${input.fileName}`;
 

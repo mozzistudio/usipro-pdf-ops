@@ -69,6 +69,16 @@ export const DEFAULT_SETTINGS: PricingSettings = {
  */
 const NUM = '(\\d+(?:\\.\\d+)?)(?:\\s*[±+]\\s*[\\d.]+)?';
 
+/**
+ * Bornes de plausibilité d'une cote d'encombrement, en millimètres.
+ *
+ * En dessous, on lit un chanfrein, un rayon ou une tolérance; au-dessus, un
+ * numéro de série ou une référence. Ni l'un ni l'autre n'est la taille de la
+ * pièce, et les confondre produit un prix absurde dans un sens ou dans l'autre.
+ */
+const MIN_DIM_MM = 5;
+const MAX_DIM_MM = 3000;
+
 /** Épaisseur supposée quand le plan ne donne que deux côtés. */
 const DEFAULT_THICKNESS_MM = 30;
 
@@ -119,16 +129,32 @@ export function parseBboxMm(raw: string): [number, number, number] | null {
  */
 export function parseBbox2dMm(raw: string): [number, number] | null {
   const text = (raw || '').replace(/,/g, '.');
-  const match = text.match(new RegExp(`${NUM}\\s*[x×*]\\s*${NUM}`, 'i'));
-  if (!match) return null;
+  const re = new RegExp(`${NUM}\\s*[x×*]\\s*${NUM}`, 'gi');
 
-  const dims = [Number(match[1]), Number(match[2])];
-  if (!dims.every(d => Number.isFinite(d) && d > 0)) return null;
+  // Tous les couples, pas le premier. Un commentaire d'usinage en contient
+  // plusieurs — « CH 0.5x0.5 » pour un chanfrein, « 200 x 150 » pour la pièce —
+  // et prendre le premier venu avait chiffré une vis à 2,23 € sur la cote de
+  // son chanfrein. On retient le plus grand, qui est le seul candidat
+  // plausible pour un encombrement.
+  let best: [number, number] | null = null;
+  let bestArea = 0;
 
-  // « 12 x 5 pièces » n'est pas une cote. Une dimension de pièce usinée fait au
-  // moins un millimètre de côté et ne se lit pas comme un décompte.
-  if (/^\s*(pi[eè]ces?|pcs|ex|u)\b/i.test(text.slice(match.index! + match[0].length))) return null;
-  return dims as [number, number];
+  for (const match of text.matchAll(re)) {
+    const dims = [Number(match[1]), Number(match[2])];
+    if (!dims.every(d => Number.isFinite(d) && d >= MIN_DIM_MM && d <= MAX_DIM_MM)) continue;
+
+    // « 12 x 5 pièces » n'est pas une cote, c'est un décompte.
+    const after = text.slice(match.index + match[0].length);
+    if (/^\s*(pi[eè]ces?|pcs|ex|u)\b/i.test(after)) continue;
+
+    const area = dims[0] * dims[1];
+    if (area > bestArea) {
+      bestArea = area;
+      best = dims as [number, number];
+    }
+  }
+
+  return best;
 }
 
 /** Rattache un texte de matière à une nuance tarifée. */
