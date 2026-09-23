@@ -147,6 +147,9 @@ Pas de markdown, pas d'explication hors JSON.`;
  * reviendrait à perdre une consultation parce qu'elle a été écrite en deux
  * lignes et un fichier Excel.
  */
+/** Au-delà, une demande à vingt photos ferait exploser le coût d'une extraction. */
+const MAX_IMAGES = 8;
+
 export async function parseChiffrageEmail(
   email: InboundEmail,
   /** Pièces jointes déjà lues — leur texte entre dans le prompt tel quel. */
@@ -170,10 +173,16 @@ export async function parseChiffrageEmail(
     messages: [
       {
         role: 'user',
-        content:
-          `De: ${email.from}\nObjet: ${email.subject}\n\n${email.body}` +
-          describeFiles(files) +
-          attachmentsToPrompt(files),
+        content: [
+          {
+            type: 'text',
+            text:
+              `De: ${email.from}\nObjet: ${email.subject}\n\n${email.body}` +
+              describeFiles(files) +
+              attachmentsToPrompt(files),
+          },
+          ...imageBlocks(files),
+        ],
       },
     ],
   } as any);
@@ -242,14 +251,45 @@ function fallbackReference(email: InboundEmail): string {
  * Le modèle doit savoir qu'un plan existe même quand son contenu manque:
  * c'est la différence entre « demande sans pièces » et « pièces à ouvrir ».
  */
+/**
+ * Les images jointes, prêtes pour le modèle.
+ *
+ * Une demande arrive souvent en photo: un plan posé sur l'établi, une pièce
+ * sur une table. C'est illisible pour un extracteur de texte et parfaitement
+ * lisible pour le modèle — encore faut-il les lui donner.
+ *
+ * Chaque image est précédée de son nom: sans ça, le modèle voit trois photos
+ * et ne peut rattacher aucune à la référence dont il parle.
+ */
+function imageBlocks(files: ReadAttachment[]): unknown[] {
+  const images = files.filter(f => f.image).slice(0, MAX_IMAGES);
+  const blocks: unknown[] = [];
+
+  for (const file of images) {
+    blocks.push({ type: 'text', text: `Image jointe: ${file.name}` });
+    blocks.push({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: file.image!.mediaType,
+        data: file.image!.bytes.toString('base64'),
+      },
+    });
+  }
+
+  return blocks;
+}
+
 function describeFiles(files: ReadAttachment[]): string {
   if (files.length === 0) return '';
   const lignes = files.map(f => {
     const etat = f.text.trim()
       ? 'contenu lu ci-dessous'
-      : f.kind === 'step'
-        ? 'modèle 3D, analysé séparément'
-        : f.note || 'non lu';
+      : f.image
+        ? 'image jointe à ce message — regarde-la'
+        : f.kind === 'step'
+          ? 'modèle 3D, analysé séparément'
+          : f.note || 'non lu';
     return `- ${f.name} (${f.kind}, ${Math.round((f.size || 0) / 1024)} ko) — ${etat}`;
   });
   return `\n\n--- PIÈCES JOINTES AU MAIL ---\n${lignes.join('\n')}`;

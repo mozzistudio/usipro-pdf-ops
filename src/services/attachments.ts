@@ -34,12 +34,31 @@ export interface ReadAttachment {
   text: string;
   /** Octets du STEP, pour le calcul d'empreinte. Null sinon. */
   stepBytes: Buffer | null;
+  /** Octets d'une image, pour l'envoyer au modèle qui, lui, sait la regarder. */
+  image: { bytes: Buffer; mediaType: string } | null;
   /** Ce qui empêche de lire ce fichier, en clair pour l'opérateur. */
   note: string | null;
 }
 
 /** Au-delà, le texte d'une pièce jointe est tronqué avant d'entrer dans un prompt. */
 const MAX_TEXT_PER_FILE = 12000;
+/** Au-delà, l'API refuse l'image. On le dit plutôt que de laisser l'appel échouer. */
+const MAX_IMAGE_BYTES = 4.5 * 1024 * 1024;
+
+/** Les seuls formats d'image que le modèle sait regarder. */
+const IMAGE_MEDIA_TYPES: Record<string, string> = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+  gif: 'image/gif', webp: 'image/webp',
+};
+
+function ext(name: string): string {
+  return (name.split('.').pop() || '').toLowerCase();
+}
+
+function imageMediaType(name: string): string | null {
+  return IMAGE_MEDIA_TYPES[ext(name)] ?? null;
+}
+
 /** Un tableur peut contenir des milliers de lignes de tableau de bord: on borne. */
 const MAX_SHEET_ROWS = 400;
 
@@ -60,7 +79,9 @@ export function classify(name: string, contentType?: string): ReadAttachment['ki
 export async function readAttachment(att: InboundAttachment): Promise<ReadAttachment> {
   const kind = classify(att.name, att.contentType);
   const size = att.size ?? 0;
-  const base: ReadAttachment = { name: att.name, kind, size, text: '', stepBytes: null, note: null };
+  const base: ReadAttachment = {
+    name: att.name, kind, size, text: '', stepBytes: null, image: null, note: null,
+  };
 
   if (!att.contentBase64) {
     return { ...base, note: att.skipped || 'contenu non transmis' };
@@ -85,7 +106,21 @@ export async function readAttachment(att: InboundAttachment): Promise<ReadAttach
       return { ...base, size: bytes.length, stepBytes: bytes };
     }
     if (kind === 'image') {
-      return { ...base, size: bytes.length, note: 'image — non lue automatiquement' };
+      // Une photo de plan n'a pas de texte à extraire: elle part telle quelle
+      // au modèle, qui sait la regarder. Un format que l'API n'accepte pas
+      // repart avec sa raison plutôt qu'en silence.
+      const mediaType = imageMediaType(att.name);
+      if (!mediaType) {
+        return { ...base, size: bytes.length, note: `image ${ext(att.name)} — format non lisible par le modèle` };
+      }
+      if (bytes.length > MAX_IMAGE_BYTES) {
+        return {
+          ...base,
+          size: bytes.length,
+          note: `image trop lourde (${Math.round(bytes.length / 1024 / 1024)} Mo) — non transmise au modèle`,
+        };
+      }
+      return { ...base, size: bytes.length, image: { bytes, mediaType } };
     }
     return { ...base, size: bytes.length, note: 'format non lu automatiquement' };
   } catch (err: any) {

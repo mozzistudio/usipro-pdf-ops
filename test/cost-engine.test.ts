@@ -14,6 +14,7 @@ import {
   MaterialRate,
   computeLinePrice,
   matchMaterial,
+  parseBbox2dMm,
   parseBboxMm,
   parseQuantity,
 } from '../src/services/costEngine';
@@ -62,6 +63,50 @@ assert(parseBboxMm('pas de cote ici') === null, 'aucun encombrement inventé');
 
 assert(matchMaterial('Aluminium 6061', RATES).id === 'aluminium', 'nuance reconnue par alias');
 assert(matchMaterial('40CrMnMoS8-6', RATES).id === 'inconnu', 'nuance inconnue → tarif générique, pas de choix au hasard');
+
+console.log('\n─── Les cotes telles que les clients les écrivent ───────────');
+
+const fr = parseBboxMm('Encombrement : 419,3 x 228,4 x 32 mm');
+assert(
+  !!fr && fr[0] === 419.3 && fr[1] === 228.4 && fr[2] === 32,
+  `virgules décimales françaises lues (obtenu ${JSON.stringify(fr)})`,
+);
+
+const tol = parseBboxMm('200 ±0,1 x 150 x 25');
+assert(
+  !!tol && tol[0] === 200 && tol[1] === 150,
+  `une tolérance ne casse pas la lecture de la cote (obtenu ${JSON.stringify(tol)})`,
+);
+
+const plat = parseBbox2dMm('Plan: 200 ±0,1 x 150, alésage Ø70 H7');
+assert(!!plat && plat[0] === 200 && plat[1] === 150, `deux côtés lus (obtenu ${JSON.stringify(plat)})`);
+assert(parseBbox2dMm('lot de 12 x 5 pièces') === null, "un décompte n'est pas une cote");
+assert(parseBbox2dMm('aucune cote ici') === null, 'aucune cote inventée');
+
+console.log('\n─── Supposer le moins possible ─────────────────────────────');
+
+const bride = computeLinePrice(
+  { reference: 'PH-4402', designation: 'Bride', material: 'Aluminium', quantity: '24', comment: '200 x 150' },
+  DEFAULT_SETTINGS,
+  RATES,
+);
+const rien = computeLinePrice(
+  { reference: 'PH-4402', designation: 'Bride', material: 'Aluminium', quantity: '24', comment: '' },
+  DEFAULT_SETTINGS,
+  RATES,
+);
+assert(
+  bride.assumptions.length === 1 && bride.assumptions[0].includes('épaisseur'),
+  `deux côtés connus: seule l'épaisseur est supposée (obtenu ${JSON.stringify(bride.assumptions)})`,
+);
+assert(
+  rien.assumptions[0].includes('encombrement absent'),
+  'sans aucune cote, le repli générique reste annoncé',
+);
+assert(
+  bride.unitPrice > rien.unitPrice * 3,
+  `une bride de 200 × 150 coûte bien plus que le repli 100 × 60 (${bride.unitPrice} vs ${rien.unitPrice})`,
+);
 
 console.log('\n─── Déterminisme ───────────────────────────────────────────');
 

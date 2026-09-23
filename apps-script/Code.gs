@@ -37,7 +37,11 @@ var MAX_ATTACHMENT_BYTES = 6 * 1024 * 1024;
 var MAX_TOTAL_BYTES = 18 * 1024 * 1024;
 
 /** Formats dont le serveur sait tirer quelque chose. Le reste part en nom seul. */
-var PARSABLE = /\.(xlsx|xlsm|xls|csv|tsv|pdf|stp|step|txt)$/i;
+// Les images comptent: beaucoup de demandes arrivent en photo de plan ou de
+// piece, prises a l'atelier. Le modele les lit nativement. Les formats sont
+// ceux que l'API accepte — un HEIC d'iPhone n'en fait pas partie et repart
+// avec sa raison, plutot que d'etre avale silencieusement.
+var PARSABLE = /\.(xlsx|xlsm|xls|csv|tsv|pdf|stp|step|txt|jpe?g|png|gif|webp)$/i;
 
 /**
  * À exécuter une fois à la main: crée les libellés et le déclencheur minute.
