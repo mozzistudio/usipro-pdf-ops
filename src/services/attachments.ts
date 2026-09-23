@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 import { logger } from '../utils/logger';
 
 /**
@@ -28,7 +29,7 @@ export interface InboundAttachment {
 
 export interface ReadAttachment {
   name: string;
-  kind: 'tableur' | 'pdf' | 'step' | 'image' | 'autre';
+  kind: 'tableur' | 'pdf' | 'step' | 'image' | 'archive' | 'autre';
   size: number;
   /** Texte extrait, prêt à être lu par le modèle. Vide si rien d'exploitable. */
   text: string;
@@ -38,10 +39,16 @@ export interface ReadAttachment {
   image: { bytes: Buffer; mediaType: string } | null;
   /** Ce qui empêche de lire ce fichier, en clair pour l'opérateur. */
   note: string | null;
+  /** D'où sort ce fichier quand il vient d'une archive. */
+  fromArchive?: string;
 }
 
 /** Au-delà, le texte d'une pièce jointe est tronqué avant d'entrer dans un prompt. */
 const MAX_TEXT_PER_FILE = 12000;
+/** Bornes d'ouverture d'une archive: un zip de plans reste raisonnable, un zip de sauvegarde non. */
+const MAX_ARCHIVE_ENTRIES = 60;
+const MAX_ARCHIVE_BYTES = 80 * 1024 * 1024;
+
 /** Au-delà, l'API refuse l'image. On le dit plutôt que de laisser l'appel échouer. */
 const MAX_IMAGE_BYTES = 4.5 * 1024 * 1024;
 
@@ -67,6 +74,7 @@ export function classify(name: string, contentType?: string): ReadAttachment['ki
   if (/\.(xlsx|xlsm|xls|csv|tsv)$/.test(lower)) return 'tableur';
   if (/\.pdf$/.test(lower)) return 'pdf';
   if (/\.(stp|step)$/.test(lower)) return 'step';
+  if (/\.zip$/.test(lower)) return 'archive';
   if (/\.(png|jpe?g|gif|webp|bmp|heic)$/.test(lower)) return 'image';
   if (contentType?.startsWith('image/')) return 'image';
   return 'autre';
@@ -99,11 +107,26 @@ export async function readAttachment(att: InboundAttachment): Promise<ReadAttach
       return { ...base, size: bytes.length, text: sheetToText(bytes, att.name) };
     }
     if (kind === 'pdf') {
-      return { ...base, size: bytes.length, text: await pdfToText(bytes) };
+      const text = await pdfToText(bytes);
+      if (text.trim()) return { ...base, size: bytes.length, text };
+      // Un PDF sans texte est presque toujours un plan scanné. Le dire permet
+      // à l'opérateur de l'ouvrir lui-même plutôt que de chercher pourquoi la
+      // pièce n'a pas de matière.
+      return {
+        ...base,
+        size: bytes.length,
+        note: 'PDF sans couche texte (scan ?) — à ouvrir à la main',
+      };
     }
     if (kind === 'step') {
       // Le texte d'un STEP n'apprend rien au modèle ; sa géométrie, si.
       return { ...base, size: bytes.length, stepBytes: bytes };
+    }
+    if (kind === 'archive') {
+      // L'archive elle-même n'a rien à dire; ce qu'elle contient, si. Elle est
+      // ouverte séparément par expandArchive, pour que chaque membre suive le
+      // même chemin qu'une pièce jointe ordinaire.
+      return { ...base, size: bytes.length, note: 'archive — ouverte, voir son contenu' };
     }
     if (kind === 'image') {
       // Une photo de plan n'a pas de texte à extraire: elle part telle quelle
@@ -127,6 +150,62 @@ export async function readAttachment(att: InboundAttachment): Promise<ReadAttach
     logger.warn({ name: att.name, err: err.message }, 'Pièce jointe illisible');
     return { ...base, size: bytes.length, note: `lecture impossible: ${err.message}` };
   }
+}
+
+/**
+ * Ouvre une archive et lit chacun de ses membres.
+ *
+ * Un « package de plans » est presque toujours un .zip: une dizaine de PDF,
+ * parfois les STEP à côté. S'arrêter au zip revient à ne rien recevoir, alors
+ * que tout est là. Les membres repassent par readAttachment, donc un PDF dans
+ * un zip est lu exactement comme un PDF joint au mail.
+ *
+ * Ne lève jamais: une archive illisible ou protégée redevient une note.
+ */
+export async function expandArchive(
+  name: string,
+  bytes: Buffer,
+): Promise<{ members: Array<{ read: ReadAttachment; bytes: Buffer }>; note: string | null }> {
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(bytes);
+  } catch (err: any) {
+    return { members: [], note: `archive illisible: ${err.message}` };
+  }
+
+  const entries = Object.values(zip.files).filter(e => !e.dir);
+  const kept: Array<{ read: ReadAttachment; bytes: Buffer }> = [];
+  let budget = MAX_ARCHIVE_BYTES;
+  let skipped = 0;
+
+  for (const entry of entries.slice(0, MAX_ARCHIVE_ENTRIES)) {
+    // Les dossiers cachés d'un zip macOS ne sont pas des plans.
+    if (/^__MACOSX\/|\/\._|^\._/.test(entry.name)) continue;
+
+    let member: Buffer;
+    try {
+      member = Buffer.from(await entry.async('nodebuffer'));
+    } catch {
+      skipped++;
+      continue;
+    }
+    if (member.length > budget) { skipped++; continue; }
+    budget -= member.length;
+
+    const base = entry.name.split('/').pop() || entry.name;
+    const read = await readAttachment({
+      name: base,
+      size: member.length,
+      contentBase64: member.toString('base64'),
+    });
+    kept.push({ read: { ...read, fromArchive: name }, bytes: member });
+  }
+
+  const extra = entries.length - Math.min(entries.length, MAX_ARCHIVE_ENTRIES) + skipped;
+  return {
+    members: kept,
+    note: extra > 0 ? `${extra} fichier(s) de l'archive non lus (nombre ou poids)` : null,
+  };
 }
 
 /**
@@ -157,11 +236,36 @@ function sheetToText(bytes: Buffer, name: string): string {
   return out.join('\n').slice(0, MAX_TEXT_PER_FILE);
 }
 
+/**
+ * Le texte d'un PDF, par deux lecteurs plutôt qu'un.
+ *
+ * pdf2json encaisse des PDF que pdf-parse refuse, et l'inverse est vrai aussi:
+ * il rendait une chaîne vide sur des plans parfaitement lisibles, en avalant
+ * son erreur. Un plan muet fait chiffrer une pièce sur son nom de fichier,
+ * donc on essaie le second avant d'abandonner.
+ *
+ * Quand les deux échouent, ce n'est pas forcément une panne: un plan scanné
+ * n'a pas de couche texte. L'appelant le dit à l'opérateur au lieu de laisser
+ * croire que la pièce jointe était vide.
+ */
 async function pdfToText(bytes: Buffer): Promise<string> {
-  // pdf2json est déjà utilisé par l'anonymiseur : même lecteur, même comportement.
   const { extractTextFromPdf } = await import('./pdfAnonymizer');
-  const text = await extractTextFromPdf(bytes);
-  return (text || '').slice(0, MAX_TEXT_PER_FILE);
+  const first = (await extractTextFromPdf(bytes)) || '';
+  if (first.trim()) return first.slice(0, MAX_TEXT_PER_FILE);
+
+  try {
+    const { PDFParse } = await import('pdf-parse');
+    const parser = new PDFParse({ data: new Uint8Array(bytes) });
+    try {
+      const result = await parser.getText();
+      return (result.text || '').slice(0, MAX_TEXT_PER_FILE);
+    } finally {
+      await parser.destroy();
+    }
+  } catch (err: any) {
+    logger.warn({ err: err.message }, 'Second lecteur PDF en échec');
+    return '';
+  }
 }
 
 /**

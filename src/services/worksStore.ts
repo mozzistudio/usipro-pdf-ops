@@ -956,6 +956,78 @@ export async function listWorkFiles(
   );
 }
 
+// ── Le sas d'entrée des pièces jointes ───────────────────────────
+
+/**
+ * Où atterrissent les pièces jointes avant qu'on sache à quelle demande elles
+ * appartiennent. Elles y sont déposées par le pont Gmail, puis déplacées vers
+ * le dossier du travail une fois la référence connue.
+ */
+const INBOX_PREFIX = 'inbox';
+
+/**
+ * Un nom de fichier sûr comme clé de stockage.
+ *
+ * Le nom vient d'un mail: il peut contenir des barres obliques, des « .. » ou
+ * des caractères qui feraient une clé absurde. On garde de quoi le reconnaître
+ * à l'œil, le nom d'origine étant de toute façon conservé en base.
+ */
+export function safeKey(name: string): string {
+  const cleaned = (name || 'fichier')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/^[.-]+/, '')
+    .slice(0, 120);
+  return cleaned || 'fichier';
+}
+
+/**
+ * Une URL de dépôt direct dans le seau, pour une pièce jointe.
+ *
+ * Pourquoi ce détour: la plateforme refuse tout corps de requête au-delà de
+ * 4,5 Mo, et un package de plans les dépasse sans effort. Le pont dépose donc
+ * les fichiers directement dans le stockage, et ne nous envoie que leurs noms.
+ * Un plan de 30 Mo n'a plus à tenir dans un POST.
+ */
+export async function createInboxUpload(
+  messageId: string,
+  fileName: string,
+  index: number,
+): Promise<{ path: string; url: string } | null> {
+  const storage = supabaseStorage();
+  if (!storage) return null;
+
+  const path = `${INBOX_PREFIX}/${safeKey(messageId)}/${index}-${safeKey(fileName)}`;
+  const { data, error } = await storage.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUploadUrl(path);
+  if (error) throw new Error(`URL de dépôt impossible: ${error.message}`);
+
+  return { path, url: data.signedUrl };
+}
+
+/** Relit une pièce jointe déposée dans le sas. */
+export async function readInboxObject(path: string): Promise<Buffer | null> {
+  const storage = supabaseStorage();
+  if (!storage) return null;
+  if (!path.startsWith(`${INBOX_PREFIX}/`)) {
+    throw new Error(`Chemin hors du sas d'entrée: ${path}`);
+  }
+
+  const { data, error } = await storage.storage.from(STORAGE_BUCKET).download(path);
+  if (error || !data) return null;
+  return Buffer.from(await data.arrayBuffer());
+}
+
+/** Vide le sas d'un message une fois ses fichiers rangés. */
+export async function clearInbox(paths: string[]): Promise<void> {
+  const storage = supabaseStorage();
+  if (!storage || paths.length === 0) return;
+  const inbox = paths.filter(p => p.startsWith(`${INBOX_PREFIX}/`));
+  if (inbox.length) await storage.storage.from(STORAGE_BUCKET).remove(inbox);
+}
+
 /**
  * Les octets d'un fichier archivé, avec son nom et son type.
  *

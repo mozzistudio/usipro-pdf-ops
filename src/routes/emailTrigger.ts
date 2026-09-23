@@ -3,8 +3,15 @@ import crypto from 'crypto';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { parseChiffrageEmail, InboundEmail } from '../services/emailParser';
-import { readAttachment } from '../services/attachments';
-import { addWorkFile, priceRequest, recordChiffrageRequest } from '../services/worksStore';
+import { expandArchive, readAttachment } from '../services/attachments';
+import {
+  addWorkFile,
+  clearInbox,
+  createInboxUpload,
+  priceRequest,
+  readInboxObject,
+  recordChiffrageRequest,
+} from '../services/worksStore';
 import { attachPart } from '../services/articleStore';
 
 /**
@@ -57,6 +64,50 @@ function pruneRuns(): void {
  * From header. The shared secret in x-trigger-secret is what gates the call.
  */
 export function registerEmailTriggerEndpoint(router: Router): void {
+  /**
+   * Les URL de dépôt des pièces jointes d'un message.
+   *
+   * La plateforme refuse tout corps de requête au-delà de 4,5 Mo — un package
+   * de plans les dépasse sans effort, et le pont se voyait répondre 413 puis
+   * abandonnait le mail au bout de cinq essais. Il dépose donc désormais les
+   * fichiers directement dans le seau et ne nous envoie que leurs noms.
+   */
+  router.post('/api/email-trigger/uploads', async (req: Request, res: Response) => {
+    const expected = config.emailTrigger.secret;
+    if (!expected) {
+      res.status(503).json({ status: 'error', message: 'Trigger email non configuré' });
+      return;
+    }
+    if (!secretMatches(String(req.get('x-trigger-secret') || ''), expected)) {
+      logger.warn({ ip: req.ip }, 'Dépôt de pièces jointes: secret invalide');
+      res.status(401).json({ status: 'error', message: 'Non autorisé' });
+      return;
+    }
+
+    const messageId = String(req.body?.messageId || '');
+    const names: string[] = Array.isArray(req.body?.files) ? req.body.files : [];
+    if (!messageId || names.length === 0) {
+      res.status(400).json({ status: 'error', message: 'messageId et files requis' });
+      return;
+    }
+
+    try {
+      const uploads = [];
+      for (const [index, name] of names.slice(0, 60).entries()) {
+        const slot = await createInboxUpload(messageId, String(name), index);
+        if (!slot) {
+          res.status(503).json({ status: 'error', message: 'Stockage non configuré' });
+          return;
+        }
+        uploads.push({ name: String(name), path: slot.path, url: slot.url });
+      }
+      res.json({ status: 'ok', uploads });
+    } catch (err: any) {
+      logger.error({ err: err.message, messageId }, 'URL de dépôt impossible');
+      res.status(503).json({ status: 'error', message: err.message });
+    }
+  });
+
   router.post('/api/email-trigger', async (req: Request, res: Response) => {
     const expected = config.emailTrigger.secret;
     if (!expected) {
@@ -140,8 +191,47 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
   }
 
   // Les pièces jointes sont lues avant l'extraction: c'est là que sont les
-  // quantités et les matières dans deux demandes sur trois.
-  const files = await Promise.all((inbound.attachments ?? []).map(readAttachment));
+  // quantités et les matières dans deux demandes sur trois. Celles que le pont
+  // a déposées dans le seau sont relues ici; les petites arrivent encore en
+  // ligne, pour qu'un pont non mis à jour continue de fonctionner.
+  const staged: string[] = [];
+  const incoming = await Promise.all(
+    (inbound.attachments ?? []).map(async (att: any) => {
+      if (att?.contentBase64 || !att?.storagePath) return att;
+      try {
+        const bytes = await readInboxObject(String(att.storagePath));
+        if (!bytes) return { ...att, skipped: 'fichier absent du dépôt' };
+        staged.push(String(att.storagePath));
+        return { ...att, size: bytes.length, contentBase64: bytes.toString('base64') };
+      } catch (err: any) {
+        logger.warn({ file: att.name, err: err.message }, 'Pièce jointe déposée illisible');
+        return { ...att, skipped: `dépôt illisible: ${err.message}` };
+      }
+    }),
+  );
+
+  const direct = await Promise.all(incoming.map(readAttachment));
+
+  // Une archive n'apprend rien; son contenu, si. Les membres rejoignent la
+  // liste et suivent exactement le chemin d'une pièce jointe ordinaire.
+  const files = [...direct];
+  const extracted: Array<{ name: string; bytes: Buffer }> = [];
+
+  for (const [index, file] of direct.entries()) {
+    if (file.kind !== 'archive') continue;
+    const bytes = incoming[index]?.contentBase64
+      ? Buffer.from(incoming[index].contentBase64, 'base64')
+      : null;
+    if (!bytes) continue;
+
+    const { members, note } = await expandArchive(file.name, bytes);
+    for (const member of members) {
+      files.push(member.read);
+      extracted.push({ name: member.read.name, bytes: member.bytes });
+    }
+    if (note) file.note = `${file.note ?? 'archive'} — ${note}`;
+    logger.info({ archive: file.name, membres: members.length }, 'Archive ouverte');
+  }
 
   let request;
   try {
@@ -171,8 +261,8 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
     // reçus du prix. Si un devis est contesté six mois plus tard, il faut
     // pouvoir rouvrir exactement le tableur sur lequel il a été calculé — et
     // ne pas dépendre pour ça d'une boîte mail que personne ne garantit.
-    for (const att of inbound.attachments ?? []) {
-      if (!att.contentBase64) continue; // trop lourd pour le pont: rien à archiver
+    for (const att of incoming) {
+      if (!att.contentBase64) continue; // non transmis: rien à archiver
       try {
         await addWorkFile({
           tool: 'chiffrage',
@@ -191,6 +281,30 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
         );
       }
     }
+
+    // Un plan tiré d'un zip doit être visible à l'écran comme un plan joint:
+    // l'emballage ne change rien à ce que l'opérateur a besoin de regarder.
+    for (const member of extracted) {
+      try {
+        await addWorkFile({
+          tool: 'chiffrage',
+          ref: work.ref,
+          kind: 'piece_jointe',
+          fileName: member.name,
+          bytes: member.bytes,
+        });
+      } catch (err: any) {
+        logger.warn(
+          { reference: request.reference, file: member.name, err: err.message },
+          "Fichier d'archive non archivé — la demande reste enregistrée",
+        );
+      }
+    }
+
+    // Le sas n'a plus de raison d'être une fois les fichiers rangés.
+    await clearInbox(staged).catch(err =>
+      logger.warn({ err: err.message }, "Sas d'entrée non vidé"),
+    );
 
     // Chaque STEP reçu entre au référentiel: c'est ce qui permettra de dire,
     // la prochaine fois, « cette pièce est déjà passée ». Un référentiel

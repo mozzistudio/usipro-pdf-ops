@@ -29,19 +29,13 @@ var LABEL_ERROR = 'chiffrage/erreur';
 /** Nombre d'échecs serveur tolérés avant d'abandonner un message. */
 var MAX_ATTEMPTS = 5;
 
-// Le contenu des pièces jointes part avec le mail: c'est là que sont les
-// quantités et les matières dans la plupart des demandes réelles. Deux bornes,
-// parce qu'un package de plans peut peser des dizaines de mégaoctets et que le
-// serveur, lui, a une limite de corps de requête.
-var MAX_ATTACHMENT_BYTES = 6 * 1024 * 1024;
-var MAX_TOTAL_BYTES = 18 * 1024 * 1024;
-
-/** Formats dont le serveur sait tirer quelque chose. Le reste part en nom seul. */
-// Les images comptent: beaucoup de demandes arrivent en photo de plan ou de
-// piece, prises a l'atelier. Le modele les lit nativement. Les formats sont
-// ceux que l'API accepte — un HEIC d'iPhone n'en fait pas partie et repart
-// avec sa raison, plutot que d'etre avale silencieusement.
-var PARSABLE = /\.(xlsx|xlsm|xls|csv|tsv|pdf|stp|step|txt|jpe?g|png|gif|webp)$/i;
+// Les pièces jointes ne voyagent plus dans le corps de la requête: la
+// plateforme le refuse au-dela de 4,5 Mo, et un package de plans le depasse
+// sans effort. Elles sont deposees directement dans le stockage, et le POST ne
+// porte que leurs chemins. Ces bornes ne sont donc plus la limite d'une
+// requete, mais ce qu'on accepte de traiter.
+var MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+var MAX_TOTAL_BYTES = 60 * 1024 * 1024;
 
 /**
  * Rejoue les mails déjà traités.
@@ -156,7 +150,7 @@ function pollInbox() {
           from: message.getFrom(),
           subject: message.getSubject(),
           body: message.getPlainBody(),
-          attachments: collectAttachments(message),
+          attachments: collectAttachments(message, url, secret),
         }),
         muteHttpExceptions: true,
         followRedirects: false,
@@ -194,6 +188,15 @@ function pollInbox() {
       return;
     }
 
+    if (code === 413) {
+      // Le corps reste trop gros malgre le depot: reessayer n'y changera rien.
+      // On classe en erreur tout de suite plutot que de bruler cinq essais.
+      markSeen(props, message);
+      thread.addLabel(errored);
+      Logger.log('Corps refuse (413) — ' + message.getSubject());
+      return;
+    }
+
     if (code === 401) {
       // Secret faux: réessayer ne servira à rien et logguer chaque minute
       // noierait le journal. On arrête net.
@@ -209,44 +212,93 @@ function pollInbox() {
 }
 
 /**
- * Les pièces jointes d'un message, contenu compris quand il tient dans les
- * bornes. Un fichier écarté part quand même, avec son nom et la raison: savoir
- * qu'un plan existe mais n'a pas été lu vaut mieux que ne rien savoir.
+ * Les pièces jointes d'un message, déposées dans le stockage.
+ *
+ * Le contenu ne transite plus par le corps de la requête: le serveur délivre
+ * une URL de dépôt par fichier, on y pousse les octets, et le POST ne porte
+ * que les chemins. C'est ce qui permet à un package de plans de 30 Mo
+ * d'arriver, là où il se faisait refuser en 413 puis abandonner au bout de
+ * cinq essais.
+ *
+ * Plus aucune liste blanche à l'entrée: un .dwg ou un .sldprt qu'on ne sait
+ * pas lire part quand même, parce que l'opérateur, lui, sait l'ouvrir. Un
+ * fichier écarté part aussi, avec son nom et la raison.
  *
  * Les images inline sont exclues: ce sont les logos des signatures.
  */
-function collectAttachments(message) {
-  var budget = MAX_TOTAL_BYTES;
+function collectAttachments(message, url, secret) {
   var files = message.getAttachments({ includeInlineImages: false, includeAttachments: true });
+  if (files.length === 0) return [];
 
-  return files.map(function (file) {
-    var name = file.getName();
+  var budget = MAX_TOTAL_BYTES;
+  var out = [];
+  var toUpload = [];
+
+  files.forEach(function (file) {
     var size = file.getSize();
-    var out = {
-      name: name,
+    var entry = {
+      name: file.getName(),
       contentType: file.getContentType(),
       size: size,
       contentBase64: null,
+      storagePath: null,
       skipped: null,
     };
 
-    if (!PARSABLE.test(name)) {
-      out.skipped = 'format non lu automatiquement';
-      return out;
-    }
     if (size > MAX_ATTACHMENT_BYTES) {
-      out.skipped = 'trop volumineux (' + Math.round(size / 1024 / 1024) + ' Mo)';
-      return out;
+      entry.skipped = 'trop volumineux (' + Math.round(size / 1024 / 1024) + ' Mo)';
+    } else if (size > budget) {
+      entry.skipped = 'budget du mail atteint, fichier non transmis';
+    } else {
+      budget -= size;
+      toUpload.push({ file: file, entry: entry });
     }
-    if (size > budget) {
-      out.skipped = 'budget du mail atteint, fichier non transmis';
-      return out;
-    }
-
-    budget -= size;
-    out.contentBase64 = Utilities.base64Encode(file.getBytes());
-    return out;
+    out.push(entry);
   });
+
+  if (toUpload.length === 0) return out;
+
+  var slots;
+  try {
+    var resp = UrlFetchApp.fetch(url.replace(/\/api\/email-trigger$/, '/api/email-trigger/uploads'), {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'x-trigger-secret': secret },
+      payload: JSON.stringify({
+        messageId: message.getId(),
+        files: toUpload.map(function (t) { return t.entry.name; }),
+      }),
+      muteHttpExceptions: true,
+    });
+    if (resp.getResponseCode() !== 200) throw new Error('HTTP ' + resp.getResponseCode());
+    slots = JSON.parse(resp.getContentText()).uploads || [];
+  } catch (err) {
+    // Sans depot possible on ne perd pas le mail: les fichiers partent sans
+    // contenu, et l'operateur voit au moins qu'ils existent.
+    Logger.log('Depot indisponible: ' + err);
+    toUpload.forEach(function (t) { t.entry.skipped = 'depot indisponible'; });
+    return out;
+  }
+
+  toUpload.forEach(function (t, i) {
+    var slot = slots[i];
+    if (!slot) { t.entry.skipped = 'aucune URL de depot'; return; }
+    try {
+      var put = UrlFetchApp.fetch(slot.url, {
+        method: 'put',
+        contentType: t.entry.contentType || 'application/octet-stream',
+        payload: t.file.getBytes(),
+        muteHttpExceptions: true,
+      });
+      if (put.getResponseCode() >= 300) throw new Error('HTTP ' + put.getResponseCode());
+      t.entry.storagePath = slot.path;
+    } catch (err) {
+      Logger.log('Depot echoue pour ' + t.entry.name + ': ' + err);
+      t.entry.skipped = 'depot echoue';
+    }
+  });
+
+  return out;
 }
 
 /** Clé d'état d'un message. Stable: l'identifiant Gmail ne change pas. */
