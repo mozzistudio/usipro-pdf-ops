@@ -236,6 +236,21 @@
      * Tout le reste est une supposition, et l'écran doit le dire plutôt que de
      * laisser croire que le plan affiché est celui du prix affiché.
      */
+    /**
+     * Une image de signature n'est pas un plan.
+     *
+     * Un mail d'entreprise transporte son logo et ses séparateurs, qu'Outlook
+     * nomme image001.png et que Gmail rend parfois comme pièces jointes. Les
+     * ouvrir par défaut à la place du plan fait perdre un clic à chaque
+     * article. Elles restent listées — rien n'est caché — mais ne sont pas le
+     * premier choix.
+     */
+    function looksDecorative(file) {
+      if (!/\.(png|jpe?g|gif)$/i.test(file.fileName)) return false;
+      if (/^image\d{3}\.(png|gif|jpe?g)$/i.test(file.fileName)) return true;
+      return (file.byteSize || 0) < 30000;
+    }
+
     function documentFor(line) {
       const viewable = FILES.filter(f => isViewable(f.fileName));
       if (viewable.length === 0) return { file: null, certainty: 'aucun' };
@@ -245,10 +260,20 @@
         const named = viewable.find(f => normalize(f.fileName).includes(ref));
         if (named) return { file: named, certainty: 'nomme' };
       }
+
+      // Un PDF est presque toujours un vrai plan ; sinon la plus grosse image
+      // non décorative, une photo de plan pesant bien plus qu'un logo.
+      const serious = viewable.filter(f => !looksDecorative(f));
+      const pool = serious.length ? serious : viewable;
+      const pdfs = pool.filter(f => isPdf(f.fileName));
+      const ranked = (pdfs.length ? pdfs : pool)
+        .slice()
+        .sort((a, b) => (b.byteSize || 0) - (a.byteSize || 0));
+
       if (viewable.length === 1 && LINES.length === 1) {
         return { file: viewable[0], certainty: 'unique' };
       }
-      return { file: viewable[0], certainty: 'suppose' };
+      return { file: ranked[0], certainty: 'suppose' };
     }
 
     const STATUS_LABEL = {
