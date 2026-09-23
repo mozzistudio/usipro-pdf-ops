@@ -217,6 +217,31 @@ function collectAttachments(message) {
 }
 
 /** Clé d'état d'un message. Stable: l'identifiant Gmail ne change pas. */
+/**
+ * Rejoue les mails déjà traités.
+ *
+ * À lancer à la main après une correction du serveur: un mail perdu sur un
+ * bug n'a aucune raison de l'être définitivement, et le redemander au client
+ * n'est pas une option. L'état « vu » est effacé, le prochain passage
+ * reprend la boîte depuis le début. Les demandes déjà enregistrées sont mises
+ * à jour, pas dupliquées: le serveur les range par référence.
+ */
+function rejouer() {
+  var props = PropertiesService.getScriptProperties();
+  var keys = Object.keys(props.getProperties());
+  var n = 0;
+
+  keys.forEach(function (key) {
+    if (key.indexOf('seen:') === 0 || key.indexOf('attempts:') === 0) {
+      props.deleteProperty(key);
+      n++;
+    }
+  });
+
+  Logger.log('Etat efface pour ' + n + ' entree(s). Lancez pollInbox, ou attendez la minute.');
+  return n;
+}
+
 function seenKey(message) {
   return 'seen:' + message.getId();
 }
