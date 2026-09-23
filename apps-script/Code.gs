@@ -9,6 +9,8 @@
  *   WEBHOOK_URL     https://<serveur>/api/email-trigger
  *   TRIGGER_SECRET  le même secret que EMAIL_TRIGGER_SECRET côté serveur
  *   TRIGGER_ADDRESS chiffrage@usi-pro.com
+ *   TRIGGER_QUERY   (optionnel) requête Gmail à la place de 'to:<adresse>',
+ *                   ex. label:chiffrage-a-traiter
  *
  * Puis exécuter setup() une fois.
  */
@@ -16,6 +18,10 @@
 // Sans accent volontairement: la requête Gmail exclut ces libellés par leur
 // nom, et une correspondance ratée sur un caractère accentué ferait retraiter
 // chaque mail à chaque minute.
+// Libellé d'entrée: ce qu'on pose à la main sur un mail pour le donner à
+// traiter. Il rend le pont utilisable sur une boîte qui ne reçoit pas l'alias
+// — on choisit les fils, au lieu de dépendre de l'adresse du destinataire.
+var LABEL_INBOX = 'chiffrage/a-traiter';
 var LABEL_DONE = 'chiffrage/traite';
 var LABEL_SKIPPED = 'chiffrage/ignore';
 var LABEL_ERROR = 'chiffrage/erreur';
@@ -28,7 +34,7 @@ var MAX_ATTEMPTS = 5;
  * Idempotent — relancer ne crée pas de doublon.
  */
 function setup() {
-  [LABEL_DONE, LABEL_SKIPPED, LABEL_ERROR].forEach(function (name) {
+  [LABEL_INBOX, LABEL_DONE, LABEL_SKIPPED, LABEL_ERROR].forEach(function (name) {
     if (!GmailApp.getUserLabelByName(name)) {
       GmailApp.createLabel(name);
     }
@@ -70,13 +76,19 @@ function pollInbox() {
     return;
   }
 
+  // Par défaut on suit l'adresse de destination. TRIGGER_QUERY permet de viser
+  // autre chose — typiquement le libellé d'entrée, quand les demandes arrivent
+  // sur une boîte personnelle et non sur l'alias. Une requête explicite n'est
+  // pas bornée dans le temps: on veut pouvoir donner à traiter un mail ancien.
+  var custom = props.getProperty('TRIGGER_QUERY');
   var query = [
-    'to:' + address,
+    custom || 'to:' + address,
     '-label:' + LABEL_DONE.replace(/\//g, '-'),
     '-label:' + LABEL_SKIPPED.replace(/\//g, '-'),
     '-label:' + LABEL_ERROR.replace(/\//g, '-'),
-    'newer_than:7d',
-  ].join(' ');
+  ]
+    .concat(custom ? [] : ['newer_than:7d'])
+    .join(' ');
 
   var threads = GmailApp.search(query, 0, 20);
   if (threads.length === 0) return;
