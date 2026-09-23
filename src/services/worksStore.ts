@@ -929,6 +929,42 @@ export async function listWorkFiles(
 }
 
 /**
+ * Les octets d'un fichier archivé, avec son nom et son type.
+ *
+ * Passer par nous plutôt que par une URL signée n'est pas un détour: la
+ * visionneuse de plans lit le PDF en XHR, et une URL signée l'expose aux
+ * aléas de CORS et à son propre délai d'expiration. Le seau reste privé, et
+ * l'écran demande le fichier à l'application qui l'a rangé.
+ */
+export async function readWorkFile(
+  workId: string,
+  fileId: string,
+): Promise<{ fileName: string; bytes: Buffer } | null> {
+  const db = supabase();
+  const storage = supabaseStorage();
+  if (!db || !storage) return null;
+
+  // Le work_id est exigé en plus de l'identifiant: connaître un uuid ne doit
+  // pas suffire à tirer le fichier d'un autre dossier.
+  const { data, error } = await db
+    .from('work_files')
+    .select('file_name, storage_path')
+    .eq('id', fileId)
+    .eq('work_id', workId)
+    .maybeSingle();
+  if (error) throw new Error(`Lecture du fichier impossible: ${error.message}`);
+  if (!data) return null;
+
+  const row = data as { file_name: string; storage_path: string };
+  const { data: blob, error: dlErr } = await storage.storage
+    .from(STORAGE_BUCKET)
+    .download(row.storage_path);
+  if (dlErr || !blob) throw new Error(`Fichier introuvable dans le stockage: ${dlErr?.message ?? 'vide'}`);
+
+  return { fileName: row.file_name, bytes: Buffer.from(await blob.arrayBuffer()) };
+}
+
+/**
  * Combien de lignes porte chaque demande.
  *
  * Compté sur les lignes elles-mêmes, pas sur les références de pièces: un

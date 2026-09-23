@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/usipro.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <style>
     /* ── Trois colonnes : les devis, le plan, la proposition ── */
     .workbench {
@@ -47,7 +48,7 @@
     .devis .n { font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
 
     /* Colonne 2 — le plan */
-    .plan { background: var(--plan); display: flex; flex-direction: column; min-width: 0; }
+    .plan { background: var(--plan); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
     .plan-bar {
       display: flex; align-items: center; gap: 12px;
       padding: 12px 18px;
@@ -60,26 +61,57 @@
       border-radius: 4px; padding: 3px 7px; font-size: 10.5px;
     }
     .plan-body {
-      flex-grow: 1; display: flex; flex-direction: column;
+      flex-grow: 1; min-height: 0; display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 14px;
-      padding: 28px; text-align: center;
+      padding: 22px; text-align: center;
       color: rgba(255,255,255,.55); font-size: 12.5px; line-height: 1.6;
       overflow-y: auto;
     }
     .plan-sheet {
       background: var(--paper); color: var(--ink);
       width: min(560px, 100%); aspect-ratio: 1.414;
+      flex-shrink: 0;
       border-radius: 4px; padding: 22px;
       display: flex; flex-direction: column; gap: 10px;
       box-shadow: 0 18px 40px -18px rgba(0,0,0,.6);
       text-align: left;
     }
+    /* Un plan réel prend toute la hauteur offerte : le format A4 fixe n'est
+       qu'un cadre d'attente, il ne doit pas rétrécir une cote à lire. */
+    .plan-sheet.has-plan {
+      aspect-ratio: auto; width: min(820px, 100%);
+      flex: 1 1 auto; min-height: 200px;
+    }
+
     .plan-sheet .title { font-family: var(--mono); font-size: 12px; font-weight: 600; }
     .plan-sheet .frame {
-      flex-grow: 1; border: 1px solid var(--line-2); border-radius: 2px;
+      flex-grow: 1; min-height: 0;
+      border: 1px solid var(--line-2); border-radius: 2px;
       display: flex; align-items: center; justify-content: center;
-      color: var(--ink-3); font-size: 12px; text-align: center; padding: 16px; line-height: 1.6;
+      color: var(--ink-3); font-size: 12px; text-align: center; line-height: 1.6;
+      overflow: hidden; background: #fff;
     }
+    .plan-sheet .frame > span { padding: 16px; }
+    /* Le plan occupe le cadre sans le déborder, quelle que soit son orientation. */
+    .plan-sheet .frame canvas,
+    .plan-sheet .frame img { max-width: 100%; max-height: 100%; display: block; }
+
+    /* Les documents reçus avec la demande, sous la feuille. */
+    .docs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; }
+    .doc-chip {
+      font-family: var(--mono); font-size: 10.5px; letter-spacing: .03em;
+      background: rgba(255,255,255,.08); color: rgba(255,255,255,.8);
+      border: 1px solid rgba(255,255,255,.14); border-radius: 4px;
+      padding: 4px 9px; cursor: pointer; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .doc-chip:hover { background: rgba(255,255,255,.16); }
+    .doc-chip[aria-current="true"] {
+      background: var(--teal); color: #05312B; border-color: var(--teal);
+    }
+    .doc-chip .n { opacity: .6; }
+    .doc-note { font-size: 11.5px; color: rgba(255,255,255,.5); max-width: 62ch; }
+    .doc-note.uncertain { color: #F1C86B; }
     .plan-sheet .cartouche {
       border: 1px solid var(--line-2); border-radius: 2px; padding: 8px 10px;
       display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
@@ -180,6 +212,44 @@
     let CURRENT = null;   // le devis affiché
     let LINES = [];       // ses articles
     let INDEX = 0;        // l'article en revue
+    let FILES = [];       // les pièces jointes archivées de ce devis
+    let DOC = null;       // le document ouvert { fileId, fileName, pdf, pages }
+    let PAGE = 1;         // sa page affichée
+    let PICKED = null;    // document choisi à la main — il prime sur le rattachement
+    let RENDER = 0;       // jeton : un rendu dépassé ne doit pas écraser le suivant
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    /** Ce qui s'affiche dans le cadre : un PDF ou une image. Le reste se télécharge. */
+    function isViewable(name) { return /\.(pdf|png|jpe?g)$/i.test(name); }
+    function isPdf(name) { return /\.pdf$/i.test(name); }
+
+    /** Pour comparer un nom de fichier à une référence sans buter sur la ponctuation. */
+    function normalize(text) { return String(text || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+
+    /**
+     * Quel document montrer pour cet article, et à quel point on en est sûr.
+     *
+     * Un plan nommé d'après la référence de la pièce, c'est une certitude. Un
+     * document unique sur une demande à un seul article, c'est raisonnable.
+     * Tout le reste est une supposition, et l'écran doit le dire plutôt que de
+     * laisser croire que le plan affiché est celui du prix affiché.
+     */
+    function documentFor(line) {
+      const viewable = FILES.filter(f => isViewable(f.fileName));
+      if (viewable.length === 0) return { file: null, certainty: 'aucun' };
+
+      const ref = normalize(line && line.reference);
+      if (ref.length >= 3) {
+        const named = viewable.find(f => normalize(f.fileName).includes(ref));
+        if (named) return { file: named, certainty: 'nomme' };
+      }
+      if (viewable.length === 1 && LINES.length === 1) {
+        return { file: viewable[0], certainty: 'unique' };
+      }
+      return { file: viewable[0], certainty: 'suppose' };
+    }
 
     const STATUS_LABEL = {
       a_traiter: 'à traiter',
@@ -257,16 +327,27 @@
         bar.appendChild(el('span', 'badge', STATUS_LABEL[line.status]));
       }
 
-      // Le plan n'est pas encore rendu graphiquement : plutôt qu'un cadre vide,
-      // on montre ce qu'on sait de la pièce et on dit ce qui manque.
       const sheet = el('div', 'plan-sheet');
       sheet.appendChild(el('div', 'title', (line.reference || '—') + ' · ' + (line.designation || 'sans désignation')));
 
+      // PICKED est un choix de l'opérateur : il prime sur le rattachement
+      // automatique tant qu'il reste sur cet article.
+      const match = documentFor(line);
+      const target = PICKED || match.file;
+
       const frame = el('div', 'frame');
-      frame.appendChild(el('span', null,
-        CURRENT.detailsInAttachments
-          ? 'Le plan est dans les pièces jointes du mail — son rendu graphique n’est pas encore branché.'
-          : 'Aucun plan reçu avec cette demande. Le chiffrage s’appuie sur le texte du mail.'));
+      if (!target) {
+        frame.appendChild(el('span', null,
+          FILES.length > 0
+            ? 'Aucun plan lisible parmi les pièces jointes — seuls des fichiers à télécharger ont été reçus.'
+            : CURRENT.detailsInAttachments
+              ? 'Cette demande annonce des pièces jointes, mais aucune n’est arrivée jusqu’ici. Elle est antérieure au pont qui les transmet.'
+              : 'Aucun plan reçu avec cette demande. Le chiffrage s’appuie sur le texte du mail.'));
+      } else {
+        sheet.classList.add('has-plan');
+        frame.appendChild(el('span', null, 'ouverture du plan…'));
+        showDocument(target, frame);
+      }
       sheet.appendChild(frame);
 
       const cartouche = el('div', 'cartouche');
@@ -281,21 +362,175 @@
       sheet.appendChild(cartouche);
       body.appendChild(sheet);
 
+      body.appendChild(renderDocs(line, match, target));
+
       if (line.comment) body.appendChild(el('div', null, line.comment));
 
       const prev = el('button', 'btn btn-ghost', '← Précédent');
       prev.type = 'button';
       prev.disabled = INDEX === 0;
-      prev.onclick = () => { INDEX--; renderAll(); };
+      prev.onclick = () => { INDEX--; PICKED = null; renderAll(); };
 
       const next = el('button', 'btn btn-ghost', 'Suivant →');
       next.type = 'button';
       next.disabled = INDEX >= LINES.length - 1;
-      next.onclick = () => { INDEX++; renderAll(); };
+      next.onclick = () => { INDEX++; PICKED = null; renderAll(); };
 
       nav.appendChild(prev);
       nav.appendChild(el('span', 'pos', (INDEX + 1) + ' / ' + LINES.length));
       nav.appendChild(next);
+    }
+
+    /** L'adresse d'un fichier archivé, servie par nous. */
+    function fileUrl(file) {
+      return '/api/works/' + encodeURIComponent(CURRENT.id) +
+             '/files/' + encodeURIComponent(file.id) + '/content';
+    }
+
+    /**
+     * Ouvre un document dans le cadre.
+     *
+     * Le jeton RENDER protège d'une course : un opérateur qui enchaîne les
+     * articles plus vite que ne se charge un PDF ne doit pas voir le plan du
+     * précédent s'installer sur celui qu'il regarde.
+     */
+    async function showDocument(file, frame) {
+      const token = ++RENDER;
+
+      if (!isPdf(file.fileName)) {
+        const img = el('img');
+        img.src = fileUrl(file);
+        img.alt = 'Plan ' + file.fileName;
+        img.onload = () => { if (token === RENDER) { frame.innerHTML = ''; frame.appendChild(img); } };
+        img.onerror = () => {
+          if (token !== RENDER) return;
+          frame.innerHTML = '';
+          frame.appendChild(el('span', null, 'Image illisible : ' + file.fileName));
+        };
+        return;
+      }
+
+      try {
+        // Un même document n'est pas rechargé quand on passe d'un article à
+        // l'autre : c'est souvent le même plan pour toute la demande.
+        if (!DOC || DOC.fileId !== file.id) {
+          const pdf = await pdfjsLib.getDocument({ url: fileUrl(file) }).promise;
+          if (token !== RENDER) return;
+          DOC = { fileId: file.id, fileName: file.fileName, pdf, pages: pdf.numPages };
+          PAGE = 1;
+        }
+        if (PAGE > DOC.pages) PAGE = 1;
+
+        const page = await DOC.pdf.getPage(PAGE);
+        if (token !== RENDER) return;
+
+        // Rendu à la taille du cadre, en tenant compte de la densité d'écran :
+        // une cote lue de travers ne sert à personne.
+        const box = frame.getBoundingClientRect();
+        const base = page.getViewport({ scale: 1 });
+        const scale = Math.max(
+          0.1,
+          Math.min(box.width / base.width, box.height / base.height),
+        );
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const viewport = page.getViewport({ scale: scale * dpr });
+
+        const canvas = el('canvas');
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        canvas.style.width = Math.floor(viewport.width / dpr) + 'px';
+        canvas.style.height = Math.floor(viewport.height / dpr) + 'px';
+
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+        if (token !== RENDER) return;
+
+        frame.innerHTML = '';
+        frame.appendChild(canvas);
+        renderPlan.pageCount = DOC.pages;
+        refreshDocs();
+      } catch (err) {
+        if (token !== RENDER) return;
+        frame.innerHTML = '';
+        frame.appendChild(el('span', null, 'Plan illisible : ' + err.message));
+      }
+    }
+
+    /**
+     * Les documents reçus, et ce que vaut le rattachement.
+     *
+     * Dire « plan supposé » coûte une ligne ; laisser croire qu'un plan est
+     * celui de l'article chiffré coûte un devis faux.
+     */
+    function renderDocs(line, match, target) {
+      const box = el('div', 'docs-wrap');
+      box.style.display = 'flex';
+      box.style.flexDirection = 'column';
+      box.style.gap = '10px';
+      box.style.alignItems = 'center';
+
+      if (FILES.length === 0) return box;
+
+      const chips = el('div', 'docs');
+      for (const file of FILES) {
+        if (isViewable(file.fileName)) {
+          const chip = el('button', 'doc-chip', file.fileName);
+          chip.type = 'button';
+          chip.setAttribute('aria-current', String(!!target && file.id === target.id));
+          chip.onclick = () => { PICKED = file; PAGE = 1; renderPlan(); };
+          chips.appendChild(chip);
+        } else {
+          // Un tableur ou un STEP ne s'affiche pas : il se récupère.
+          const link = el('a', 'doc-chip', file.fileName);
+          link.href = fileUrl(file);
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.appendChild(el('span', 'n', '↓'));
+          chips.appendChild(link);
+        }
+      }
+      box.appendChild(chips);
+
+      if (target && DOC && DOC.fileId === target.id && DOC.pages > 1) {
+        const pager = el('div', 'docs');
+        const prev = el('button', 'doc-chip', '← page');
+        prev.type = 'button';
+        prev.disabled = PAGE <= 1;
+        prev.onclick = () => { PAGE--; renderPlan(); };
+        const next = el('button', 'doc-chip', 'page →');
+        next.type = 'button';
+        next.disabled = PAGE >= DOC.pages;
+        next.onclick = () => { PAGE++; renderPlan(); };
+        pager.appendChild(prev);
+        pager.appendChild(el('span', 'doc-note', 'page ' + PAGE + ' / ' + DOC.pages));
+        pager.appendChild(next);
+        box.appendChild(pager);
+      }
+
+      if (target) {
+        const certainty = PICKED ? 'choisi' : match.certainty;
+        const NOTE = {
+          nomme: ['Ce plan porte la référence de l’article — rattachement certain.', false],
+          unique: ['Seul document reçu, et un seul article dans la demande.', false],
+          suppose: ['Rattachement supposé : aucun document ne porte la référence de cet article. Vérifiez avant de valider.', true],
+          choisi: ['Document choisi à la main.', false],
+        }[certainty];
+        if (NOTE) {
+          const note = el('div', 'doc-note' + (NOTE[1] ? ' uncertain' : ''), NOTE[0]);
+          box.appendChild(note);
+        }
+      }
+
+      return box;
+    }
+
+    /** Redessine la seule barre de documents, une fois le PDF ouvert et paginé. */
+    function refreshDocs() {
+      const body = document.getElementById('planBody');
+      const old = body.querySelector('.docs-wrap');
+      if (!old) return;
+      const line = LINES[INDEX];
+      const match = documentFor(line);
+      old.replaceWith(renderDocs(line, match, PICKED || match.file));
     }
 
     // ── Colonne 3 : la proposition ─────────────────────────────
@@ -489,16 +724,24 @@
       CURRENT = WORKS.find(w => w.id === id) || null;
       INDEX = 0;
       LINES = [];
+      FILES = [];
+      DOC = null;
+      PICKED = null;
+      PAGE = 1;
+      RENDER++;   // les plans du devis précédent ne doivent plus s'afficher
       renderAll();
       if (!CURRENT) return;
 
-      try {
-        const resp = await fetch('/api/works/' + encodeURIComponent(CURRENT.id) + '/lines');
-        const data = await resp.json();
-        LINES = data.lines || [];
-      } catch (err) {
-        LINES = [];
-      }
+      // Les articles et les pièces jointes en parallèle : l'écran n'a pas de
+      // raison d'attendre deux allers-retours l'un après l'autre.
+      const [lines, files] = await Promise.all([
+        fetch('/api/works/' + encodeURIComponent(CURRENT.id) + '/lines')
+          .then(r => r.json()).then(d => d.lines || []).catch(() => []),
+        fetch('/api/works/' + encodeURIComponent(CURRENT.id) + '/files')
+          .then(r => r.json()).then(d => d.files || []).catch(() => []),
+      ]);
+      LINES = lines;
+      FILES = files;
       renderAll();
     }
 

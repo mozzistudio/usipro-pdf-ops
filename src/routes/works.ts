@@ -9,6 +9,7 @@ import {
   listWorkFiles,
   listWorks,
   priceRequest,
+  readWorkFile,
   requestLineCounts,
   reviewLine,
   setClientPricing,
@@ -94,6 +95,50 @@ export function registerWorksEndpoints(router: Router): void {
       res.json({ status: 'ok', count: files.length, files });
     } catch (err: any) {
       logger.error({ err: err.message, id: req.params.id }, 'Lecture des livrables impossible');
+      res.status(503).json({ status: 'error', message: err.message });
+    }
+  });
+
+  /**
+   * Les octets d'un fichier archivé, servis par nous.
+   *
+   * C'est ce que lit la visionneuse de plans de la revue technique. Le type
+   * est déduit de l'extension: le stockage garde l'octet, pas toujours le
+   * type MIME annoncé par une passerelle mail.
+   */
+  const CONTENT_TYPES: Record<string, string> = {
+    pdf: 'application/pdf',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    xls: 'application/vnd.ms-excel',
+    csv: 'text/csv',
+    stp: 'model/step',
+    step: 'model/step',
+  };
+
+  router.get('/api/works/:id/files/:fileId/content', async (req: Request, res: Response) => {
+    try {
+      const file = await readWorkFile(String(req.params.id), String(req.params.fileId));
+      if (!file) {
+        res.status(404).json({ status: 'error', message: 'Fichier introuvable' });
+        return;
+      }
+      const ext = file.fileName.split('.').pop()?.toLowerCase() ?? '';
+      res.setHeader('Content-Type', CONTENT_TYPES[ext] ?? 'application/octet-stream');
+      // Le nom d'origine est encodé: une pièce jointe peut s'appeler
+      // « plan côté usiné.pdf » et casser l'en-tête telle quelle.
+      res.setHeader(
+        'Content-Disposition',
+        `inline; filename*=UTF-8''${encodeURIComponent(file.fileName)}`,
+      );
+      res.send(file.bytes);
+    } catch (err: any) {
+      logger.error(
+        { err: err.message, id: req.params.id, fileId: req.params.fileId },
+        'Lecture du fichier impossible',
+      );
       res.status(503).json({ status: 'error', message: err.message });
     }
   });
