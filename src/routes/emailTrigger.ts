@@ -4,7 +4,7 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 import { parseChiffrageEmail, InboundEmail } from '../services/emailParser';
 import { readAttachment } from '../services/attachments';
-import { priceRequest, recordChiffrageRequest } from '../services/worksStore';
+import { addWorkFile, priceRequest, recordChiffrageRequest } from '../services/worksStore';
 import { attachPart } from '../services/articleStore';
 
 /**
@@ -164,6 +164,32 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
       pricedLines = (await priceRequest(work.id)).length;
     } catch (err: any) {
       logger.warn({ reference: request.reference, err: err.message }, 'Chiffrage impossible — demande enregistrée sans prix');
+    }
+
+    // Les pièces jointes sont archivées chez nous, telles que le client les a
+    // envoyées. Elles ne servent pas qu'à extraire des quantités: ce sont les
+    // reçus du prix. Si un devis est contesté six mois plus tard, il faut
+    // pouvoir rouvrir exactement le tableur sur lequel il a été calculé — et
+    // ne pas dépendre pour ça d'une boîte mail que personne ne garantit.
+    for (const att of inbound.attachments ?? []) {
+      if (!att.contentBase64) continue; // trop lourd pour le pont: rien à archiver
+      try {
+        await addWorkFile({
+          tool: 'chiffrage',
+          ref: work.ref,
+          kind: 'piece_jointe',
+          fileName: att.name,
+          bytes: Buffer.from(att.contentBase64, 'base64'),
+          contentType: att.contentType,
+        });
+      } catch (err: any) {
+        // addWorkFile avale déjà ses propres pannes; ce filet ne couvre que le
+        // décodage base64 d'une pièce jointe malformée.
+        logger.warn(
+          { reference: request.reference, file: att.name, err: err.message },
+          'Pièce jointe non archivée — la demande reste enregistrée',
+        );
+      }
     }
 
     // Chaque STEP reçu entre au référentiel: c'est ce qui permettra de dire,

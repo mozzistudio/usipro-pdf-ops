@@ -39,7 +39,9 @@ export type WorkFileKind =
   | 'plan_original'
   | 'devis_pdf'
   | 'devis_docx'
-  | 'zip';
+  | 'zip'
+  /** Ce que le client a joint à sa demande — tableur de quantités, plan, STEP. */
+  | 'piece_jointe';
 
 export interface WorkRecord {
   /** `${tool}:${ref}` — a re-run of the same OF updates its row instead of adding one. */
