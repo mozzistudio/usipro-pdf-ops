@@ -2,9 +2,8 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { config } from '../config';
 import { logger } from '../utils/logger';
-import { parseEmailToPayload, InboundEmail } from '../services/emailParser';
-import { parseFormPayload } from '../utils/helpers';
-import { runPipelinePhase1 } from '../pipeline/ofPipeline';
+import { parseChiffrageEmail, InboundEmail } from '../services/emailParser';
+import { recordChiffrageRequest } from '../services/worksStore';
 
 /**
  * Constant-time comparison so a wrong secret leaks nothing through timing.
@@ -47,10 +46,10 @@ function pruneRuns(): void {
  *
  * POST /api/email-trigger
  *
- * Called by the Apps Script bridge watching chiffrage@usi-pro.com.
- * Runs Phase 1 only: the OF is searched, plans are anonymized and a session
- * is opened — an operator still validates on the web UI before anything is
- * written back. An email can therefore never finalize an OF on its own.
+ * Appelé par le pont Apps Script qui surveille chiffrage@usi-pro.com.
+ * Le mail devient une demande de chiffrage enregistrée, rien de plus: aucun
+ * prix n'est calculé et rien n'est écrit chez le client. Un opérateur reprend
+ * la main depuis l'application.
  *
  * The sender address is NOT trusted for authorization: anyone can forge a
  * From header. The shared secret in x-trigger-secret is what gates the call.
@@ -115,8 +114,14 @@ export function registerEmailTriggerEndpoint(router: Router): void {
 }
 
 /**
- * Parses the mail and runs Phase 1, returning the HTTP outcome rather than
- * writing it, so a replayed message can be served the original result.
+ * Lit le mail et enregistre la demande de chiffrage, en renvoyant l'issue HTTP
+ * plutôt que de l'écrire, pour qu'un message rejoué reçoive le résultat
+ * d'origine.
+ *
+ * Cette adresse est l'entrée du chiffrage, pas de l'édition de plans : aucune
+ * recherche Dropbox, aucune anonymisation, et surtout **aucun numéro d'OF
+ * attendu**. Un OF est une notion de fabrication, attribuée bien après le
+ * chiffrage ; l'exiger ici revenait à rejeter toutes les vraies demandes.
  */
 async function handleEmail(inbound: InboundEmail): Promise<{ status: number; body: unknown }> {
   // Checked before parsing so a missing key can't be mistaken for an
@@ -131,44 +136,50 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
     };
   }
 
-  let payload;
+  let request;
   try {
-    payload = parseFormPayload(await parseEmailToPayload(inbound));
+    request = await parseChiffrageEmail(inbound);
   } catch (err: any) {
-    // A mail that isn't a chiffrage request is expected traffic, not a server
-    // fault — 422 so the bridge can label it and stop retrying.
-    logger.warn({ subject: inbound.subject, err: err.message }, 'Email non exploitable');
+    // Une newsletter ou une alerte de sécurité n'est pas une panne: 422 pour
+    // que le pont l'étiquette et cesse de la rejouer.
+    logger.warn({ subject: inbound.subject, err: err.message }, 'Mail non exploitable');
     return { status: 422, body: { status: 'rejected', message: err.message } };
   }
 
   try {
-    const result = await runPipelinePhase1(payload, 'email');
+    const work = await recordChiffrageRequest(request, 'email');
 
     logger.info(
-      { of: result.resolvedOF, sessionId: result.sessionId, status: result.status },
-      'Email trigger: phase 1 terminée',
+      {
+        reference: work.ref,
+        client: work.client,
+        lineCount: request.lines.length,
+        detailsInAttachments: request.detailsInAttachments,
+      },
+      'Email trigger: demande de chiffrage enregistrée',
     );
 
     return {
       status: 200,
       body: {
-        status: result.status === 'awaiting_selection' ? 'awaiting_selection' : 'pending_validation',
-        sessionId: result.sessionId,
-        of: result.resolvedOF,
+        status: 'enregistre',
+        reference: work.ref,
+        client: work.client,
+        lines: request.lines.length,
+        detailsInAttachments: request.detailsInAttachments,
+        summary: request.summary,
       },
     };
   } catch (err: any) {
-    const detail = err?.error?.error_summary || err?.error || err.message;
+    // Le mail a été lu mais rien n'a été gardé: 500, pour que le pont réessaie
+    // plutôt que de classer une demande qui n'existe nulle part.
     logger.error(
-      { of: payload.ofNumber, err: err.message, detail, stack: err.stack },
-      'Email trigger: phase 1 échouée',
+      { reference: request.reference, err: err.message, stack: err.stack },
+      'Email trigger: demande non enregistrée',
     );
     return {
       status: 500,
-      body: {
-        status: 'error',
-        message: `Le traitement de l'OF ${payload.ofNumber} a échoué: ${detail}`,
-      },
+      body: { status: 'error', message: `Demande ${request.reference} non enregistrée: ${err.message}` },
     };
   }
 }

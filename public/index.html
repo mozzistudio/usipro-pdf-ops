@@ -181,6 +181,8 @@
     .work-top { display: flex; align-items: center; gap: 8px; }
     .work-ref { font-size: 14px; font-weight: 600; }
     .work-sub { font-size: 12px; color: var(--text-dim); }
+    .work-summary { font-size: 12.5px; color: #475569; line-height: 1.5; }
+    .tag-attachments { color: #92400e; background: #fef3c7; }
     .work-when { font-size: 11.5px; color: var(--text-dim); }
 
     .tags { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 8px; border-top: 1px solid #f1f5f9; }
@@ -469,9 +471,18 @@
 
         card.appendChild(el('span', 'work-ref', work.ref));
 
-        const parts = work.partIds && work.partIds.length ? work.partIds.join(', ') : 'aucune pièce';
-        card.appendChild(el('span', 'work-sub',
-          work.planCount + (work.planCount > 1 ? ' plans' : ' plan') + ' · ' + parts));
+        if (work.tool === 'chiffrage') {
+          const lineCount = (work.partIds || []).length;
+          card.appendChild(el('span', 'work-sub',
+            lineCount > 0
+              ? lineCount + (lineCount > 1 ? ' pièces demandées' : ' pièce demandée')
+              : 'contenu à lire'));
+          if (work.summary) card.appendChild(el('span', 'work-summary', work.summary));
+        } else {
+          const parts = work.partIds && work.partIds.length ? work.partIds.join(', ') : 'aucune pièce';
+          card.appendChild(el('span', 'work-sub',
+            work.planCount + (work.planCount > 1 ? ' plans' : ' plan') + ' · ' + parts));
+        }
 
         const tags = el('div', 'tags');
         tags.appendChild(el('span', 'tag tag-status-' + work.status, STATUS_LABEL[work.status] || work.status));
@@ -482,6 +493,9 @@
         }
         if (work.feedback && work.feedback.minus) {
           tags.appendChild(el('span', 'tag tag-fb-minus', 'Feedback − ' + work.feedback.minus));
+        }
+        if (work.detailsInAttachments) {
+          tags.appendChild(el('span', 'tag tag-attachments', 'Détails en pièce jointe'));
         }
         card.appendChild(tags);
 

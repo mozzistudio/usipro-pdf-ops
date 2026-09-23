@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { supabase, supabaseStorage, STORAGE_BUCKET } from './supabaseClient';
+import { ChiffrageLine, ChiffrageRequest } from '../types';
 
 /**
  * The index of work actually done, and the deliverables themselves.
@@ -52,6 +53,10 @@ export interface WorkRecord {
   planCount: number;
   missingParts: string[];
   dropboxLink?: string;
+  /** Ce que l'extraction a compris de la demande, pour une demande de chiffrage. */
+  summary?: string;
+  /** Vrai quand le contenu de la demande est dans les pièces jointes. */
+  detailsInAttachments?: boolean;
 }
 
 export interface WorkFileRecord {
@@ -98,6 +103,8 @@ interface WorkRow {
   plan_count: number;
   missing_parts: string[];
   dropbox_link: string | null;
+  summary: string | null;
+  details_in_attachments: boolean | null;
 }
 
 function fromRow(row: WorkRow): WorkRecord {
@@ -115,6 +122,8 @@ function fromRow(row: WorkRow): WorkRecord {
     planCount: row.plan_count ?? 0,
     missingParts: row.missing_parts ?? [],
     dropboxLink: row.dropbox_link ?? undefined,
+    summary: row.summary ?? undefined,
+    detailsInAttachments: row.details_in_attachments ?? undefined,
   };
 }
 
@@ -133,6 +142,8 @@ function toRow(rec: WorkRecord): WorkRow {
     plan_count: rec.planCount,
     missing_parts: rec.missingParts,
     dropbox_link: rec.dropboxLink ?? null,
+    summary: rec.summary ?? null,
+    details_in_attachments: rec.detailsInAttachments ?? false,
   };
 }
 
@@ -330,6 +341,107 @@ export async function workFacets(): Promise<{
     if (w.project) projects[w.project] = (projects[w.project] ?? 0) + 1;
   }
   return { clients, projects };
+}
+
+// ── Demandes de chiffrage ────────────────────────────────────────
+
+/**
+ * Enregistre une demande de chiffrage reçue par mail.
+ *
+ * Pas d'OF : le travail est indexé sur la référence de la demande. Un même
+ * mail rejoué retombe donc sur la même ligne au lieu d'en créer une seconde.
+ *
+ * Une demande dont tout le contenu est en pièce jointe est enregistrée quand
+ * même, avec zéro ligne et le drapeau qui le dit. Perdre la demande parce
+ * qu'on ne sait pas encore lire un Excel serait pire que l'afficher incomplète.
+ */
+export async function recordChiffrageRequest(
+  request: ChiffrageRequest,
+  source: WorkSource = 'email',
+): Promise<WorkRecord> {
+  const now = new Date().toISOString();
+  const id = workId('chiffrage', request.reference);
+  const existing = await readExisting(id);
+
+  const rec: WorkRecord = {
+    id,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+    tool: 'chiffrage',
+    source,
+    ref: request.reference,
+    status: 'a_valider',
+    client: request.client || '—',
+    project: existing?.project,
+    partIds: request.lines.map(l => l.reference).filter(Boolean),
+    planCount: 0,
+    missingParts: [],
+    dropboxLink: existing?.dropboxLink,
+    summary: request.summary,
+    detailsInAttachments: request.detailsInAttachments,
+  };
+
+  await write(rec);
+  await replaceRequestLines(id, request.lines);
+
+  logger.info(
+    {
+      id,
+      client: rec.client,
+      lineCount: request.lines.length,
+      detailsInAttachments: request.detailsInAttachments,
+    },
+    'Demande de chiffrage enregistrée',
+  );
+  return rec;
+}
+
+/**
+ * Remplace les lignes d'une demande. Un rejeu du même mail doit reposer les
+ * mêmes lignes, pas les empiler.
+ */
+async function replaceRequestLines(id: string, lines: ChiffrageLine[]): Promise<void> {
+  const db = supabase();
+  if (!db) return;
+
+  const { error: delErr } = await db.from('request_lines').delete().eq('work_id', id);
+  if (delErr) throw new Error(`Nettoyage des lignes impossible: ${delErr.message}`);
+  if (lines.length === 0) return;
+
+  const rows = lines.map((line, index) => ({
+    id: crypto.randomUUID(),
+    work_id: id,
+    position: index,
+    reference: line.reference || null,
+    designation: line.designation || null,
+    material: line.material || null,
+    quantity: line.quantity || null,
+    comment: line.comment || null,
+  }));
+
+  const { error } = await db.from('request_lines').insert(rows);
+  if (error) throw new Error(`Lignes de la demande non enregistrées: ${error.message}`);
+}
+
+/** Les lignes d'une demande, dans l'ordre où le mail les donnait. */
+export async function listRequestLines(id: string): Promise<ChiffrageLine[]> {
+  const db = supabase();
+  if (!db) return [];
+
+  const { data, error } = await db
+    .from('request_lines')
+    .select('*')
+    .eq('work_id', id)
+    .order('position', { ascending: true });
+  if (error) throw new Error(`Lecture des lignes impossible: ${error.message}`);
+
+  return (data ?? []).map((row: any) => ({
+    reference: row.reference ?? '',
+    designation: row.designation ?? '',
+    material: row.material ?? '',
+    quantity: row.quantity ?? '',
+    comment: row.comment ?? '',
+  }));
 }
 
 // ── The deliverables themselves ──────────────────────────────────

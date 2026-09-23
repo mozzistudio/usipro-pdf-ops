@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { logger } from '../utils/logger';
 import {
   WorkTool,
+  listRequestLines,
   listWorkFiles,
   listWorks,
   setWorkProject,
@@ -17,6 +18,7 @@ const TOOLS: WorkTool[] = ['edition', 'chiffrage'];
  *
  * GET  /api/works             — the jobs, newest activity first, with their tags
  * GET  /api/works/:id/files   — the deliverables of one job, as signed URLs
+ * GET  /api/works/:id/lines   — les lignes d'une demande de chiffrage
  * POST /api/works/:id/project — set the project tag (the one no pipeline knows)
  */
 export function registerWorksEndpoints(router: Router): void {
@@ -71,6 +73,16 @@ export function registerWorksEndpoints(router: Router): void {
       res.json({ status: 'ok', count: files.length, files });
     } catch (err: any) {
       logger.error({ err: err.message, id: req.params.id }, 'Lecture des livrables impossible');
+      res.status(503).json({ status: 'error', message: err.message });
+    }
+  });
+
+  router.get('/api/works/:id/lines', async (req: Request, res: Response) => {
+    try {
+      const lines = await listRequestLines(String(req.params.id));
+      res.json({ status: 'ok', count: lines.length, lines });
+    } catch (err: any) {
+      logger.error({ err: err.message, id: req.params.id }, 'Lecture des lignes impossible');
       res.status(503).json({ status: 'error', message: err.message });
     }
   });

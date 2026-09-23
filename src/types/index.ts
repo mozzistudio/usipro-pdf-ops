@@ -93,3 +93,36 @@ export interface AddUsIproTableRequest {
     finish: string;
   };
 }
+
+/** Une ligne d'une demande de chiffrage, telle que le mail la donne. */
+export interface ChiffrageLine {
+  /** Référence de la pièce ou du plan, quand le client en donne une. */
+  reference: string;
+  designation: string;
+  material: string;
+  /** Laissée en texte: « 10 », « 5 + option 20 », « selon PJ » sont tous des cas réels. */
+  quantity: string;
+  comment: string;
+}
+
+/**
+ * Une demande de chiffrage reçue par mail.
+ *
+ * Pas de numéro d'OF : l'OF est une notion de fabrication, attribuée plus tard.
+ * Ce qui identifie une demande, c'est sa propre référence — celle que le client
+ * ou l'expéditeur lui donne.
+ */
+export interface ChiffrageRequest {
+  reference: string;
+  /** Donneur d'ordres, quand il est identifiable. */
+  client: string;
+  lines: ChiffrageLine[];
+  /** Ce que l'extraction a compris, en une phrase, pour l'opérateur. */
+  summary: string;
+  /**
+   * Vrai quand l'essentiel de la demande est dans les pièces jointes. La
+   * demande est alors enregistrée avec ce qu'on sait, et le dit franchement
+   * plutôt que de sortir une liste inventée.
+   */
+  detailsInAttachments: boolean;
+}

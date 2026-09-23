@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { CLAUDE_MODEL, THINKING, parseJsonResponse } from './claudeModel';
-import { FormPayload, Part } from '../types';
+import { ChiffrageLine, ChiffrageRequest, FormPayload, Part } from '../types';
 import { logger } from '../utils/logger';
 
 /** An inbound email as forwarded by the Apps Script bridge. */
@@ -98,4 +98,113 @@ export async function parseEmailToPayload(email: InboundEmail): Promise<FormPayl
   );
 
   return { of: ofNumber, parts };
+}
+
+
+// ── Demande de chiffrage ─────────────────────────────────────────
+
+interface ChiffrageExtraction {
+  reference: string | null;
+  client: string | null;
+  lines: Array<Partial<ChiffrageLine>>;
+  summary: string;
+  details_in_attachments: boolean;
+  is_chiffrage_request: boolean;
+}
+
+const CHIFFRAGE_PROMPT = `Tu lis un email reçu par un atelier d'usinage sur son adresse de chiffrage, et tu en extrais une demande de prix.
+
+Retourne STRICTEMENT un JSON:
+{"is_chiffrage_request": true|false, "reference": "<réf de la demande ou null>", "client": "<donneur d'ordres ou null>", "lines": [{"reference": "...", "designation": "...", "material": "...", "quantity": "...", "comment": "..."}], "details_in_attachments": true|false, "summary": "..."}
+
+Règles:
+- N'ATTENDS AUCUN NUMÉRO D'OF. Un OF est une notion de fabrication interne, créée après le chiffrage. Son absence est normale et ne doit jamais faire échouer l'extraction.
+- "reference" est la référence de la demande telle qu'elle apparaît: DE5421, CC5296, "notre consultation 1180", un numéro d'affaire. Si l'objet du mail en porte une, prends-la. Sinon null.
+- "client" est le DONNEUR D'ORDRES, c'est-à-dire celui qui demande le prix — pas l'atelier, pas la personne qui transfère le mail en interne. Ces mails sont souvent des transferts: la vraie demande est dans le message réexpédié, en dessous.
+- "lines": une entrée par pièce demandée. Tous les champs sont facultatifs et valent "" s'ils ne sont pas donnés. Une ligne sans quantité est une information, pas un vide à combler.
+- "details_in_attachments" vaut true quand le corps renvoie l'essentiel aux pièces jointes ("quantités en PJ", "voir Excel", "package de plans joint"). Dans ce cas ne DEVINE PAS les lignes: retourne ce qui est écrit dans le corps, et rien de plus.
+- "is_chiffrage_request" vaut false pour tout ce qui n'est pas une demande de prix: newsletter, alerte de sécurité, facture, relance administrative.
+- N'INVENTE RIEN. Aucune matière, aucune quantité, aucune référence qui ne soit écrite noir sur blanc.
+- "summary" décrit la demande en une phrase, en français, pour un opérateur qui n'a pas ouvert le mail.
+
+Pas de markdown, pas d'explication hors JSON.`;
+
+/**
+ * Lit un mail de demande de chiffrage.
+ *
+ * Contrairement au chemin OF, rien ici n'est obligatoire sauf le fait que ce
+ * soit bien une demande de prix : une demande dont tout le contenu est en
+ * pièce jointe est enregistrée quand même, avec ce qu'on sait. La refuser
+ * reviendrait à perdre une consultation parce qu'elle a été écrite en deux
+ * lignes et un fichier Excel.
+ */
+export async function parseChiffrageEmail(email: InboundEmail): Promise<ChiffrageRequest> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error('ANTHROPIC_API_KEY absent — extraction email impossible');
+  }
+
+  const client = new Anthropic({ apiKey });
+
+  const msg = await client.messages.create({
+    model: CLAUDE_MODEL,
+    max_tokens: 4096,
+    thinking: THINKING,
+    system: CHIFFRAGE_PROMPT,
+    messages: [
+      {
+        role: 'user',
+        content: `De: ${email.from}\nObjet: ${email.subject}\n\n${email.body}`,
+      },
+    ],
+  } as any);
+
+  const extracted = parseJsonResponse<ChiffrageExtraction>(msg);
+
+  if (extracted.is_chiffrage_request === false) {
+    throw new Error(`Ce mail n'est pas une demande de chiffrage — ${str(extracted.summary)}`);
+  }
+
+  const lines: ChiffrageLine[] = (extracted.lines || [])
+    .map(l => ({
+      reference: str(l.reference),
+      designation: str(l.designation),
+      material: str(l.material),
+      quantity: str(l.quantity),
+      comment: str(l.comment),
+    }))
+    // Une ligne entièrement vide n'apprend rien et encombrerait le dossier.
+    .filter(l => l.reference || l.designation || l.material || l.quantity);
+
+  const request: ChiffrageRequest = {
+    reference: str(extracted.reference) || fallbackReference(email),
+    client: str(extracted.client),
+    lines,
+    summary: str(extracted.summary),
+    detailsInAttachments: extracted.details_in_attachments === true,
+  };
+
+  logger.info(
+    {
+      reference: request.reference,
+      client: request.client,
+      lineCount: lines.length,
+      detailsInAttachments: request.detailsInAttachments,
+    },
+    'Demande de chiffrage extraite',
+  );
+
+  return request;
+}
+
+/**
+ * Quand le mail ne porte aucune référence, on en fabrique une stable à partir
+ * de l'identifiant Gmail: deux passages du même message doivent retomber sur
+ * la même demande, sinon un rejeu créerait un doublon.
+ */
+function fallbackReference(email: InboundEmail): string {
+  const id = str(email.messageId).slice(0, 10);
+  if (id) return `DEM-${id}`;
+  const subject = str(email.subject).replace(/[^A-Za-z0-9]+/g, '-').slice(0, 24);
+  return subject ? `DEM-${subject}` : 'DEM-SANS-REFERENCE';
 }
