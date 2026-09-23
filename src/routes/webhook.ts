@@ -217,6 +217,7 @@ apiRouter.post('/api/submit', async (req: Request, res: Response) => {
       of: result.resolvedOF,
       pdfs: result.pdfs,
       missingParts: result.missingParts,
+      attachments: result.attachments,
     });
   } catch (err: any) {
     const detail = err?.error?.error_summary || err?.error || err.message;
@@ -260,6 +261,7 @@ apiRouter.post('/api/submit-selection', async (req: Request, res: Response) => {
       of: result.resolvedOF,
       pdfs: result.pdfs,
       missingParts: result.missingParts,
+      attachments: result.attachments,
     });
   } catch (err: any) {
     const detail = err?.error?.error_summary || err?.error || err.message;

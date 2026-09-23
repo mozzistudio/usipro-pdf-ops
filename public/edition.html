@@ -1773,7 +1773,7 @@
               _sessionId = resumed.sessionId;
               document.getElementById('formContainer').style.display = 'none';
               if (resumed.pdfs && resumed.pdfs.length > 0) {
-                window.showPdfViewerFromPhase1(resumed.pdfs, resumed.of);
+                window.showPdfViewerFromPhase1(resumed.pdfs, resumed.of, resumed.attachments);
               } else {
                 showError('Aucun plan PDF trouvé pour les pièces soumises.');
                 document.getElementById('formContainer').style.display = '';
@@ -1793,7 +1793,7 @@
 
           // Show PDF validation UI
           if (result.pdfs && result.pdfs.length > 0) {
-            window.showPdfViewerFromPhase1(result.pdfs, result.of);
+            window.showPdfViewerFromPhase1(result.pdfs, result.of, result.attachments);
           } else {
             showError('Aucun plan PDF trouvé pour les pièces soumises.');
             document.getElementById('formContainer').style.display = '';

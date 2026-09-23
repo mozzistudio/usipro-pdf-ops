@@ -29,9 +29,16 @@ async function main(): Promise<void> {
   const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'usipro-feedback-'));
   const storeFile = path.join(storeDir, 'feedback.jsonl');
   process.env.FEEDBACK_STORE_PATH = storeFile;
-  // This test covers the local fallback: no keys, no Supabase.
-  delete process.env.SUPABASE_URL;
-  delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  // Ce test couvre le repli local. Vider les variables ne suffit pas : config
+  // charge .env au premier import et les remet. On neutralise donc la config
+  // elle-même, sinon le test écrirait dans la vraie base de production.
+  const { config } = await import('../src/config');
+  const mutable = config as unknown as { supabase: { url: string; serviceRoleKey: string } };
+  mutable.supabase.url = '';
+  mutable.supabase.serviceRoleKey = '';
+  const { __resetForTests: resetClient } = await import('../src/services/supabaseClient');
+  resetClient();
 
   const store = await import('../src/services/feedbackStore');
 

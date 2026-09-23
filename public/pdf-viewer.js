@@ -21,12 +21,15 @@
   // store[filename] = { partId, originalBase64, anonymizedBase64, ofNum, pages: [] }
   // pages[i] = { validated, correctedBase64 }
   const store = {};
+  // attachments[partId] = { mode, summary, candidates, history } — le passé de
+  // la pièce, tel que le référentiel le connaît au moment de la validation.
+  const _attachments = {};
   let _allPages = []; // flat list: [{ filename, pageIndex, totalPages }]
   let _currentPageIdx = 0;
 
   // ── Public API ─────────────────────────────────────────────────
 
-  window.showPdfViewerFromPhase1 = function (pdfs, ofNum) {
+  window.showPdfViewerFromPhase1 = function (pdfs, ofNum, attachments) {
     const section = document.getElementById('pdfSection');
     const container = document.getElementById('pdfCardsContainer');
 
@@ -37,6 +40,10 @@
     Object.keys(store).forEach(k => delete store[k]);
     _allPages = [];
     _currentPageIdx = 0;
+
+    // Ce que le référentiel article sait de chaque pièce, indexé par partId.
+    Object.keys(_attachments).forEach(k => delete _attachments[k]);
+    (attachments || []).forEach(a => { _attachments[a.partId] = a; });
 
     if (pdfs.length === 0) {
       container.innerHTML = '<div class="pdf-loading">Aucun plan PDF disponible.</div>';
@@ -88,6 +95,14 @@
     updateCounter();
     closeCorrectionMode();
   };
+
+  /** textContent, jamais innerHTML : ces libellés viennent de la base. */
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  }
 
   // ── Counter ────────────────────────────────────────────────────
 
@@ -147,6 +162,40 @@
         >${s.pages[entry.pageIndex].validated ? '✓ Validée' : ''}</span>
     `;
     card.appendChild(header);
+
+    // Rattachement — ce que la pièce a déjà vécu. Affiché avant tout le reste :
+    // l'identité de l'article se lit avant qu'on parle du plan.
+    const attachment = _attachments[s.partId];
+    if (attachment) {
+      const box = document.createElement('div');
+      box.className = 'part-attachment ' + (attachment.mode === 'proposition' ? 'is-proposition' : 'is-auto');
+
+      const head = document.createElement('div');
+      head.className = 'part-attachment-head';
+      head.appendChild(el('span', 'part-attachment-mode',
+        attachment.mode === 'proposition' ? 'À trancher' : 'Rattachement'));
+      head.appendChild(el('span', 'part-attachment-summary', attachment.summary));
+      box.appendChild(head);
+
+      (attachment.candidates || []).slice(0, 3).forEach(c => {
+        const line = document.createElement('div');
+        line.className = 'part-attachment-candidate';
+        const who = c.sameArticle ? 'même article' : (c.article.reference + ' · ' + c.article.client);
+        line.appendChild(el('span', 'cand-kind', c.kind));
+        line.appendChild(el('span', 'cand-who', who));
+        line.appendChild(el('span', 'cand-why', c.reasons.join(' · ')));
+        box.appendChild(line);
+      });
+
+      if ((attachment.history || []).length > 0) {
+        const h = attachment.history[0];
+        box.appendChild(el('div', 'part-attachment-history',
+          'Passage précédent : ' + (h.of ? 'OF ' + h.of : 'source inconnue') +
+          ' le ' + new Date(h.seenAt).toLocaleDateString('fr-FR')));
+      }
+
+      card.appendChild(box);
+    }
 
     // Client feedback banner — shown on every page of the part it belongs to,
     // so the operator cannot validate without having seen it.

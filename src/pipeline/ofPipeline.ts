@@ -25,6 +25,7 @@ import {
   recordWorkDelivered,
   recordWorkStarted,
 } from '../services/worksStore';
+import { Attachment, attachPart } from '../services/articleStore';
 
 /** One anonymized plan handed to the operator for validation. */
 export interface Phase1Pdf {
@@ -40,6 +41,15 @@ export interface Phase1Pdf {
   feedback?: PartFeedback;
 }
 
+/** Ce que le référentiel article sait de la pièce, au moment où elle arrive. */
+export interface PartAttachment {
+  partId: string;
+  mode: Attachment['mode'];
+  summary: string;
+  candidates: Attachment['candidates'];
+  history: Attachment['history'];
+}
+
 export type Phase1Result =
   | {
       status: 'pending_validation';
@@ -47,6 +57,8 @@ export type Phase1Result =
       resolvedOF: string;
       pdfs: Phase1Pdf[];
       missingParts: string[];
+      /** Vide quand le référentiel est indisponible — jamais une erreur bloquante. */
+      attachments: PartAttachment[];
     }
   | {
       status: 'awaiting_selection';
@@ -406,6 +418,42 @@ async function finishPhase1(
   };
   saveState(newSessionId, state);
 
+  // ─── Rattachement au référentiel article ─────────────────────
+  // Identité avant prix : on dit ce que cette pièce a déjà vécu avant que
+  // quiconque parle de chiffrage. Un référentiel injoignable fait perdre le
+  // rattachement, jamais les plans déjà anonymisés.
+  const stepByPart = new Map(stepDocs.map(d => [d.partId, d.path_display]));
+  const attachments: PartAttachment[] = [];
+
+  for (const partId of partIds) {
+    try {
+      const stepPath = stepByPart.get(partId);
+      const stepBytes = stepPath ? await dropboxService.downloadFile(stepPath) : undefined;
+      const pdf = pdfs.find(p => p.partId === partId);
+      const planSha256 = pdf
+        ? crypto.createHash('sha256').update(Buffer.from(pdf.originalBase64, 'base64')).digest('hex')
+        : undefined;
+
+      const attachment = await attachPart({
+        client: CLIENT_CODE,
+        reference: partId,
+        sourceOf: resolvedOF,
+        stepBytes,
+        planSha256,
+      });
+
+      attachments.push({
+        partId,
+        mode: attachment.mode,
+        summary: attachment.summary,
+        candidates: attachment.candidates,
+        history: attachment.history,
+      });
+    } catch (err: any) {
+      log.warn({ partId, err: err.message }, 'Rattachement impossible — la pièce reste sans historique');
+    }
+  }
+
   // Indexed now rather than at delivery: a lot abandoned during validation is
   // still work that happened, and the home must show it. A failure here never
   // costs the operator the plans that are already anonymized.
@@ -423,13 +471,23 @@ async function finishPhase1(
     log.error({ err: err.message }, 'Travail non indexé — la home ne le montrera pas');
   }
 
-  log.info({ sessionId: newSessionId, pdfCount: pdfs.length, missingParts }, 'Phase 1 complete — awaiting validation');
+  log.info(
+    {
+      sessionId: newSessionId,
+      pdfCount: pdfs.length,
+      missingParts,
+      attached: attachments.length,
+      propositions: attachments.filter(a => a.mode === 'proposition').length,
+    },
+    'Phase 1 complete — awaiting validation',
+  );
   return {
     status: 'pending_validation',
     sessionId: newSessionId,
     resolvedOF,
     pdfs,
     missingParts,
+    attachments,
   };
 }
 
