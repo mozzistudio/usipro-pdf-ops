@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@napi-rs/canvas": "^1.0.9",
     "@supabase/supabase-js": "^2.117.0",
     "@types/pdfkit": "^0.17.5",
     "docx": "^9.6.0",
