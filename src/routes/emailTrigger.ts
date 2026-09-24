@@ -346,7 +346,7 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
     for (const att of incoming) {
       if (!att.contentBase64) continue; // non transmis: rien à archiver
       try {
-        await addWorkFile({
+        const stored = await addWorkFile({
           tool: 'chiffrage',
           ref: work.ref,
           kind: 'piece_jointe',
@@ -354,6 +354,13 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
           bytes: Buffer.from(att.contentBase64, 'base64'),
           contentType: att.contentType,
         });
+        // Un archivage raté ne lève pas : sans cette ligne, la pièce jointe
+        // disparaissait de l'écran sans que rien ne le dise, et le prix
+        // paraissait calculé sur un dossier complet.
+        if (!stored) {
+          notebook.note('lecture', 'pièce jointe non archivée — elle n’apparaîtra pas au dossier',
+            { file: att.name, level: 'error' });
+        }
       } catch (err: any) {
         // addWorkFile avale déjà ses propres pannes; ce filet ne couvre que le
         // décodage base64 d'une pièce jointe malformée.
@@ -368,13 +375,17 @@ async function handleEmail(inbound: InboundEmail): Promise<{ status: number; bod
     // l'emballage ne change rien à ce que l'opérateur a besoin de regarder.
     for (const member of extracted) {
       try {
-        await addWorkFile({
+        const stored = await addWorkFile({
           tool: 'chiffrage',
           ref: work.ref,
           kind: 'piece_jointe',
           fileName: member.name,
           bytes: member.bytes,
         });
+        if (!stored) {
+          notebook.note('lecture', 'fichier d’archive non archivé — il n’apparaîtra pas au dossier',
+            { file: member.name, level: 'error' });
+        }
       } catch (err: any) {
         logger.warn(
           { reference: request.reference, file: member.name, err: err.message },

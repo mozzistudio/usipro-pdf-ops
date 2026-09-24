@@ -13,14 +13,15 @@ import {
   requestLineCounts,
   reviewLine,
   setClientPricing,
-  setMaterialRate,
-  setPricingSettings,
   setWorkProject,
   setWorkStatus,
   workFacets,
   workFileCounts,
 } from '../services/worksStore';
 import { listFeedback } from '../services/feedbackStore';
+// Les écritures de prix passent par le paramétrage : elles doivent laisser une
+// version derrière elles, sinon l'historique ment par omission.
+import { saveMaterial, saveSettings } from '../services/parametrageStore';
 import { AnalysisNotebook, listAnalysis } from '../services/analysisJournal';
 
 const TOOLS: WorkTool[] = ['edition', 'chiffrage'];
@@ -188,8 +189,11 @@ export function registerWorksEndpoints(router: Router): void {
   router.post('/api/pricing/settings', async (req: Request, res: Response) => {
     const patch = req.body as Record<string, unknown>;
     const numeric = [
-      'hourlyRate', 'setupMinutes', 'minutesPerDm3',
-      'removalRatio', 'learningCurve', 'marginPct', 'handlingMinutesPerPart',
+      'hourlyRate', 'setupMinutes', 'programmingMinutes', 'programmingMinutesMax',
+      'minutesPerDm3', 'removalRatio', 'learningCurve', 'marginPct', 'handlingMinutesPerPart',
+      'millingTravelXMm', 'millingTravelYMm', 'millingTravelZMm',
+      'sheetMaxThicknessMm', 'sheetMinFormatMm', 'sheetRemovalRatio',
+      'groundAluminiumFactor', 'groundInoxFactor',
     ];
 
     for (const key of numeric) {
@@ -203,7 +207,7 @@ export function registerWorksEndpoints(router: Router): void {
     }
 
     try {
-      res.json({ status: 'ok', settings: await setPricingSettings(patch as any) });
+      res.json({ status: 'ok', settings: await saveSettings(patch as any, null) });
     } catch (err: any) {
       logger.error({ err: err.message }, 'Paramètres de prix non enregistrés');
       res.status(503).json({ status: 'error', message: err.message });
@@ -227,12 +231,12 @@ export function registerWorksEndpoints(router: Router): void {
     }
 
     try {
-      const materials = await setMaterialRate(String(id).trim(), {
+      const materials = await saveMaterial(String(id).trim(), {
         pricePerKg: pricePerKg === undefined ? undefined : Number(pricePerKg),
         density: density === undefined ? undefined : Number(density),
         label,
         aliases,
-      });
+      }, null);
       res.json({ status: 'ok', materials });
     } catch (err: any) {
       logger.error({ err: err.message, id }, 'Tarif matière non enregistré');

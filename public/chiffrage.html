@@ -197,6 +197,39 @@
     }
     .eyebrow { color: var(--ink-3); }
 
+    /* Deux vues, un seul verdict. Les onglets ne déplacent jamais les boutons
+       Valider et Rejeter : ils restent au même pixel dans les deux vues. */
+    .prop-tabs { display: flex; gap: 2px; padding: 0 22px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+    .prop-tabs button {
+      font-family: var(--sans); font-size: 12.5px; font-weight: 600; color: var(--ink-3);
+      background: none; border: 0; border-bottom: 2px solid transparent;
+      padding: 12px 10px; cursor: pointer;
+    }
+    .prop-tabs button:hover { color: var(--ink); }
+    .prop-tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--teal); }
+    .prop-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    /* La méthode est longue par nature : c'est la seule vue qui défile. */
+    .prop-view.methode {
+      overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent;
+    }
+
+    /* Le récit : des chiffres pointables dans une phrase qui se lit. */
+    .method { padding: 15px 22px 20px; display: flex; flex-direction: column; gap: 15px; }
+    .method .para, .method .gamme { display: flex; flex-direction: column; gap: 6px; }
+    .method p { font-size: 12.5px; line-height: 1.6; color: var(--ink-2); }
+    .method .n { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 600; }
+    .method .from {
+      font-size: 11px; line-height: 1.45; color: var(--ink-3);
+      border-left: 2px solid var(--surface-3); padding-left: 10px;
+    }
+    .method .gamme .k { display: flex; align-items: baseline; gap: 10px; }
+    .method .gamme strong { font-size: 15px; color: var(--ink); }
+    .method p.warn { color: var(--amber); }
+    .method p.bad { color: var(--red); }
+    .method .suppose { margin: 0; padding-left: 17px; display: flex; flex-direction: column; gap: 5px; }
+    .method .suppose li { font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }
+    .method a { color: var(--teal); }
+
     .prop-head { padding: 16px 22px 13px; flex-shrink: 0; }
     .price-row { display: flex; align-items: flex-end; gap: 12px; margin-top: 9px; }
     .price-big { font-family: var(--mono); font-size: 35px; font-weight: 600; line-height: .95; letter-spacing: -1.2px; }
@@ -205,7 +238,9 @@
     .price-tag {
       margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--ink-2);
       border: 1px solid var(--line-2); border-radius: 6px; padding: 6px 10px; white-space: nowrap;
+      background: none; cursor: pointer;
     }
+    button.price-tag:hover { border-color: var(--teal); color: var(--ink); }
     .price-sub { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); margin-top: 7px; }
 
     /* Ce que la machine a lu de la pièce. */
@@ -284,6 +319,16 @@
     .opt-body { display: flex; gap: 8px; }
     .opt-body textarea { min-height: 62px; }
 
+    /* Une consigne écrite pour une pièce peut valoir pour toutes : le lien
+       vers la règle se propose là où la consigne se lit, et nulle part
+       ailleurs — on ne fait pas d'une phrase une doctrine par mégarde. */
+    .to-rule {
+      font-family: var(--sans); font-size: 11.5px; font-weight: 600; color: var(--teal);
+      background: none; border: 0; padding: 4px 0 0; cursor: pointer;
+    }
+    .to-rule:hover { text-decoration: underline; }
+    .to-rule:disabled { color: var(--ink-3); cursor: default; text-decoration: none; }
+
     .verdict { display: flex; gap: 10px; padding: 13px 22px 15px; border-top: 1px solid var(--line); flex-shrink: 0; }
     .verdict .btn { flex: 1; height: 43px; font-size: 14px; font-weight: 700; border-radius: 9px; border: 0; }
     .btn-validate { background: var(--green); color: #05230F; }
@@ -345,7 +390,7 @@
   <header class="app-bar">
     <a class="brand" href="/"><img src="/logo.png" alt="Usi-Pro"><span class="brand-rule"></span><span class="brand-app">Internal</span></a>
     <span class="app-name">Chiffrage</span>
-    <a class="app-nav" href="/analyse.html" id="toAnalyse">Analyse</a>
+    <a class="app-nav" href="/analyse.html">Analyse</a>
     <a class="app-nav" href="/chiffrage.html" aria-current="page">Revue</a>
     <a class="app-nav" href="/parametrage.html">Paramétrage</a>
     <select class="picker" id="picker" aria-label="Devis en cours"></select>
@@ -353,6 +398,8 @@
     <div class="load" id="load"></div>
     <a class="app-nav" href="/">Accueil</a>
   </header>
+
+  <script src="/dossier.js"></script>
 
   <main class="workbench">
     <section class="plan">
@@ -376,6 +423,7 @@
     let DOCS_OPEN = false; // la liste complète des documents est dépliée
     let POST = 0;         // le poste de calcul désigné, dont on lit le « pourquoi »
     let CHOICE = null;    // l'issue cochée : 'forcer', 'recalculer' ou null
+    let VIEW = 'proposition';  // la vue du panneau : 'proposition' ou 'methode'
     const MAX_CHIPS = 8;   // au-delà, la liste se replie
     let RENDER = 0;       // jeton : un rendu dépassé ne doit pas écraser le suivant
 
@@ -629,6 +677,7 @@
     function goTo(i) {
       if (i < 0 || i >= LINES.length) return;
       INDEX = i;
+      if (CURRENT) Dossier.remember(CURRENT.id, i);
       PICKED = null;
       DOCS_OPEN = false;
       POST = 0;
@@ -804,6 +853,15 @@
     }
 
     // ── Colonne 2 : la proposition ────────────────────────────
+
+    /**
+     * Le panneau de droite : deux vues d'un même article, et un verdict.
+     *
+     * « Proposition » porte le prix et les issues, « Méthode » dit comment ce
+     * prix a été fait. Le verdict reste hors des onglets : c'est l'article
+     * qu'on tranche, pas la vue qu'on regarde, et devoir revenir sur un onglet
+     * pour valider serait un piège.
+     */
     function renderProposal() {
       const box = document.getElementById('proposal');
       box.innerHTML = '';
@@ -817,6 +875,43 @@
         return;
       }
 
+      box.appendChild(renderTabs());
+
+      // La méthode est longue par nature : c'est la seule vue qui défile.
+      const view = el('div', 'prop-view' + (VIEW === 'methode' ? ' methode' : ''));
+      if (VIEW === 'methode') view.appendChild(renderMethod(line));
+      else renderProposition(view, line);
+      box.appendChild(view);
+
+      const verdict = el('div', 'verdict');
+      const reject = el('button', 'btn btn-reject', '✕ Rejeter');
+      reject.type = 'button';
+      reject.onclick = () => review(line, 'rejeter');
+      const validate = el('button', 'btn btn-validate', '✓ Valider');
+      validate.type = 'button';
+      validate.onclick = () => review(line, 'valider');
+      verdict.appendChild(reject);
+      verdict.appendChild(validate);
+      box.appendChild(verdict);
+
+      if (VIEW !== 'methode') countHiddenAlerts();
+    }
+
+    function renderTabs() {
+      const tabs = el('div', 'prop-tabs');
+      tabs.setAttribute('role', 'tablist');
+      for (const [key, label] of [['proposition', 'Proposition'], ['methode', 'Méthode']]) {
+        const tab = el('button', null, label);
+        tab.type = 'button';
+        tab.setAttribute('role', 'tab');
+        tab.setAttribute('aria-selected', String(VIEW === key));
+        tab.onclick = () => { VIEW = key; renderProposal(); };
+        tabs.appendChild(tab);
+      }
+      return tabs;
+    }
+
+    function renderProposition(box, line) {
       // Le prix, et d'où il vient.
       const head = el('div', 'prop-head');
       head.appendChild(el('div', 'eyebrow', 'Proposition · prix de revient unitaire'));
@@ -825,8 +920,14 @@
         const price = el('div', 'price-big', money(line.unitPrice));
         price.appendChild(el('span', 'u', '/ pièce'));
         row.appendChild(price);
-        row.appendChild(el('span', 'price-tag',
-          line.status === 'forcee' ? 'prix imposé' : 'calcul déterministe'));
+        // La puce dit d'où vient le prix : cliquer dessus doit mener à la
+        // démonstration, pas seulement la nommer.
+        const tag = el('button', 'price-tag',
+          line.status === 'forcee' ? 'prix imposé' : 'calcul déterministe');
+        tag.type = 'button';
+        tag.title = 'Voir la méthode de calcul';
+        tag.onclick = () => { VIEW = 'methode'; renderProposal(); };
+        row.appendChild(tag);
       } else {
         row.appendChild(el('div', 'price-none', 'Pas de prix'));
         row.appendChild(el('span', 'price-tag',
@@ -910,24 +1011,218 @@
 
       box.appendChild(renderChoices(line));
 
-      const verdict = el('div', 'verdict');
-      const reject = el('button', 'btn btn-reject', '✕ Rejeter');
-      reject.type = 'button';
-      reject.onclick = () => review(line, 'rejeter');
-      const validate = el('button', 'btn btn-validate', '✓ Valider');
-      validate.type = 'button';
-      validate.onclick = () => review(line, 'valider');
-      verdict.appendChild(reject);
-      verdict.appendChild(validate);
-      box.appendChild(verdict);
-
       if (line.reviewNote) {
         const n = el('div', 'prop-msg');
         n.appendChild(el('div', 'note', 'Consigne du technicien : ' + line.reviewNote));
+        // La consigne a été écrite pour cette pièce. Si elle vaut pour toutes,
+        // c'est ici qu'on le dit — le texte part tel quel, sans réécriture.
+        const go = el('button', 'to-rule', 'Proposer cette consigne comme règle →');
+        go.type = 'button';
+        go.onclick = () => proposeRule(line.reviewNote, go);
+        n.appendChild(go);
         box.insertBefore(n, box.firstChild);
       }
+    }
 
-      countHiddenAlerts();
+    /**
+     * L'onglet Méthode : comment ce prix a été fait, en français.
+     *
+     * Ce texte n'est pas un second calcul — rien ne serait pire que deux
+     * démonstrations qui divergent. Chaque paragraphe met en phrase les
+     * montants du bordereau, et cite en dessous la base que le moteur a
+     * lui-même écrite. Si le moteur change, le récit change avec lui.
+     *
+     * Pourquoi en prose plutôt qu'en tableau : le tableau est déjà là, dans
+     * l'onglet d'à côté. Ce qu'un tableau ne sait pas dire, c'est ce qui pèse
+     * et pourquoi — « sur cette pièce, c'est le bloc qu'on achète, pas le
+     * temps qu'on passe » est la phrase qu'on répète au client au téléphone.
+     */
+    function renderMethod(line) {
+      const box = el('div', 'method');
+      const b = line.priceBreakdown;
+
+      if (!b || !(b.items || []).length) {
+        box.appendChild(el('div', 'empty',
+          line.status === 'manuelle'
+            ? 'Ligne sortie du chiffrage automatique : il n’y a pas de méthode à montrer.'
+            : 'Cette ligne n’a pas été chiffrée — aucun calcul à expliquer.'));
+        return box;
+      }
+
+      const item = (label) => (b.items || []).find(i => i.label === label);
+      const starts = (prefix) => (b.items || []).find(i => i.label.indexOf(prefix) === 0);
+      const quantity = b.quantity || 1;
+
+      // La part d'un poste dans le prix : c'est elle qui dit où regarder.
+      const share = (amount) =>
+        line.unitPrice ? Math.round((Math.abs(amount) / line.unitPrice) * 100) : null;
+
+      /** Une phrase dont les chiffres sont en chasse fixe : on doit pouvoir les pointer. */
+      function say(parts) {
+        const p = el('p');
+        for (const part of parts) {
+          if (part == null) continue;
+          if (typeof part === 'string') p.appendChild(document.createTextNode(part));
+          else p.appendChild(el('span', 'n', part.n));
+        }
+        return p;
+      }
+
+      /** Un paragraphe, et la base que le moteur a écrite pour le soutenir. */
+      function para(parts, ...bases) {
+        const block = el('div', 'para');
+        block.appendChild(say(parts));
+        for (const base of bases) {
+          if (base && base.basis) block.appendChild(el('div', 'from', base.basis));
+        }
+        box.appendChild(block);
+      }
+
+      const nombre = (value, unit) =>
+        ({ n: String(Math.round(value * 100) / 100).replace('.', ',') + (unit ? ' ' + unit : '') });
+      const pct = (value) => ({ n: value + ' %' });
+
+      // ── La gamme : elle commande tout le reste ──
+      const GAMMES = {
+        fraisage: ['Fraisage', 'bridée à l’étau et reprise par repositionnement — ses trois cotes doivent entrer dans les courses de la machine'],
+        tournage: ['Tournage', 'une pièce de révolution part au tour : les courses de la fraiseuse ne la concernent pas'],
+        debit_tole: ['Débit tôle', 'fine et large, elle est débitée puis reprise sur une seule face — on ne fraise pas les deux'],
+      };
+      const gamme = GAMMES[b.route];
+      if (gamme) {
+        const g = el('div', 'gamme');
+        const head = el('div', 'k');
+        head.appendChild(el('span', 'eyebrow', 'Gamme retenue'));
+        head.appendChild(el('strong', null, gamme[0]));
+        g.appendChild(head);
+        g.appendChild(el('p', null, gamme[1][0].toUpperCase() + gamme[1].slice(1) + '.'));
+        box.appendChild(g);
+      }
+
+      // ── Ce qui ne passe pas en l'état ──
+      for (const finding of b.findings || []) {
+        const warn = el('div', 'para');
+        const p = el('p', line.alertLevel === 'rouge' ? 'bad' : 'warn');
+        p.textContent = 'Avant de s’engager : ' + finding;
+        warn.appendChild(p);
+        box.appendChild(warn);
+      }
+
+      // ── La matière ──
+      const matiere = item('Matière');
+      if (matiere) {
+        const poids = b.rawMassKg;
+        const part = share(matiere.amount);
+        para([
+          poids ? 'Le brut englobant pèse ' : 'La matière coûte ',
+          poids ? nombre(poids, 'kg') : { n: money(matiere.amount) },
+          poids ? ' : la matière coûte ' : ' par pièce',
+          poids ? { n: money(matiere.amount) } : null,
+          poids ? ' par pièce' : null,
+          part != null ? ', soit ' : '',
+          part != null ? pct(part) : null,
+          part != null ? ' du prix.' : '.',
+          part != null && part >= 55
+            ? ' Sur cette pièce, c’est le bloc qu’on achète, pas le temps qu’on passe.'
+            : part != null && part <= 15
+              ? ' Ce n’est pas la matière qui fait ce prix.'
+              : '',
+        ], matiere);
+      }
+
+      // ── Le temps ──
+      const usinage = item('Usinage');
+      if (usinage) {
+        const part = share(usinage.amount);
+        para([
+          b.unitMinutes ? 'On y passe ' : 'L’usinage vaut ',
+          b.unitMinutes ? nombre(b.unitMinutes, 'min') : { n: money(usinage.amount) },
+          b.unitMinutes
+            ? (quantity > 1 ? ' par pièce en moyenne sur la série, dégressivité comprise : ' : ' par pièce : ')
+            : '',
+          b.unitMinutes ? { n: money(usinage.amount) } : null,
+          part != null ? ', soit ' : '',
+          part != null ? pct(part) : null,
+          part != null ? ' du prix.' : '.',
+        ], usinage);
+      }
+
+      // ── Ce qui est payé une fois ──
+      const prog = item('Programmation amortie');
+      const mise = item('Mise en train amortie');
+      if (prog || mise) {
+        // Un seul poste ou deux, une pièce ou cent : la phrase s'accorde. Un
+        // « payé une seule fois et réparties » se remarque immédiatement, et
+        // décrédibilise le reste du récit.
+        const deux = prog && mise;
+        const sujet = deux
+          ? 'La programmation CAO et la mise en train sont payées une seule fois'
+          : (prog ? 'La programmation CAO est payée une seule fois' : 'La mise en train est payée une seule fois');
+        para([
+          sujet,
+          quantity > 1 ? (deux ? ' et réparties sur les ' : ' et répartie sur les ') : ' — mais la série est d’une seule pièce : ',
+          quantity > 1 ? { n: String(quantity) } : null,
+          quantity > 1 ? ' pièces : ' : '',
+          prog ? { n: money(prog.amount) } : null,
+          deux ? ' et ' : '',
+          mise ? { n: money(mise.amount) } : null,
+          '.',
+          quantity > 1
+            ? (deux ? ' Sur une quantité plus grande, ces deux postes baisseraient encore.'
+                    : ' Sur une quantité plus grande, ce poste baisserait encore.')
+            : ' Elle est portée en entier par la pièce.',
+        ], prog, mise);
+      }
+
+      // ── Un tarif client passe devant le calcul, mais jamais en silence ──
+      const impose = starts('Prix imposé');
+      if (impose) {
+        para(['Ce prix n’est pas celui du calcul : un tarif client est imposé pour ce compte. Le calcul reste au bordereau, et l’écart est nommé.'], impose);
+      }
+
+      // ── Le verdict chiffré ──
+      const marge = starts('Marge');
+      if (marge && line.unitPrice != null) {
+        // Le revient se déduit du prix, il ne se resomme pas : additionner des
+        // postes déjà arrondis donnait 131,05 € là où le moteur a calculé
+        // 131,06 €, et un centime d'écart suffit à faire douter du reste.
+        const revient = Math.round((line.unitPrice - marge.amount) * 100) / 100;
+        para([
+          'Coût de revient : ',
+          { n: money(revient) },
+          '. Avec la ' + marge.label.replace(/^Marge\s*/, 'marge de ') + ', le prix proposé est de ',
+          { n: money(line.unitPrice) },
+          ' la pièce',
+          line.totalPrice != null ? ', soit ' : '.',
+          line.totalPrice != null ? { n: money(line.totalPrice) } : null,
+          line.totalPrice != null ? ' pour la série de ' : '',
+          line.totalPrice != null ? { n: String(quantity) } : null,
+          line.totalPrice != null ? '.' : '',
+        ]);
+      }
+
+      // ── Ce que personne n'a mesuré ──
+      const doute = el('div', 'para');
+      doute.appendChild(el('span', 'eyebrow', 'Ce que personne n’a mesuré'));
+      if ((b.assumptions || []).length) {
+        const list = el('ul', 'suppose');
+        for (const assumption of b.assumptions) list.appendChild(el('li', null, assumption));
+        doute.appendChild(list);
+      } else {
+        doute.appendChild(el('p', null,
+          'Rien n’a été supposé sur cet article : la demande donnait l’encombrement, la matière et la quantité.'));
+      }
+      const fin = el('p');
+      fin.appendChild(document.createTextNode(
+        'Deux réglages restent des hypothèses de départ, jamais mesurées dans votre atelier : la part de matière enlevée et la courbe de série. Elles se corrigent au '));
+      const lien = el('a', null, 'Paramétrage');
+      lien.href = '/parametrage.html';
+      fin.appendChild(lien);
+      fin.appendChild(document.createTextNode('.'));
+      doute.appendChild(fin);
+      box.appendChild(doute);
+
+      return box;
     }
 
     /**
@@ -1004,10 +1299,73 @@
         setTimeout(() => note.focus(), 0);
       }
 
+      option('regle', 'Proposer une règle', 'vaut pour tous les devis — après validation au paramétrage');
+      if (CHOICE === 'regle') {
+        const body = el('div', 'opt-body');
+        const text = el('textarea');
+        text.rows = 2;
+        text.maxLength = 600;
+        text.placeholder = 'ex : usinages sur deux faces opposées — seconde prise, +3 min/pièce et +20 min de réglage';
+        text.setAttribute('aria-label', 'Règle proposée');
+        text.style.flex = '1';
+        const go = el('button', 'btn btn-ghost', 'Proposer');
+        go.type = 'button';
+        go.style.height = '39px';
+        go.onclick = () => proposeRule(text.value, go);
+        body.appendChild(text);
+        body.appendChild(go);
+        box.appendChild(body);
+        setTimeout(() => text.focus(), 0);
+      }
+
       option('manuel', 'Traitement manuel', 'la ligne part sans prix, marquée à compléter',
         () => review(line, 'manuel'));
 
       return box;
+    }
+
+    /**
+     * Proposer une règle depuis la revue.
+     *
+     * Elle n'agit pas en partant d'ici : elle arrive au paramétrage en
+     * « à valider », et quelqu'un décide si ce qu'un technicien a constaté sur
+     * une pièce vaut pour tous les devis de l'atelier. C'est la barrière, et
+     * elle est volontairement de l'autre côté de l'écran.
+     */
+    async function proposeRule(text, button) {
+      const rule = (text || '').trim();
+      const box = document.getElementById('proposal');
+      if (!rule) return;
+
+      if (button) button.disabled = true;
+      try {
+        const resp = await fetch('/api/parametrage/rules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: rule,
+            origin: 'revue',
+            workId: CURRENT ? CURRENT.id : undefined,
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
+
+        const waiting = (data.rules || []).filter(r => r.status === 'a_valider').length;
+        CHOICE = null;
+        renderProposal();
+        const done = el('div', 'prop-msg');
+        done.appendChild(el('div', 'note',
+          'Règle proposée — elle n’agit pas encore. ' +
+          waiting + (waiting > 1 ? ' règles attendent' : ' règle attend') + ' une validation au paramétrage.'));
+        document.getElementById('proposal').prepend(done);
+      } catch (err) {
+        const warn = el('div', 'prop-msg');
+        warn.appendChild(el('div', 'note warn', 'Règle non proposée : ' + err.message));
+        box.prepend(warn);
+      } finally {
+        if (button) button.disabled = false;
+      }
     }
 
     // ── La décision ────────────────────────────────────────────
@@ -1041,8 +1399,7 @@
     }
 
     function renderAll() {
-      const toAnalyse = document.getElementById('toAnalyse');
-      toAnalyse.href = CURRENT ? '/analyse.html#' + encodeURIComponent(CURRENT.id) : '/analyse.html';
+      Dossier.carry();
       renderPicker();
       renderLoad();
       renderPlan();
@@ -1052,6 +1409,7 @@
 
     async function selectWork(id) {
       CURRENT = WORKS.find(w => w.id === id) || null;
+      if (CURRENT) Dossier.remember(CURRENT.id, 0);
       INDEX = 0;
       LINES = [];
       FILES = [];
@@ -1091,13 +1449,12 @@
             'Aucune demande reçue. Un mail envoyé à chiffrage@usi-pro.com apparaît ici dans la minute.'));
           return;
         }
-        // Une ancre #devis/article — celle que pose l'écran d'analyse — ouvre
-        // directement la ligne cliquée là-bas.
-        const anchor = decodeURIComponent(location.hash.replace('#', '')).split('/');
-        const start = WORKS.find(w => w.id === anchor[0]) || WORKS[0];
+        // Le devis de l'adresse — celle que pose l'écran d'analyse — ou, à
+        // défaut, celui qu'on regardait avant de changer d'onglet.
+        const asked = Dossier.open();
+        const start = WORKS.find(w => w.id === asked.id) || WORKS[0];
         await selectWork(start.id);
-        const wanted = Number(anchor[1]);
-        if (Number.isInteger(wanted) && wanted >= 0 && wanted < LINES.length) goTo(wanted);
+        if (asked.index !== null && asked.index < LINES.length) goTo(asked.index);
       } catch (err) {
         proposal.innerHTML = '';
         proposal.appendChild(el('div', 'empty', 'Demandes injoignables : ' + err.message));

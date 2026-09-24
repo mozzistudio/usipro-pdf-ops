@@ -10,23 +10,204 @@
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/usipro.css">
   <style>
-    .page { max-width: 980px; margin: 0 auto; padding: 28px 24px 64px; display: flex; flex-direction: column; gap: 22px; }
-    h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.3px; }
-    .lede { font-size: 13.5px; color: var(--ink-2); line-height: 1.65; max-width: 74ch; }
+    /**
+     * Le paramétrage de l'atelier.
+     *
+     * Trois colonnes, et c'est le propos : à gauche ce qu'on peut régler, au
+     * milieu le réglage en cours, à droite ce sur quoi tous les prix reposent
+     * en ce moment — les taux, le parc, et la version en vigueur. Le rail de
+     * droite ne se replie pas dans un onglet : quelqu'un qui change un taux
+     * doit voir, sans rien ouvrir, ce que l'atelier applique déjà.
+     *
+     * Même langue sombre que la revue et l'analyse : les jetons sont redéfinis
+     * ici seulement, les autres écrans gardent le thème clair de `usipro.css`.
+     */
+    :root {
+      --bg: #0A1211;
+      --surface: #101A18;
+      --surface-2: #16211F;
+      --surface-3: #1C2A27;
 
-    .block { padding: 20px 22px; display: flex; flex-direction: column; gap: 16px; }
-    .block h2 { font-size: 15px; font-weight: 700; }
-    .block .why { font-size: 12.5px; color: var(--ink-2); line-height: 1.6; max-width: 74ch; }
+      --ink: #E9F0ED;
+      --ink-2: #9BADA8;
+      --ink-3: #6E807B;
 
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+      --line: rgba(255,255,255,.075);
+      --line-2: rgba(255,255,255,.15);
+
+      --teal: #2FD8B9;
+      --teal-ink: #05312B;
+      --teal-soft: rgba(47,216,185,.13);
+      --green: #43BE6D;
+      --green-soft: rgba(67,190,109,.13);
+      --amber: #E2A93C;
+      --amber-soft: rgba(226,169,60,.13);
+      --red: #E2604F;
+      --red-soft: rgba(226,96,79,.13);
+    }
+
+    body { background: var(--bg); color: var(--ink); overflow: hidden; }
+
+    .app-bar { background: var(--surface); border-bottom-color: var(--line); gap: 16px; }
+    .brand { background: #05100E; }
+    a.brand:hover { background: #020806; }
+    .app-nav { color: var(--ink-3); }
+    .app-nav:hover { color: var(--ink); }
+    .app-nav[aria-current="page"] { color: var(--ink); border-bottom-color: var(--teal); }
+
+    /* Une seule portée, dite une fois : il n'y a pas de paramétrage par client,
+       et le découvrir après avoir changé un taux serait une mauvaise surprise. */
+    .scope { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+
+    input[type="text"], input[type="number"], textarea, select {
+      background: var(--surface-2); border-color: var(--line-2); color: var(--ink);
+    }
+    input:disabled, textarea:disabled, select:disabled { opacity: .45; cursor: not-allowed; }
+
+    .param { display: grid; grid-template-columns: 236px minmax(0, 1fr) 330px; height: calc(100vh - 56px); }
+
+    /* ── Ce qu'on peut régler ── */
+    .sections { border-right: 1px solid var(--line); padding: 18px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+    .section-link {
+      display: flex; align-items: center; gap: 10px; width: 100%;
+      font-family: var(--sans); font-size: 13.5px; font-weight: 600; text-align: left;
+      color: var(--ink-2); background: none; border: 0; border-left: 2px solid transparent;
+      padding: 11px 12px; border-radius: 0 7px 7px 0; cursor: pointer;
+    }
+    .section-link:hover { color: var(--ink); background: var(--surface); }
+    .section-link[aria-current="true"] { color: var(--ink); background: var(--surface); border-left-color: var(--teal); }
+    .section-count {
+      margin-left: auto; font-family: var(--mono); font-size: 11px;
+      color: var(--ink-3); background: var(--surface-3); border-radius: 4px; padding: 2px 7px;
+    }
+    .section-count.due { color: var(--teal); background: var(--teal-soft); }
+
+    /* ── Le réglage en cours ── */
+    .panel { padding: 24px 28px 40px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px;
+      scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+    .panel h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.3px; }
+    .lede { font-size: 13px; color: var(--ink-2); line-height: 1.65; max-width: 76ch; margin-top: 7px; }
+    .panel-head { flex-shrink: 0; }
+
+    .stack { display: flex; flex-direction: column; gap: 9px; }
+    .group { display: flex; flex-direction: column; gap: 9px; }
+    .group + .group { margin-top: 18px; }
+
+    .row {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 13px 15px;
+    }
+    .row.new { border-color: var(--teal); background: rgba(47,216,185,.06); }
+    .row-key { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); width: 38px; flex-shrink: 0; }
+    .row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .row-title { font-size: 13.5px; font-weight: 600; }
+    .row-sub { font-size: 12px; color: var(--ink-3); line-height: 1.5;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .row-text { font-size: 13.5px; line-height: 1.55; }
+    .row-side { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+    .badge {
+      font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+      background: var(--surface-3); border-radius: 5px; padding: 4px 8px; white-space: nowrap;
+    }
+    .badge.teal { color: var(--teal); background: var(--teal-soft); }
+    .badge.amber { color: var(--amber); background: var(--amber-soft); }
+    .badge.red { color: var(--red); background: var(--red-soft); }
+
+    input.num { width: 92px; text-align: right; font-family: var(--mono); padding: 8px 10px; }
+    input.num.wide { width: 116px; }
+    .unit { font-family: var(--mono); font-size: 11px; color: var(--ink-3); white-space: nowrap;
+      display: inline-flex; align-items: center; gap: 6px; }
+    /* Les listes déroulantes de la feuille commune prennent toute la largeur :
+       dans une ligne, elles doivent tenir la leur. */
+    .row-main select, .row-side select { width: auto; max-width: 240px; }
+
+    .link-btn {
+      font-family: var(--sans); font-size: 12.5px; font-weight: 600; color: var(--ink-3);
+      background: none; border: 0; cursor: pointer; padding: 4px 2px;
+    }
+    .link-btn:hover { color: var(--ink); }
+    .link-btn.danger:hover { color: var(--red); }
+    .link-btn.go { color: var(--teal); }
+    .link-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    .mini {
+      height: 32px; padding: 0 12px; font-size: 12.5px; font-weight: 600; border-radius: 6px;
+      font-family: var(--sans); border: 1px solid var(--line-2); background: var(--surface-2);
+      color: var(--ink); cursor: pointer;
+    }
+    .mini:hover { border-color: var(--teal); color: var(--teal); }
+    .mini.primary { background: var(--teal); color: var(--teal-ink); border-color: var(--teal); }
+    .mini.primary:hover { background: #4FE7CB; color: var(--teal-ink); }
+    .mini:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* Trois états, et un seul vrai : ce que l'atelier fait, ce qu'il achète,
+       ce qu'il ne fait pas. Un interrupteur à deux positions aurait menti. */
+    .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 7px; overflow: hidden; }
+    .seg button {
+      font-family: var(--sans); font-size: 12px; font-weight: 600; color: var(--ink-3);
+      background: none; border: 0; padding: 7px 11px; cursor: pointer; white-space: nowrap;
+    }
+    .seg button:hover { color: var(--ink); }
+    .seg button[aria-pressed="true"] { background: var(--surface-3); color: var(--ink); }
+    .seg button[aria-pressed="true"][data-tone="teal"] { color: var(--teal); }
+    .seg button[aria-pressed="true"][data-tone="amber"] { color: var(--amber); }
+    .seg button[aria-pressed="true"][data-tone="dim"] { color: var(--ink-2); }
+
+    .field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 15px; }
     .field { display: flex; flex-direction: column; gap: 5px; }
     .field label { font-size: 12px; font-weight: 600; }
-    .field .unit { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+    .field .unit { font-size: 10.5px; }
+    .field input { text-align: left; width: 100%; }
 
-    .actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .note { font-size: 12.5px; color: var(--ink-2); }
-    .note.done { color: var(--teal-ink); font-weight: 600; }
-    .note.warn { color: var(--red); font-weight: 600; }
+    textarea { min-height: 76px; resize: vertical; line-height: 1.55; }
+
+    .empty {
+      font-size: 13px; color: var(--ink-3); line-height: 1.6;
+      border: 1px dashed var(--line-2); border-radius: 9px; padding: 16px 17px;
+    }
+
+    .notice {
+      font-size: 12.5px; line-height: 1.55; border-radius: 8px; padding: 11px 13px;
+      background: var(--amber-soft); color: #E8C078; border: 1px solid rgba(226,169,60,.28);
+    }
+
+    /* ── Ce qui s'applique en ce moment ── */
+    .rail { border-left: 1px solid var(--line); padding: 20px 20px 40px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 22px;
+      scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+    .rail-block { display: flex; flex-direction: column; gap: 9px; }
+    .rail-line { display: flex; align-items: baseline; gap: 10px; font-size: 13px; }
+    .rail-line .l { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rail-line .v { margin-left: auto; font-family: var(--mono); font-size: 13px; font-weight: 600; white-space: nowrap; }
+    .rail-line .u { font-family: var(--mono); font-size: 11px; color: var(--ink-3); width: 26px; }
+
+    .version {
+      display: flex; align-items: baseline; gap: 11px; padding: 9px 11px;
+      border: 1px solid transparent; border-radius: 7px; background: var(--surface);
+    }
+    .version.current { border-color: var(--teal); }
+    .version .n { font-family: var(--mono); font-size: 12.5px; font-weight: 600; width: 30px; flex-shrink: 0; }
+    .version.current .n { color: var(--teal); }
+    .version .s { font-size: 12.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .version .d { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--ink-3); flex-shrink: 0; }
+    .version .back { flex-shrink: 0; }
+
+    .signer { display: flex; flex-direction: column; gap: 6px; }
+    .signer input { font-size: 12.5px; padding: 7px 9px; }
+
+    .note { font-size: 12.5px; color: var(--ink-2); min-height: 18px; }
+    .note.done { color: var(--teal); }
+    .note.warn { color: var(--red); }
+
+    /* Sous 1200 px, le rail passe sous le panneau : trois colonnes sur un
+       portable donnaient trois colonnes illisibles. */
+    @media (max-width: 1200px) {
+      body { overflow: auto; }
+      .param { grid-template-columns: 200px minmax(0, 1fr); height: auto; }
+      .panel, .sections { overflow: visible; }
+      .rail { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); }
+    }
   </style>
 </head>
 <body>
@@ -34,160 +215,777 @@
   <header class="app-bar">
     <a class="brand" href="/"><img src="/logo.png" alt="Usi-Pro"><span class="brand-rule"></span><span class="brand-app">Internal</span></a>
     <span class="app-name">Chiffrage</span>
-    <a class="app-nav" href="/chiffrage.html">Devis</a>
+    <a class="app-nav" href="/analyse.html">Analyse</a>
+    <a class="app-nav" href="/chiffrage.html">Revue</a>
     <a class="app-nav" href="/parametrage.html" aria-current="page">Paramétrage</a>
     <div class="spacer"></div>
+    <span class="scope">Règles communes à tous les clients · aucun paramétrage par client</span>
     <a class="app-nav" href="/">Accueil</a>
   </header>
 
-  <main class="page">
-    <div>
-      <h1>Paramétrage du chiffrage</h1>
-      <p class="lede">
-        Ces valeurs commandent chaque prix proposé. Celles livrées sont des
-        <strong>hypothèses de départ</strong> — un taux horaire d'usinage de PME, une mise en
-        train forfaitaire, une courbe d'apprentissage usuelle, des tarifs matière au cours du
-        marché. Aucune n'est mesurée chez vous. Corrigez-les, puis relancez le calcul sur un
-        devis : rien n'est recalculé dans votre dos, parce qu'un prix déjà parti chez un client
-        ne doit pas changer tout seul.
-      </p>
-    </div>
+  <script src="/dossier.js"></script>
 
-    <section class="card block">
-      <h2>Temps et taux</h2>
-      <p class="why">
-        Le prix se construit toujours de la même façon : matière, puis temps d'usinage au taux
-        horaire, puis mise en train amortie sur la série, puis marge. Deux quantités du même
-        article donnent donc deux prix cohérents entre eux par construction.
-      </p>
-      <div class="grid" id="settingsGrid"></div>
+  <main class="param">
+    <nav class="sections" id="sections" aria-label="Sections du paramétrage"></nav>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h1 id="title">Paramétrage</h1>
+        <p class="lede" id="lede">Chargement…</p>
+      </div>
+      <div class="stack" id="body"></div>
+      <div class="note" id="note"></div>
     </section>
 
-    <section class="card block">
-      <h2>Matières</h2>
-      <p class="why">
-        Prix au kilo et densité : les deux seules choses dont le moteur a besoin pour passer d'un
-        encombrement à un coût matière. La ligne « Matière non identifiée » est un repli assumé —
-        quand une nuance n'est pas reconnue, elle sert, et l'article porte une alerte.
-      </p>
-      <div class="grid" id="materialGrid"></div>
-    </section>
-
-    <div class="actions">
-      <button class="btn btn-primary" id="save" type="button">Enregistrer</button>
-      <span class="note" id="note"></span>
-    </div>
+    <aside class="rail" id="rail"></aside>
   </main>
 
   <script>
-    const FIELDS = [
-      ['hourlyRate', 'Taux horaire', '€/h · machine + opérateur'],
+  /**
+   * Un seul état, relu du serveur après chaque écriture.
+   *
+   * Aucune écriture n'est appliquée localement « en optimiste » : l'écran
+   * montre ce que le serveur a enregistré, jamais ce que la page espérait. Un
+   * taux qui n'est pas parti doit se voir tout de suite, pas au prochain devis.
+   */
+  let STATE = null;
+  let SECTION = 'taux';
+  let BUSY = false;
+
+  const SECTIONS = [
+    { id: 'taux',        label: 'Taux horaires' },
+    { id: 'machines',    label: 'Parc machines' },
+    { id: 'techniques',  label: 'Techniques d’usinage' },
+    { id: 'matieres',    label: 'Matières et prix' },
+    { id: 'moteur',      label: 'Moteur de coût' },
+    { id: 'consignes',   label: 'Consignes générales' },
+    { id: 'regles',      label: 'Règles à valider' },
+    { id: 'versions',    label: 'Historique des versions' },
+  ];
+
+  const SCOPES = [
+    ['tournage',   'Tournage'],
+    ['fraisage_3', 'Fraisage 3 axes'],
+    ['fraisage_5', 'Fraisage 5 axes'],
+    ['debit_tole', 'Débit tôle'],
+    ['reglage',    'Réglage / programmation'],
+    ['autre',      'Aucune — affiché seulement'],
+  ];
+
+  /** Les paramètres du moteur, groupés comme ils se lisent, pas comme ils sont stockés. */
+  const ENGINE_FIELDS = [
+    ['Temps et marge', [
+      ['hourlyRate', 'Taux horaire de repli', '€/h · quand la gamme n’a pas son taux'],
       ['setupMinutes', 'Mise en train', 'min par référence'],
+      ['programmingMinutes', 'Programmation CAO', 'min · pièce simple'],
+      ['programmingMinutesMax', 'Programmation, plafond', 'min · pièce très complexe'],
       ['minutesPerDm3', 'Usinage', 'min par dm³ enlevé'],
       ['removalRatio', 'Part de matière enlevée', '0 à 1'],
+      ['handlingMinutesPerPart', 'Reprise et contrôle', 'min par pièce'],
       ['learningCurve', 'Courbe d’apprentissage', '0.90 = −10 % au doublement'],
       ['marginPct', 'Marge', '%'],
-      ['handlingMinutesPerPart', 'Reprise et contrôle', 'min par pièce'],
+    ]],
+    ['Débit tôle et plats rectifiés', [
+      ['sheetMaxThicknessMm', 'Épaisseur maxi', 'mm · au-delà, on fraise'],
+      ['sheetMinFormatMm', 'Format mini', 'mm · en deçà, on fraise'],
+      ['sheetRemovalRatio', 'Matière enlevée', '0 à 1 · une seule face'],
+      ['groundAluminiumFactor', 'Alu rectifié', '× le prix de l’alu brut'],
+      ['groundInoxFactor', 'Inox rectifié', '× le prix de l’inox brut'],
+    ]],
+    ['Courses de repli', [
+      ['millingTravelXMm', 'Course X', 'mm · sert si le parc est vide'],
+      ['millingTravelYMm', 'Course Y', 'mm'],
+      ['millingTravelZMm', 'Course Z', 'mm'],
+    ]],
+  ];
+
+  const LEDE = {
+    taux: 'Un taux par opération, parce qu’un tour et un centre 5 axes ne se facturent pas au même prix. ' +
+          'Le moteur prend le taux de la gamme qu’il a retenue ; le réglage et la programmation, qui ne se ' +
+          'passent pas sur la machine qui coupe, prennent le leur. Sans taux pour une gamme, le taux de repli sert.',
+    machines: 'Le parc réel. Il ne change aucun prix : il décide de ce qui passe. Une pièce hors courses de la ' +
+              'plus grande fraiseuse, un diamètre au-delà du passage du tour, et l’article part en revue avec un ' +
+              'constat rouge — avant le devis, pas en préparation.',
+    techniques: 'Ce que l’atelier fait, ce qu’il achète, ce qu’il ne fait pas. Une demande qui réclame une ' +
+                'technique hors du champ porte un constat au lieu d’être chiffrée comme si elle passait.',
+    matieres: 'Prix au kilo et densité : les deux seules choses dont le moteur a besoin pour passer d’un ' +
+              'encombrement à un coût matière. « Matière non identifiée » est un repli assumé — quand une nuance ' +
+              'n’est pas reconnue, elle sert, et l’article porte une alerte.',
+    moteur: 'La structure du prix : matière, temps d’usinage, mise en train et programmation amorties sur la ' +
+            'série, puis marge. Les valeurs livrées sont des hypothèses de marché, pas des mesures faites chez ' +
+            'vous. Deux quantités du même article donnent deux prix cohérents entre eux par construction.',
+    consignes: 'Du texte libre, relu par le modèle au moment de l’extraction. Une consigne active entre dans le ' +
+               'prompt ; une consigne retirée n’y entre plus, et c’est tout ce qu’elle fait. Elle n’agit pas sur ' +
+               'le calcul, qui reste déterministe.',
+    regles: 'Commentaires de revue proposés comme règles permanentes. Rien n’entre dans le moteur sans ' +
+            'validation explicite : une règle proposée est visible et sans effet, une règle validée entre dans ' +
+            'la lecture des demandes suivantes.',
+    versions: 'Chaque changement écrit une version, avec l’instantané complet de ce qui s’applique depuis elle. ' +
+              'Revenir en arrière n’efface rien : on relit un instantané et on l’écrit comme version suivante. ' +
+              'Les devis déjà chiffrés gardent leur prix jusqu’à un recalcul explicite.',
+  };
+
+  // ── Petits outils ──────────────────────────────────────────────
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  function jour(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+
+  function nombre(value) {
+    if (value === null || value === undefined || value === '') return '—';
+    const n = Number(value);
+    return Number.isFinite(n) ? String(Math.round(n * 100) / 100) : '—';
+  }
+
+  function signataire() {
+    try { return localStorage.getItem('usipro.signataire') || ''; } catch (_) { return ''; }
+  }
+
+  function dire(message, tone) {
+    const note = document.getElementById('note');
+    note.className = 'note' + (tone ? ' ' + tone : '');
+    note.textContent = message || '';
+  }
+
+  /** Une écriture. Le serveur rend l'état complet ; on redessine dessus. */
+  async function envoyer(url, body, dit) {
+    if (BUSY) return false;
+    BUSY = true;
+    dire('Enregistrement…');
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, author: signataire() || undefined }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
+      STATE = data;
+      render();
+      dire(dit || 'Enregistré', 'done');
+      return true;
+    } catch (err) {
+      render();
+      dire('Non enregistré : ' + err.message, 'warn');
+      return false;
+    } finally {
+      BUSY = false;
+    }
+  }
+
+  /** Une saisie chiffrée qui part au serveur quand elle change, et pas avant. */
+  function champNombre(value, onChange, opts) {
+    const input = el('input', 'num' + (opts && opts.wide ? ' wide' : ''));
+    input.type = 'number';
+    input.step = (opts && opts.step) || '0.01';
+    input.min = (opts && opts.min) || '0';
+    input.value = value === null || value === undefined ? '' : value;
+    input.disabled = !STATE || !STATE.writable;
+    if (opts && opts.label) input.setAttribute('aria-label', opts.label);
+    input.onchange = () => onChange(input.value === '' ? null : Number(input.value));
+    return input;
+  }
+
+  function champTexte(value, placeholder, onChange) {
+    const input = el('input');
+    input.type = 'text';
+    input.value = value || '';
+    input.placeholder = placeholder || '';
+    input.disabled = !STATE || !STATE.writable;
+    input.onchange = () => onChange(input.value.trim());
+    return input;
+  }
+
+  function bouton(label, className, onClick) {
+    const b = el('button', className, label);
+    b.type = 'button';
+    b.disabled = !STATE || !STATE.writable;
+    b.onclick = onClick;
+    return b;
+  }
+
+  /** Un identifiant lisible tiré d'un libellé : « Centre 5 axes » → centre_5_axes. */
+  function cle(label) {
+    return label.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40)
+      || ('item_' + Date.now());
+  }
+
+  // ── Les sections ───────────────────────────────────────────────
+
+  function sectionTaux(body) {
+    const stack = el('div', 'group');
+    for (const rate of STATE.rates) {
+      const row = el('div', 'row');
+      const main = el('div', 'row-main');
+      main.appendChild(champTexte(rate.label, 'Nom de l’opération', v => {
+        if (v && v !== rate.label) envoyer('/api/parametrage/rates', { id: rate.id, label: v });
+      }));
+
+      const scope = el('select');
+      scope.disabled = !STATE.writable;
+      scope.setAttribute('aria-label', 'Gamme à laquelle ce taux s’applique');
+      for (const [value, label] of SCOPES) {
+        const opt = el('option', null, label);
+        opt.value = value;
+        if (rate.appliesTo === value) opt.selected = true;
+        scope.appendChild(opt);
+      }
+      scope.onchange = () => envoyer('/api/parametrage/rates', { id: rate.id, appliesTo: scope.value });
+      const sub = el('div', 'row-sub');
+      sub.appendChild(scope);
+      main.appendChild(sub);
+      row.appendChild(main);
+
+      const side = el('div', 'row-side');
+      side.appendChild(champNombre(rate.ratePerHour, v => {
+        if (v !== null && v > 0 && v !== rate.ratePerHour) {
+          envoyer('/api/parametrage/rates', { id: rate.id, ratePerHour: v }, `${rate.label} à ${v} €/h`);
+        } else {
+          render();
+        }
+      }, { label: rate.label + ' en euros par heure' }));
+      side.appendChild(el('span', 'unit', '€/h'));
+      side.appendChild(bouton('Retirer', 'link-btn danger', () => {
+        if (confirm(`Retirer le taux « ${rate.label} » ?`)) {
+          envoyer(`/api/parametrage/rates/${encodeURIComponent(rate.id)}/delete`, {}, 'Taux retiré');
+        }
+      }));
+      row.appendChild(side);
+      stack.appendChild(row);
+    }
+    body.appendChild(stack);
+
+    body.appendChild(ajout('Ajouter un taux', 'Nom de l’opération', label => {
+      envoyer('/api/parametrage/rates', {
+        id: cle(label), label, ratePerHour: 65, appliesTo: 'autre', position: STATE.rates.length,
+      }, 'Taux ajouté — pose son montant et sa gamme');
+    }));
+  }
+
+  function sectionMachines(body) {
+    const stack = el('div', 'group');
+    for (const machine of STATE.machines) {
+      const row = el('div', 'row');
+      const main = el('div', 'row-main');
+      main.appendChild(champTexte(machine.label, 'Nom de la machine', v => {
+        if (v && v !== machine.label) envoyer('/api/parametrage/machines', { id: machine.id, label: v });
+      }));
+
+      const sub = el('div', 'row-sub');
+      const kind = el('select');
+      kind.disabled = !STATE.writable;
+      kind.setAttribute('aria-label', 'Type de machine');
+      for (const [value, label] of [['fraisage', 'Fraisage'], ['tournage', 'Tournage'], ['autre', 'Autre']]) {
+        const opt = el('option', null, label);
+        opt.value = value;
+        if (machine.kind === value) opt.selected = true;
+        kind.appendChild(opt);
+      }
+      kind.onchange = () => envoyer('/api/parametrage/machines', { id: machine.id, kind: kind.value });
+      sub.appendChild(kind);
+
+      // Les capacités qui comptent dépendent de la machine : des courses pour
+      // une fraiseuse, un passage et une longueur pour un tour. Afficher les
+      // deux jeux ferait remplir des cases qui ne servent à rien.
+      const caps = machine.kind === 'tournage'
+        ? [['maxDiameterMm', 'Ø passage'], ['maxLengthMm', 'Longueur']]
+        : [['travelXMm', 'Course X'], ['travelYMm', 'Course Y'], ['travelZMm', 'Course Z']];
+      for (const [key, label] of caps) {
+        const wrap = el('span', 'unit', label + ' ');
+        wrap.appendChild(champNombre(machine[key], v => {
+          envoyer('/api/parametrage/machines', { id: machine.id, [key]: v });
+        }, { label: machine.label + ' — ' + label, step: '1' }));
+        wrap.appendChild(document.createTextNode(' mm'));
+        sub.appendChild(wrap);
+      }
+      main.appendChild(sub);
+      row.appendChild(main);
+
+      const side = el('div', 'row-side');
+      const count = el('span', 'unit', '×');
+      count.appendChild(champNombre(machine.count, v => {
+        if (Number.isInteger(v) && v >= 1) envoyer('/api/parametrage/machines', { id: machine.id, count: v });
+        else render();
+      }, { label: 'Nombre de ' + machine.label, step: '1', min: '1' }));
+      side.appendChild(count);
+      side.appendChild(bouton('Retirer', 'link-btn danger', () => {
+        if (confirm(`Retirer « ${machine.label} » du parc ?`)) {
+          envoyer(`/api/parametrage/machines/${encodeURIComponent(machine.id)}/delete`, {}, 'Machine retirée');
+        }
+      }));
+      row.appendChild(side);
+      stack.appendChild(row);
+    }
+    if (STATE.machines.length === 0) {
+      stack.appendChild(el('div', 'empty',
+        'Parc vide : le moteur retombe sur les courses de repli du moteur de coût, sans pouvoir nommer la machine ' +
+        'qui refuse une pièce.'));
+    }
+    body.appendChild(stack);
+
+    body.appendChild(ajout('Ajouter une machine', 'Nom de la machine', label => {
+      envoyer('/api/parametrage/machines', {
+        id: cle(label), label, kind: 'fraisage', count: 1, position: STATE.machines.length,
+      }, 'Machine ajoutée — renseigne ses courses');
+    }));
+  }
+
+  function sectionTechniques(body) {
+    const stack = el('div', 'group');
+    const etats = [
+      ['interne', 'Interne', 'teal'],
+      ['sous_traitee', 'Sous-traitée', 'amber'],
+      ['non', 'Non faite', 'dim'],
     ];
 
-    let SETTINGS = null;
-    let MATERIALS = [];
-    const inputs = {};
-    const matInputs = {};
+    for (const technique of STATE.techniques) {
+      const row = el('div', 'row');
+      const main = el('div', 'row-main');
+      main.appendChild(el('div', 'row-title', technique.label));
+      main.appendChild(champTexte(technique.note, 'Précision (facultative)', v => {
+        envoyer('/api/parametrage/techniques', { id: technique.id, note: v });
+      }));
+      row.appendChild(main);
 
-    function el(tag, className, text) {
-      const node = document.createElement(tag);
-      if (className) node.className = className;
-      if (text != null) node.textContent = text;
-      return node;
-    }
-
-    function field(label, unit, value, key, store) {
-      const box = el('div', 'field');
-      box.appendChild(el('label', null, label));
-      const input = el('input');
-      input.type = 'number';
-      input.step = '0.01';
-      input.min = '0';
-      input.value = value;
-      input.setAttribute('aria-label', label);
-      store[key] = input;
-      box.appendChild(input);
-      box.appendChild(el('span', 'unit', unit));
-      return box;
-    }
-
-    function render() {
-      const grid = document.getElementById('settingsGrid');
-      grid.innerHTML = '';
-      for (const [key, label, unit] of FIELDS) {
-        grid.appendChild(field(label, unit, SETTINGS[key], key, inputs));
+      const seg = el('div', 'seg');
+      for (const [value, label, tone] of etats) {
+        const b = el('button', null, label);
+        b.type = 'button';
+        b.dataset.tone = tone;
+        b.setAttribute('aria-pressed', String(technique.status === value));
+        b.disabled = !STATE.writable;
+        b.onclick = () => {
+          if (technique.status !== value) envoyer('/api/parametrage/techniques', { id: technique.id, status: value });
+        };
+        seg.appendChild(b);
       }
+      const side = el('div', 'row-side');
+      side.appendChild(seg);
+      row.appendChild(side);
+      stack.appendChild(row);
+    }
+    body.appendChild(stack);
 
-      const mats = document.getElementById('materialGrid');
-      mats.innerHTML = '';
-      for (const m of MATERIALS) {
-        mats.appendChild(field(m.label, '€/kg · densité ' + m.density, m.pricePerKg, m.id, matInputs));
+    body.appendChild(ajout('Ajouter une technique', 'Nom de la technique', label => {
+      envoyer('/api/parametrage/techniques', {
+        id: cle(label), label, status: 'interne', position: STATE.techniques.length,
+      }, 'Technique ajoutée');
+    }));
+  }
+
+  function sectionMatieres(body) {
+    const stack = el('div', 'group');
+    for (const material of STATE.materials) {
+      const row = el('div', 'row');
+      const main = el('div', 'row-main');
+      main.appendChild(el('div', 'row-title', material.label));
+      main.appendChild(el('div', 'row-sub',
+        material.aliases.length ? 'Reconnue sur : ' + material.aliases.join(', ') : 'Aucun alias de reconnaissance'));
+      row.appendChild(main);
+
+      const side = el('div', 'row-side');
+      side.appendChild(champNombre(material.pricePerKg, v => {
+        if (v !== null && v > 0 && v !== material.pricePerKg) {
+          envoyer('/api/parametrage/materials', { id: material.id, pricePerKg: v }, `${material.label} à ${v} €/kg`);
+        } else { render(); }
+      }, { label: material.label + ' en euros par kilo' }));
+      side.appendChild(el('span', 'unit', '€/kg'));
+      side.appendChild(champNombre(material.density, v => {
+        if (v !== null && v > 0 && v !== material.density) {
+          envoyer('/api/parametrage/materials', { id: material.id, density: v });
+        } else { render(); }
+      }, { label: material.label + ' — densité', step: '0.001' }));
+      side.appendChild(el('span', 'unit', 'densité'));
+      row.appendChild(side);
+      stack.appendChild(row);
+    }
+    if (STATE.materials.length === 0) {
+      stack.appendChild(el('div', 'empty',
+        'Aucune nuance tarifée : le moteur ne peut pas passer d’un encombrement à un coût matière tant que ' +
+        'cette liste est vide.'));
+    }
+    body.appendChild(stack);
+  }
+
+  function sectionMoteur(body) {
+    for (const [titre, fields] of ENGINE_FIELDS) {
+      const group = el('div', 'group');
+      group.appendChild(el('div', 'eyebrow', titre));
+      const grid = el('div', 'field-grid');
+      for (const [key, label, unit] of fields) {
+        const box = el('div', 'field');
+        box.appendChild(el('label', null, label));
+        const input = champNombre(STATE.settings[key], v => {
+          if (v === null || v < 0 || v === STATE.settings[key]) { render(); return; }
+          envoyer('/api/parametrage/settings', { [key]: v }, label + ' enregistré');
+        }, { label: label + ' — ' + unit, step: '0.01' });
+        input.classList.remove('num');
+        box.appendChild(input);
+        box.appendChild(el('span', 'unit', unit));
+        grid.appendChild(box);
       }
+      group.appendChild(grid);
+      body.appendChild(group);
+    }
+  }
+
+  function sectionConsignes(body) {
+    const actives = STATE.instructions.filter(i => i.status === 'active');
+    const retirees = STATE.instructions.filter(i => i.status !== 'active');
+
+    const group = el('div', 'group');
+    group.appendChild(el('div', 'eyebrow', 'Consignes actives'));
+    if (actives.length === 0) {
+      group.appendChild(el('div', 'empty', 'Aucune consigne : le modèle lit les demandes sans instruction particulière de l’atelier.'));
+    }
+    for (const instruction of actives) {
+      const row = el('div', 'row');
+      const main = el('div', 'row-main');
+      main.appendChild(el('div', 'row-text', instruction.text));
+      main.appendChild(el('div', 'row-sub',
+        'Posée le ' + jour(instruction.createdAt) + (instruction.author ? ' · ' + instruction.author : '')));
+      row.appendChild(main);
+      const side = el('div', 'row-side');
+      side.appendChild(bouton('Retirer', 'link-btn danger', () => {
+        envoyer(`/api/parametrage/instructions/${encodeURIComponent(instruction.id)}/retire`, {}, 'Consigne retirée');
+      }));
+      row.appendChild(side);
+      group.appendChild(row);
+    }
+    body.appendChild(group);
+
+    body.appendChild(saisieLongue('Écrire une consigne', 'Ce que l’atelier veut voir appliqué, en une phrase.', text => {
+      envoyer('/api/parametrage/instructions', { text }, 'Consigne ajoutée');
+    }));
+
+    if (retirees.length) {
+      const group2 = el('div', 'group');
+      group2.appendChild(el('div', 'eyebrow', 'Retirées'));
+      for (const instruction of retirees) {
+        const row = el('div', 'row');
+        const main = el('div', 'row-main');
+        main.appendChild(el('div', 'row-text', instruction.text));
+        main.appendChild(el('div', 'row-sub', 'N’entre plus dans les lectures — elle a servi, elle n’est pas effacée.'));
+        row.appendChild(main);
+        group2.appendChild(row);
+      }
+      body.appendChild(group2);
+    }
+  }
+
+  function sectionRegles(body) {
+    const attente = STATE.rules.filter(r => r.status === 'a_valider');
+    const actives = STATE.rules.filter(r => r.status === 'active');
+    const closes = STATE.rules.filter(r => r.status === 'rejetee' || r.status === 'retiree');
+    const derniere = actives.length ? actives[0].id : null;
+
+    if (attente.length) {
+      const group = el('div', 'group');
+      group.appendChild(el('div', 'eyebrow', 'À valider'));
+      for (const rule of attente) {
+        const row = el('div', 'row');
+        row.appendChild(el('div', 'row-key', rule.id));
+        const main = el('div', 'row-main');
+        main.appendChild(el('div', 'row-text', rule.text));
+        main.appendChild(el('div', 'row-sub',
+          (rule.origin === 'revue' ? 'Venue de la revue' : 'Écrite ici') +
+          (rule.author ? ' · ' + rule.author : '') + ' · ' + jour(rule.createdAt) +
+          (rule.workId ? ' · demande ' + rule.workId : '')));
+        row.appendChild(main);
+        const side = el('div', 'row-side');
+        side.appendChild(bouton('Valider', 'mini primary', () => {
+          envoyer(`/api/parametrage/rules/${encodeURIComponent(rule.id)}/decision`,
+            { decision: 'valider' }, rule.id + ' entre en vigueur');
+        }));
+        side.appendChild(bouton('Rejeter', 'link-btn danger', () => {
+          envoyer(`/api/parametrage/rules/${encodeURIComponent(rule.id)}/decision`,
+            { decision: 'rejeter' }, rule.id + ' rejetée');
+        }));
+        row.appendChild(side);
+        group.appendChild(row);
+      }
+      body.appendChild(group);
     }
 
-    document.getElementById('save').onclick = async () => {
-      const note = document.getElementById('note');
-      const button = document.getElementById('save');
-      button.disabled = true;
-      note.className = 'note';
-      note.textContent = 'Enregistrement…';
-
-      try {
-        const patch = {};
-        for (const [key] of FIELDS) patch[key] = Number(inputs[key].value);
-        const resp = await fetch('/api/pricing/settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(patch),
-        });
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
-        SETTINGS = data.settings;
-
-        for (const m of MATERIALS) {
-          const value = Number(matInputs[m.id].value);
-          if (value === m.pricePerKg) continue;
-          const r = await fetch('/api/pricing/materials', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: m.id, pricePerKg: value }),
-          });
-          const d = await r.json();
-          if (!r.ok) throw new Error(d.message || 'HTTP ' + r.status);
-          MATERIALS = d.materials;
+    const group = el('div', 'group');
+    group.appendChild(el('div', 'eyebrow', 'Règles actives'));
+    if (actives.length === 0) {
+      group.appendChild(el('div', 'empty',
+        'Aucune règle validée. Les demandes sont lues sans doctrine d’atelier — ce qui est un état légitime, ' +
+        'pas une panne.'));
+    }
+    for (const rule of actives) {
+      const row = el('div', 'row' + (rule.id === derniere ? ' new' : ''));
+      row.appendChild(el('div', 'row-key', rule.id));
+      const main = el('div', 'row-main');
+      main.appendChild(el('div', 'row-text', rule.text));
+      row.appendChild(main);
+      const side = el('div', 'row-side');
+      side.appendChild(el('span', 'badge' + (rule.id === derniere ? ' teal' : ''),
+        rule.id === derniere ? 'nouvelle' : (rule.sinceVersion ? 'v' + rule.sinceVersion : 'active')));
+      side.appendChild(bouton('Retirer', 'link-btn danger', () => {
+        if (confirm(`Retirer ${rule.id} des règles appliquées ?`)) {
+          envoyer(`/api/parametrage/rules/${encodeURIComponent(rule.id)}/decision`,
+            { decision: 'retirer' }, rule.id + ' retirée');
         }
+      }));
+      row.appendChild(side);
+      group.appendChild(row);
+    }
+    body.appendChild(group);
 
-        render();
-        note.className = 'note done';
-        note.textContent = 'Enregistré — les devis déjà chiffrés gardent leur prix jusqu’à un recalcul.';
-      } catch (err) {
-        note.className = 'note warn';
-        note.textContent = 'Non enregistré : ' + err.message;
-      } finally {
-        button.disabled = false;
+    body.appendChild(saisieLongue('Proposer une règle', 'La règle telle qu’elle s’applique, en une phrase.', text => {
+      envoyer('/api/parametrage/rules', { text, origin: 'manuel' }, 'Règle proposée — elle n’agit pas encore');
+    }));
+
+    if (closes.length) {
+      const group2 = el('div', 'group');
+      group2.appendChild(el('div', 'eyebrow', 'Écartées'));
+      for (const rule of closes) {
+        const row = el('div', 'row');
+        row.appendChild(el('div', 'row-key', rule.id));
+        const main = el('div', 'row-main');
+        main.appendChild(el('div', 'row-text', rule.text));
+        main.appendChild(el('div', 'row-sub',
+          (rule.status === 'rejetee' ? 'Rejetée' : 'Retirée') +
+          (rule.decidedBy ? ' par ' + rule.decidedBy : '') +
+          (rule.decidedAt ? ' le ' + jour(rule.decidedAt) : '')));
+        row.appendChild(main);
+        group2.appendChild(row);
       }
+      body.appendChild(group2);
+    }
+  }
+
+  function sectionVersions(body) {
+    const group = el('div', 'group');
+    if (STATE.versions.length === 0) {
+      group.appendChild(el('div', 'empty',
+        'Aucune version : le paramétrage n’a pas encore été modifié depuis cet écran. Les valeurs affichées sont ' +
+        'celles livrées.'));
+    }
+    for (const [index, version] of STATE.versions.entries()) {
+      const row = el('div', 'row' + (index === 0 ? ' new' : ''));
+      row.appendChild(el('div', 'row-key', 'v' + version.version));
+      const main = el('div', 'row-main');
+      main.appendChild(el('div', 'row-text', version.summary));
+      main.appendChild(el('div', 'row-sub',
+        (version.author ? version.author + ' · ' : '') + jour(version.createdAt) +
+        (version.kind === 'retour' ? ' · retour à la v' + version.restoredFrom : '') +
+        (index === 0 ? ' · en vigueur' : '')));
+      row.appendChild(main);
+      const side = el('div', 'row-side');
+      if (index === 0) {
+        side.appendChild(el('span', 'badge teal', 'en vigueur'));
+      } else {
+        side.appendChild(bouton('Revenir à cette version', 'link-btn go', () => {
+          if (confirm(`Revenir au paramétrage de la v${version.version} ? Une version de plus sera écrite : rien n’est effacé.`)) {
+            envoyer(`/api/parametrage/versions/${version.version}/restore`, {},
+              'Paramétrage revenu à la v' + version.version);
+          }
+        }));
+      }
+      row.appendChild(side);
+      group.appendChild(row);
+    }
+    body.appendChild(group);
+  }
+
+  /** La ligne « ajouter » d'une liste : un champ, un bouton, rien de plus. */
+  function ajout(label, placeholder, onAdd) {
+    const row = el('div', 'row');
+    const main = el('div', 'row-main');
+    const input = el('input');
+    input.type = 'text';
+    input.placeholder = placeholder;
+    input.disabled = !STATE.writable;
+    main.appendChild(input);
+    row.appendChild(main);
+
+    const go = bouton(label, 'mini', () => {
+      const value = input.value.trim();
+      if (!value) { input.focus(); return; }
+      onAdd(value);
+    });
+    input.onkeydown = e => { if (e.key === 'Enter') go.click(); };
+    const side = el('div', 'row-side');
+    side.appendChild(go);
+    row.appendChild(side);
+    return row;
+  }
+
+  /** Une saisie de phrase : consigne ou règle. */
+  function saisieLongue(label, placeholder, onAdd) {
+    const group = el('div', 'group');
+    const area = el('textarea');
+    area.placeholder = placeholder;
+    area.maxLength = 600;
+    area.disabled = !STATE.writable;
+    group.appendChild(area);
+    const line = el('div', 'row-side');
+    line.appendChild(bouton(label, 'mini', () => {
+      const text = area.value.trim();
+      if (!text) { area.focus(); return; }
+      onAdd(text);
+    }));
+    group.appendChild(line);
+    return group;
+  }
+
+  const RENDERERS = {
+    taux: sectionTaux,
+    machines: sectionMachines,
+    techniques: sectionTechniques,
+    matieres: sectionMatieres,
+    moteur: sectionMoteur,
+    consignes: sectionConsignes,
+    regles: sectionRegles,
+    versions: sectionVersions,
+  };
+
+  // ── Le rail : ce qui s'applique en ce moment ───────────────────
+
+  function renderRail() {
+    const rail = document.getElementById('rail');
+    rail.innerHTML = '';
+    if (!STATE) return;
+
+    const taux = el('div', 'rail-block');
+    taux.appendChild(el('div', 'eyebrow', 'Taux horaires'));
+    for (const rate of STATE.rates) {
+      const line = el('div', 'rail-line');
+      line.appendChild(el('span', 'l', rate.label));
+      line.appendChild(el('span', 'v', nombre(rate.ratePerHour)));
+      line.appendChild(el('span', 'u', '€/h'));
+      taux.appendChild(line);
+    }
+    if (STATE.rates.length === 0) taux.appendChild(el('div', 'row-sub', 'Aucun taux — le taux de repli sert partout.'));
+    rail.appendChild(taux);
+
+    const parc = el('div', 'rail-block');
+    parc.appendChild(el('div', 'eyebrow', 'Parc machines'));
+    for (const machine of STATE.machines) {
+      const line = el('div', 'rail-line');
+      // La capacité, dite comme l'atelier la dit : une course pour une
+      // fraiseuse, un passage pour un tour.
+      const courses = [machine.travelXMm, machine.travelYMm, machine.travelZMm].filter(v => v);
+      const capacite = machine.kind === 'tournage'
+        ? (machine.maxDiameterMm ? ' · Ø' + nombre(machine.maxDiameterMm) : '')
+        : (courses.length ? ' · course ' + nombre(Math.max.apply(null, courses)) + ' mm' : '');
+      line.appendChild(el('span', 'l', machine.label + capacite));
+      line.appendChild(el('span', 'v', '×' + machine.count));
+      parc.appendChild(line);
+    }
+    if (STATE.machines.length === 0) parc.appendChild(el('div', 'row-sub', 'Parc non renseigné.'));
+    rail.appendChild(parc);
+
+    const versions = el('div', 'rail-block');
+    versions.appendChild(el('div', 'eyebrow', 'Versions du paramétrage'));
+    for (const [index, version] of STATE.versions.slice(0, 4).entries()) {
+      const row = el('div', 'version' + (index === 0 ? ' current' : ''));
+      row.appendChild(el('span', 'n', 'v' + version.version));
+      row.appendChild(el('span', 's', version.summary));
+      row.appendChild(el('span', 'd', jour(version.createdAt)));
+      versions.appendChild(row);
+    }
+    if (STATE.versions.length === 0) {
+      versions.appendChild(el('div', 'row-sub', 'Aucun changement enregistré : les valeurs livrées s’appliquent.'));
+    } else {
+      const go = el('button', 'link-btn go', 'Revenir à une version antérieure →');
+      go.type = 'button';
+      go.onclick = () => { SECTION = 'versions'; render(); };
+      versions.appendChild(go);
+    }
+    rail.appendChild(versions);
+
+    // Qui signe. Sans nom, l'historique reste un historique — il dit seulement
+    // « personne n'a signé », ce qui est encore une information vraie.
+    const signer = el('div', 'rail-block signer');
+    signer.appendChild(el('div', 'eyebrow', 'Changements signés par'));
+    const input = el('input');
+    input.type = 'text';
+    input.placeholder = 'Votre nom';
+    input.value = signataire();
+    input.setAttribute('aria-label', 'Nom porté par les changements');
+    input.oninput = () => {
+      try { localStorage.setItem('usipro.signataire', input.value.trim()); } catch (_) { /* rien à faire */ }
     };
+    signer.appendChild(input);
+    rail.appendChild(signer);
+  }
 
-    (async function load() {
-      const note = document.getElementById('note');
-      try {
-        const resp = await fetch('/api/pricing/settings');
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
-        SETTINGS = data.settings;
-        MATERIALS = data.materials || [];
-        render();
-      } catch (err) {
-        note.className = 'note warn';
-        note.textContent = 'Paramètres injoignables : ' + err.message;
+  // ── Le rendu ───────────────────────────────────────────────────
+
+  function render() {
+    const nav = document.getElementById('sections');
+    nav.innerHTML = '';
+    for (const section of SECTIONS) {
+      const b = el('button', 'section-link', section.label);
+      b.type = 'button';
+      b.setAttribute('aria-current', String(section.id === SECTION));
+      b.onclick = () => { SECTION = section.id; render(); };
+      if (section.id === 'regles' && STATE) {
+        const due = STATE.rules.filter(r => r.status === 'a_valider').length;
+        b.appendChild(el('span', 'section-count' + (due ? ' due' : ''), String(due)));
       }
-    })();
+      nav.appendChild(b);
+    }
+
+    const current = SECTIONS.find(s => s.id === SECTION);
+    document.getElementById('title').textContent = current ? current.label : 'Paramétrage';
+    document.getElementById('lede').textContent = LEDE[SECTION] || '';
+
+    const body = document.getElementById('body');
+    body.innerHTML = '';
+    if (!STATE) return;
+
+    // Deux lectures seules, et elles ne se soignent pas pareil : une base sans
+    // les tables attend une migration, une machine sans clés attend une
+    // configuration. Les confondre enverrait chercher au mauvais endroit.
+    if (STATE.pending && STATE.pending.length) {
+      body.appendChild(el('div', 'notice',
+        'Lecture seule : la base n’a pas encore ' +
+        (STATE.pending.length > 1 ? 'les tables ' : 'la table ') + STATE.pending.join(', ') + '. ' +
+        'Applique db/004_parametrage.sql, puis recharge cette page. En attendant, ce qui s’affiche est ce que ' +
+        'le moteur utilise par défaut — les prix, eux, continuent d’être calculés avec.'));
+    } else if (!STATE.writable) {
+      body.appendChild(el('div', 'notice',
+        'Lecture seule : le stockage n’est pas configuré. Les valeurs affichées sont celles livrées avec le ' +
+        'moteur, et rien de ce qui serait saisi ici ne survivrait au prochain démarrage.'));
+    }
+
+    RENDERERS[SECTION](body);
+    renderRail();
+  }
+
+  Dossier.carry();
+
+  (async function load() {
+    try {
+      const resp = await fetch('/api/parametrage');
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.message || 'HTTP ' + resp.status);
+      STATE = data;
+      render();
+      dire('');
+    } catch (err) {
+      document.getElementById('lede').textContent = '';
+      document.getElementById('body').appendChild(el('div', 'notice',
+        'Paramétrage injoignable : ' + err.message + '. Rien n’est affiché plutôt qu’un réglage qui ne serait pas celui du serveur.'));
+      dire('');
+    }
+  })();
   </script>
 </body>
 </html>

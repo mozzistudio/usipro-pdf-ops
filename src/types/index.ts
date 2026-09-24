@@ -115,6 +115,10 @@ export interface ChiffrageLine {
     rawMassKg?: number;
     /** Temps d'usinage par pièce, en minutes. Absent des lignes chiffrées avant septembre 2026. */
     unitMinutes?: number;
+    /** La gamme retenue — tournage, fraisage ou débit tôle. */
+    route?: 'fraisage' | 'tournage' | 'debit_tole';
+    /** Ce qui ne passe pas en l'état : hors courses machine, multi-axes demandé. */
+    findings?: string[];
   } | null;
   /** Identifiant de la ligne — nécessaire pour la trancher une par une. */
   id?: string;

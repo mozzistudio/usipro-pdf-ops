@@ -195,6 +195,8 @@
     <a class="to-revue" id="toRevue" href="/chiffrage.html">Passer en revue →</a>
   </header>
 
+  <script src="/dossier.js"></script>
+
   <main class="analyse">
     <section class="files">
       <div class="eyebrow">Pièces jointes reçues</div>
@@ -466,12 +468,12 @@
       renderFiles();
       renderLog();
       renderLines();
-      const link = document.getElementById('toRevue');
-      link.href = CURRENT ? '/chiffrage.html#' + encodeURIComponent(CURRENT.id) : '/chiffrage.html';
+      Dossier.carry();
     }
 
     async function selectWork(id) {
       CURRENT = WORKS.find(w => w.id === id) || null;
+      if (CURRENT) Dossier.remember(CURRENT.id);
       LINES = []; FILES = []; EVENTS = [];
       renderAll();
       if (!CURRENT) return;
@@ -501,9 +503,8 @@
           return;
         }
 
-        // Un devis passé en ancre (#id) ouvre directement le bon dossier.
-        const wanted = decodeURIComponent(location.hash.replace('#', '')).split('/')[0];
-        const start = WORKS.find(w => w.id === wanted) || WORKS[0];
+        // Le devis de l'adresse, ou celui qu'on regardait dans l'autre onglet.
+        const start = WORKS.find(w => w.id === Dossier.open().id) || WORKS[0];
         await selectWork(start.id);
       } catch (err) {
         box.innerHTML = '';

@@ -12,6 +12,7 @@ import { registerStepCompareEndpoints } from './stepCompare';
 import { registerEmailTriggerEndpoint } from './emailTrigger';
 import { registerFeedbackEndpoints } from './feedback';
 import { registerWorksEndpoints } from './works';
+import { registerParametrageEndpoints } from './parametrage';
 
 export const apiRouter = Router();
 
@@ -29,6 +30,9 @@ registerFeedbackEndpoints(apiRouter);
 
 // Register the index of work done — what the home page lists
 registerWorksEndpoints(apiRouter);
+
+// Register le paramétrage de l'atelier — ce sur quoi repose chaque prix
+registerParametrageEndpoints(apiRouter);
 
 /**
  * POST /api/anonymize-zone

@@ -8,6 +8,7 @@ import {
   findSharingLinks,
 } from './attachments';
 import { logger } from '../utils/logger';
+import { shopGuidance } from './parametrageStore';
 
 /** An inbound email as forwarded by the Apps Script bridge. */
 export interface InboundEmail {
@@ -147,6 +148,27 @@ Pas de markdown, pas d'explication hors JSON.`;
  * reviendrait à perdre une consultation parce qu'elle a été écrite en deux
  * lignes et un fichier Excel.
  */
+/**
+ * Le prompt, augmenté des règles que l'atelier a validées.
+ *
+ * C'est le seul effet d'une règle : elle entre ici, ou elle n'agit pas. Une
+ * règle proposée et non validée n'y entre jamais — c'est toute la différence
+ * entre ce qu'un technicien a constaté une fois et ce que l'atelier applique
+ * à tous ses devis.
+ *
+ * Le paramétrage injoignable ne doit pas faire perdre une consultation : on
+ * extrait alors sans les règles, et on le dit dans les logs.
+ */
+async function withShopRules(prompt: string): Promise<string> {
+  try {
+    const guidance = await shopGuidance();
+    return guidance ? `${prompt}\n\n${guidance}` : prompt;
+  } catch (err: any) {
+    logger.warn({ err: err.message }, 'Règles de l\'atelier illisibles — extraction sans elles');
+    return prompt;
+  }
+}
+
 /** Au-delà, une demande à vingt photos ferait exploser le coût d'une extraction. */
 const MAX_IMAGES = 8;
 
@@ -169,7 +191,7 @@ export async function parseChiffrageEmail(
     // laissaient le JSON coupé en plein milieu d'une ligne.
     max_tokens: 16384,
     thinking: THINKING,
-    system: CHIFFRAGE_PROMPT,
+    system: await withShopRules(CHIFFRAGE_PROMPT),
     messages: [
       {
         role: 'user',

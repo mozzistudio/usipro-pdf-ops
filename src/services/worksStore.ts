@@ -5,6 +5,9 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 import { supabase, supabaseStorage, STORAGE_BUCKET } from './supabaseClient';
 import { ChiffrageLine, ChiffrageRequest } from '../types';
+// Le paramétrage de l'atelier. L'import croisé est assumé : les deux modules
+// ne s'appellent qu'à l'exécution, jamais au chargement.
+import { shopProfile } from './parametrageStore';
 import {
   DEFAULT_SETTINGS,
   MaterialRate,
@@ -469,15 +472,33 @@ export async function getPricingSettings(): Promise<PricingSettings> {
   if (error) throw new Error(`Lecture des paramètres de prix impossible: ${error.message}`);
   if (!data) return DEFAULT_SETTINGS;
 
+  // Une colonne absente — base pas encore migrée — retombe sur la valeur
+  // livrée. Sans ce repli, un `Number(undefined)` propageait un NaN jusqu'au
+  // prix affiché : mieux vaut une hypothèse nommée qu'un « NaN € » à l'écran.
+  const num = (value: unknown, fallback: number): number => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  };
+
   return {
     currency: data.currency ?? 'EUR',
-    hourlyRate: Number(data.hourly_rate),
-    setupMinutes: Number(data.setup_minutes),
-    minutesPerDm3: Number(data.minutes_per_dm3),
-    removalRatio: Number(data.removal_ratio),
-    learningCurve: Number(data.learning_curve),
-    marginPct: Number(data.margin_pct),
-    handlingMinutesPerPart: Number(data.handling_minutes_per_part),
+    hourlyRate: num(data.hourly_rate, DEFAULT_SETTINGS.hourlyRate),
+    setupMinutes: num(data.setup_minutes, DEFAULT_SETTINGS.setupMinutes),
+    programmingMinutes: num(data.programming_minutes, DEFAULT_SETTINGS.programmingMinutes),
+    programmingMinutesMax: num(data.programming_minutes_max, DEFAULT_SETTINGS.programmingMinutesMax),
+    minutesPerDm3: num(data.minutes_per_dm3, DEFAULT_SETTINGS.minutesPerDm3),
+    removalRatio: num(data.removal_ratio, DEFAULT_SETTINGS.removalRatio),
+    learningCurve: num(data.learning_curve, DEFAULT_SETTINGS.learningCurve),
+    marginPct: num(data.margin_pct, DEFAULT_SETTINGS.marginPct),
+    handlingMinutesPerPart: num(data.handling_minutes_per_part, DEFAULT_SETTINGS.handlingMinutesPerPart),
+    millingTravelXMm: num(data.milling_travel_x_mm, DEFAULT_SETTINGS.millingTravelXMm),
+    millingTravelYMm: num(data.milling_travel_y_mm, DEFAULT_SETTINGS.millingTravelYMm),
+    millingTravelZMm: num(data.milling_travel_z_mm, DEFAULT_SETTINGS.millingTravelZMm),
+    sheetMaxThicknessMm: num(data.sheet_max_thickness_mm, DEFAULT_SETTINGS.sheetMaxThicknessMm),
+    sheetMinFormatMm: num(data.sheet_min_format_mm, DEFAULT_SETTINGS.sheetMinFormatMm),
+    sheetRemovalRatio: num(data.sheet_removal_ratio, DEFAULT_SETTINGS.sheetRemovalRatio),
+    groundAluminiumFactor: num(data.ground_aluminium_factor, DEFAULT_SETTINGS.groundAluminiumFactor),
+    groundInoxFactor: num(data.ground_inox_factor, DEFAULT_SETTINGS.groundInoxFactor),
   };
 }
 
@@ -490,11 +511,21 @@ export async function setPricingSettings(patch: Partial<PricingSettings>): Promi
     ['currency', 'currency'],
     ['hourlyRate', 'hourly_rate'],
     ['setupMinutes', 'setup_minutes'],
+    ['programmingMinutes', 'programming_minutes'],
+    ['programmingMinutesMax', 'programming_minutes_max'],
     ['minutesPerDm3', 'minutes_per_dm3'],
     ['removalRatio', 'removal_ratio'],
     ['learningCurve', 'learning_curve'],
     ['marginPct', 'margin_pct'],
     ['handlingMinutesPerPart', 'handling_minutes_per_part'],
+    ['millingTravelXMm', 'milling_travel_x_mm'],
+    ['millingTravelYMm', 'milling_travel_y_mm'],
+    ['millingTravelZMm', 'milling_travel_z_mm'],
+    ['sheetMaxThicknessMm', 'sheet_max_thickness_mm'],
+    ['sheetMinFormatMm', 'sheet_min_format_mm'],
+    ['sheetRemovalRatio', 'sheet_removal_ratio'],
+    ['groundAluminiumFactor', 'ground_aluminium_factor'],
+    ['groundInoxFactor', 'ground_inox_factor'],
   ];
   for (const [key, column] of map) {
     if (patch[key] !== undefined) row[column] = patch[key];
@@ -536,14 +567,22 @@ export async function setMaterialRate(
   if (patch.label !== undefined) row.label = patch.label;
   if (patch.aliases !== undefined) row.aliases = patch.aliases.join(',');
 
+  const { data: existing } = await db
+    .from('material_rates').select('id').eq('id', id).maybeSingle();
+
   // Une nuance ajoutée à la volée doit porter un libellé: sans lui, l'opérateur
   // verrait une ligne anonyme dans son tarif.
-  if (patch.label === undefined) {
-    const existing = await db.from('material_rates').select('id').eq('id', id).maybeSingle();
-    if (!existing.data) throw new Error(`Nuance inconnue: ${id} — donner un libellé pour la créer`);
+  if (!existing && patch.label === undefined) {
+    throw new Error(`Nuance inconnue: ${id} — donner un libellé pour la créer`);
   }
 
-  const { error } = await db.from('material_rates').upsert(row, { onConflict: 'id' });
+  // Modifier, ou créer — mais pas « insérer avec repli ». Un upsert PostgREST
+  // tente d'abord l'insertion complète, et un patch qui ne portait que le prix
+  // se faisait refuser sur le libellé absent : changer un tarif depuis l'écran
+  // de paramétrage échouait, alors que la ligne existait déjà.
+  const { error } = existing
+    ? await db.from('material_rates').update(row).eq('id', id)
+    : await db.from('material_rates').insert(row);
   if (error) throw new Error(`Tarif matière non enregistré: ${error.message}`);
 
   logger.info({ id, patch }, 'Tarif matière modifié');
@@ -561,7 +600,14 @@ export async function priceRequest(id: string): Promise<ChiffrageLine[]> {
   const db = supabase();
   if (!db) return [];
 
-  const [settings, rates] = await Promise.all([getPricingSettings(), listMaterialRates()]);
+  // Le parc et les taux de l'atelier entrent dans le calcul : un tour et un
+  // centre ne se facturent pas au même taux, et « la pièce ne passe pas » se
+  // dit en nommant la machine qui ne la prend pas.
+  const [settings, rates, shop] = await Promise.all([
+    getPricingSettings(),
+    listMaterialRates(),
+    shopProfile(),
+  ]);
 
   // Un prix imposé par client existe parfois: accord cadre, tarif négocié. Il
   // gagne sur le calcul, mais jamais en silence — le prix calculé reste au
@@ -595,7 +641,7 @@ export async function priceRequest(id: string): Promise<ChiffrageLine[]> {
       comment: row.comment ?? '',
     };
 
-    const price = computeLinePrice(line, settings, rates);
+    const price = computeLinePrice(line, settings, rates, shop);
     let unitPrice = price.unitPrice;
     let totalPrice = price.totalPrice;
     const items = [...price.items];
@@ -621,14 +667,22 @@ export async function priceRequest(id: string): Promise<ChiffrageLine[]> {
       quantity: price.quantity,
       rawMassKg: price.rawMassKg,
       unitMinutes: price.unitMinutes,
+      route: price.route,
+      findings: price.findings.map(f => f.message),
     };
 
     // Le niveau d'alerte suit ce qui manque, pas l'humeur du moteur.
-    // Rouge: la matière ET l'encombrement manquent — le prix ne repose sur rien.
-    // Jaune: une hypothèse a été nécessaire. Vert: la demande se suffit.
-    const alerts = assumptions.slice();
+    // Rouge: un constat bloquant — la pièce ne passe pas dans l'atelier — ou
+    // la matière ET l'encombrement manquent, le prix ne reposant alors sur
+    // rien. Jaune: une hypothèse a été nécessaire. Vert: la demande se suffit.
+    //
+    // Les constats passent devant les hypothèses: « hors courses de la
+    // fraiseuse » est la première chose à lire, pas la quatrième.
+    const alerts = [...price.findings.map(f => f.message), ...assumptions];
     const severes = assumptions.filter(a => a.includes('encombrement') || a.includes('matière'));
-    const alertLevel = severes.length >= 2 ? 'rouge' : assumptions.length > 0 ? 'jaune' : 'vert';
+    const alertLevel = price.findings.some(f => f.level === 'rouge') || severes.length >= 2
+      ? 'rouge'
+      : alerts.length > 0 ? 'jaune' : 'vert';
 
     const { error: upErr } = await db
       .from('request_lines')
@@ -872,7 +926,16 @@ export async function addWorkFile(input: {
   }
 
   const id = crypto.randomUUID();
-  const storagePath = `${input.tool}/${input.ref}/${input.kind}/${id}-${input.fileName}`;
+  // Le nom du fichier ne fait pas la clé de stockage.
+  //
+  // Supabase refuse toute clé hors du jeu de caractères S3 : « Plan Qté145.pdf »
+  // est rejeté sur son seul accent, alors que « IMG-2022 (2).jpg » passe. Le
+  // refus était avalé plus bas et la pièce jointe disparaissait sans un mot —
+  // un plan client perdu entre le mail et l'écran. Le vrai nom reste en base,
+  // c'est lui qu'on affiche ; la clé, elle, est mise au propre comme celle du
+  // sas d'entrée.
+  const storagePath =
+    `${input.tool}/${safeKey(input.ref)}/${input.kind}/${id}-${safeKey(input.fileName)}`;
 
   try {
     const { error: upErr } = await storage.storage
